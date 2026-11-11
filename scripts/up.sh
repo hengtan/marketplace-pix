@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Sobe a infraestrutura e todos os serviços (build incluso) e espera ficarem saudáveis.
+# Uso: scripts/up.sh [--obs]   (--obs liga também Prometheus, Grafana e Jaeger)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -11,7 +12,12 @@ if [ ! -f .env ]; then
   echo ".env criado com segredos novos"
 fi
 
-COMPOSE=(docker compose -f infra/docker-compose.yml --env-file .env --profile services)
+FILES=(-f infra/docker-compose.yml)
+if [ "${1:-}" = "--obs" ]; then
+  FILES+=(-f infra/docker-compose.observability.yml)
+  echo "observabilidade ligada (Prometheus, Grafana, Jaeger)"
+fi
+COMPOSE=(docker compose "${FILES[@]}" --env-file .env --profile services)
 "${COMPOSE[@]}" up -d --build
 
 echo "aguardando o gateway reportar todos os serviços saudáveis..."
@@ -28,4 +34,5 @@ API (gateway)       http://localhost:8000/docs
 Kafka UI            http://localhost:8081
 E-mails (Mailpit)   http://localhost:8025
 Teste completo      scripts/e2e.sh
+Grafana / Jaeger    http://localhost:3000 (admin/admin) e http://localhost:16686  (com --obs)
 URLS

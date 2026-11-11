@@ -62,8 +62,8 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 
 ## Resiliência (FEITA)
 - [x] Retentativas limitadas e DLQ (`<tópico>.dlq`) em todos os consumidores
-- [ ] Ferramenta para reprocessar mensagens da DLQ
-- [ ] Extrair o consumidor, o outbox e o relay (hoje 4 cópias iguais) para `backend/libs`
+- [x] Ferramenta para reprocessar mensagens da DLQ (`marketplace_common.dlq`, dry-run por padrão, anti-laço)
+- [x] Consumidor, outbox e relay extraídos para `backend/libs/marketplace_common`
 
 ## Fase 7: IA
 - [ ] RAG sobre o catálogo (pgvector)
@@ -74,3 +74,15 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [ ] OpenTelemetry, Prometheus, Grafana
 - [ ] GitHub Actions (build, teste, deploy)
 - [ ] k3d + Helm (local) e Terraform + Azure Container Apps (nuvem, com alerta de orçamento)
+
+## Fase 7: IA (FEITA, com modelos simulados)
+- [x] Serviço `assistant`: ingestão com chunking e pgvector (HNSW), busca híbrida com RRF, reranker, filtros, agente com ferramentas, memória e guardrails
+- [x] Avaliação com métricas (hit@k, MRR, aderência ao contexto) que falha o build abaixo dos limiares
+- [ ] Interface de chat no frontend
+- [ ] Trocar embeddings e LLM por Ollama (adaptadores prontos, falta rodar e reavaliar)
+
+## Fase 8: Plataforma
+- [x] OpenTelemetry com traces atravessando o Kafka, métricas Prometheus (RED) e dashboard no Grafana
+- [x] CI no GitHub Actions
+- [ ] Incluir o `assistant` na observabilidade e no CI
+- [ ] Azure (Terraform) e Kubernetes (Helm/k3d): adiados

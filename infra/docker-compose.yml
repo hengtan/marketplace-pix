@@ -2,7 +2,8 @@ name: marketplace-pix
 
 x-ordering: &ordering
   build:
-    context: ../backend/services/ordering
+    context: ..
+    dockerfile: backend/services/ordering/Dockerfile
   image: marketplace-pix/ordering:dev
   profiles: ["services"]
   environment:
@@ -15,7 +16,8 @@ x-ordering: &ordering
 
 x-payments: &payments
   build:
-    context: ../backend/services/payments
+    context: ..
+    dockerfile: backend/services/payments/Dockerfile
   image: marketplace-pix/payments:dev
   profiles: ["services"]
   environment:
@@ -30,7 +32,8 @@ x-payments: &payments
 
 x-catalog: &catalog
   build:
-    context: ../backend/services/catalog
+    context: ..
+    dockerfile: backend/services/catalog/Dockerfile
   image: marketplace-pix/catalog:dev
   profiles: ["services"]
   environment:
@@ -42,7 +45,8 @@ x-catalog: &catalog
 
 x-ledger: &ledger
   build:
-    context: ../backend/services/ledger
+    context: ..
+    dockerfile: backend/services/ledger/Dockerfile
   image: marketplace-pix/ledger:dev
   profiles: ["services"]
   environment:
@@ -55,7 +59,8 @@ x-ledger: &ledger
 
 x-inventory: &inventory
   build:
-    context: ../backend/services/inventory
+    context: ..
+    dockerfile: backend/services/inventory/Dockerfile
   image: marketplace-pix/inventory:dev
   profiles: ["services"]
   environment:
@@ -68,7 +73,8 @@ x-inventory: &inventory
 
 x-notifications: &notifications
   build:
-    context: ../backend/services/notifications
+    context: ..
+    dockerfile: backend/services/notifications/Dockerfile
   image: marketplace-pix/notifications:dev
   profiles: ["services"]
   environment:
@@ -480,7 +486,8 @@ services:
 
   gateway:
     build:
-      context: ../backend/gateway
+      context: ..
+      dockerfile: backend/gateway/Dockerfile
     image: marketplace-pix/gateway:dev
     profiles: ["services"]
     environment:

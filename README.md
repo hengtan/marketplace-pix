@@ -92,6 +92,18 @@ scripts/e2e.sh     # teste de ponta a ponta pelo gateway (23 verificações), re
 scripts/reset.sh   # apaga containers e volumes para recomeçar do zero
 ```
 
+### Observabilidade (opcional)
+
+`scripts/up.sh --obs` liga Prometheus, Grafana e Jaeger. O Jaeger mostra **um único trace por pedido**, atravessando
+gateway, ordering, catalog, o relay, o Kafka e os workers de payments, inventory, ledger e notifications.
+O contexto do trace viaja gravado na linha do outbox e nos headers das mensagens.
+
+![Trace de um pedido no Jaeger](docs/img/observabilidade-trace-jaeger.png)
+![Dashboard no Grafana](docs/img/observabilidade-grafana.png)
+
+Reprocessar mensagens da DLQ: `uv run python -m marketplace_common.dlq list --topic orders.events.dlq`
+(veja `backend/libs/marketplace_common/README.md`).
+
 ### Subindo os serviços
 
 ```bash
@@ -103,6 +115,7 @@ docker compose -f infra/docker-compose.yml --env-file .env --profile services up
 | ordering-api | FastAPI: `POST /orders` (exige `Idempotency-Key`), `GET /orders/{id}`, `/health`, `/ready` | http://localhost:8001/docs |
 | ordering-relay | publica o outbox no Kafka | (sem porta) |
 | ordering-worker | consome `payments.events` (com inbox): marca pago ou cancela o pedido | (sem porta) |
+| assistant-api | assistente de compras (RAG + agente, modelos simulados) | http://localhost:8007/docs |
 | frontend | loja "Praça" (React), com proxy `/api` para o gateway | http://localhost:5173 |
 | gateway | ponto de entrada único da API (`/api/...`), CORS, limite de requisições | http://localhost:8000/docs |
 | catalog-api | produtos, busca, categorias | http://localhost:8003/docs |
