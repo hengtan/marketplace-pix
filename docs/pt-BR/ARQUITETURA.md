@@ -1,3 +1,5 @@
+[English](../ARCHITECTURE.md) | **Português (Brasil)**
+
 # Arquitetura
 
 ## Visão geral
@@ -66,7 +68,7 @@ continua consultando por id.
 Antes de rotear, o gateway limita o corpo (`413`), resolve o IP real do cliente (`X-Forwarded-For` só de proxy
 em `TRUSTED_PROXIES`), aplica o rate limit, valida o JWT e consulta a lista de `jti` revogados no Redis; toda
 resposta sai com os cabeçalhos de segurança. Pagamento de pedido que existe mas ainda não tem cobrança responde
-`202` com `Retry-After`. Detalhes em `docs/SEGURANCA.md` e `docs/RESILIENCIA.md`.
+`202` com `Retry-After`. Detalhes em `docs/pt-BR/SEGURANCA.md` e `docs/pt-BR/RESILIENCIA.md`.
 
 ## Padrões
 
@@ -78,7 +80,7 @@ resposta sai com os cabeçalhos de segurança. Pagamento de pedido que existe ma
 | Idempotência HTTP | POSTs críticos | `Idempotency-Key` guarda a resposta da 1ª chamada |
 | Saga (orquestração) | ordering | cada passo tem compensação; timeout dispara compensação |
 | Fail-closed | webhook de PIX | na dúvida, o pedido continua pendente |
-| Circuit breaker, retry com budget, bulkhead | chamadas entre serviços | cada dependência com o seu; retry só em leitura (ver `docs/RESILIENCIA.md`) |
+| Circuit breaker, retry com budget, bulkhead | chamadas entre serviços | cada dependência com o seu; retry só em leitura (ver `docs/pt-BR/RESILIENCIA.md`) |
 | Deadline propagation | gateway e serviços | `X-Request-Deadline` com o tempo restante; cada salto limita o timeout a ele |
 | Rate limit distribuído | gateway, identity | token bucket em Lua no Redis, por cliente e rota (gateway) e por IP+e-mail (cadastro e login), com fallback em memória |
 | Espera progressiva | identity | cada falha seguida dobra o bloqueio por IP+e-mail, no Redis |
@@ -105,4 +107,4 @@ DDD completo em ordering, payments e ledger. Catalog e notifications podem ser s
 
 ## Decisões
 
-Registrar em `docs/adr/` (um arquivo por decisão: contexto, decisão, consequências).
+Registrar em `docs/pt-BR/adr/` (um arquivo por decisão: contexto, decisão, consequências).
