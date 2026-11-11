@@ -67,13 +67,41 @@ Biblioteca Motion, apenas `transform` e `opacity` (exceções: `stroke-dashoffse
 | Checkout | stepper com linha que preenche |
 | PIX | QR com varredura, anel de contagem regressiva, linha do tempo que preenche em tempo real |
 | Pagamento | confete (64 peças, só transform) e selo com traço desenhado |
-| Painel | números que rolam, sparklines que se desenham, gráficos Recharts com entrada animada |
+| Painel | números que rolam, sparklines que se desenham, gráficos Recharts com entrada animada, pílula de aba com `layoutId`, abas com saída e entrada de 220 ms, linhas com stagger, mapa de calor, destaque de 3 s na venda nova, barras de cobertura que crescem |
 | Marquee | ticker de categorias em CSS puro, pausa no hover |
 | Cursor | anel que cresce sobre elementos interativos e vira rótulo "Ver" nos produtos (só ponteiro fino) |
 
 `prefers-reduced-motion`: `MotionConfig reducedMotion="user"` desliga transform e layout; componentes próprios checam
 `useReducedMotion` (sem parallax, sem tilt, sem voo, sem confete, marquee estático e quebrado em linhas, shimmer removido);
 CSS global zera animações. `will-change` só em camadas que animam continuamente.
+
+## Painel do lojista
+
+Rota lazy `/lojista`, cada aba é um chunk próprio (Recharts continua carregado só na visão geral). O estado vai para a URL: `?aba=visao-geral|pedidos|estoque|produtos|extrato`, `dias=7|14|30` (preservado ao trocar de aba), `loja` (admin), `pedido=<id>` (gaveta aberta) e `novo=true` (formulário de produto). Valores inválidos caem no padrão em vez de quebrar a rota. Trocar só o query não refaz o refresh de sessão, não limpa toasts nem tira o foco do lugar (`pathChanged` no `onResolved`).
+
+| Aba | O que mostra | API |
+|---|---|---|
+| Visão geral | 6 KPIs (saldo, bruto, líquido, pedidos, ticket médio, taxa efetiva) com variação contra o período anterior, alertas acionáveis, vendas por dia com média móvel opcional e tooltip rico, pedidos por dia, calendário de calor e média por dia da semana, melhor dia | `GET /api/ledger/merchants/{id}/summary` duas vezes: `days` (totais e saldo) e `days*2` (só o `daily`, dividido em duas metades) |
+| Pedidos | tabela densa, filtro por status, busca (cliente, produto, código), paginação de 10, gaveta com itens, taxa de 10%, valor líquido e linha do tempo, atualização a cada 10 s com toast e destaque na venda nova | `GET /api/orders/merchant` (até 4 páginas de 50) |
+| Estoque | disponível, reservado, barra de cobertura (estoque dividido pelo ritmo dos últimos 14 dias), situação, edição inline com validação, otimismo e rollback, ação em lote | `GET /api/inventory/stock/mine`, `PUT /api/inventory/stock/{id}` (admin: `GET /api/inventory/stock?product_ids=`) |
+| Produtos | cartões, criar e editar com formulário validado (zod), desativar com confirmação | `POST`, `PATCH`, `DELETE /api/catalog/products` |
+| Extrato | filtro por tipo, agrupamento por dia, saldo acumulado, exportar CSV, copiar valor | `GET /api/ledger/accounts/merchant:{id}/entries` (até 4 páginas de 100) |
+
+Regras de negócio no cliente, todas em `src/lib/merchant-metrics.ts` (funções puras, com testes): variação percentual (base zero vira "sem base", nunca divisão por zero), média móvel, agregação por dia da semana, grade de calendário, filtros de pedido, detecção de pedido novo ou pago entre duas leituras, cobertura e nível de estoque (esgotado, crítico até 5 unidades ou menos de 3 dias, atenção até 7 dias), alertas (estoque, PIX parado há mais de 5 minutos, queda de 20% ou mais), saldo acumulado, agrupamento por dia e CSV (BOM, `;`, aspas e proteção contra injeção de fórmula).
+
+Contrato real observado no gateway e como o painel lida com ele:
+
+- `GET /orders/merchant` devolve `subtotal_cents` e só os itens do lojista, sem e-mail do cliente nem nome de produto: os nomes vêm da lista de produtos da loja e o e-mail não é exibido.
+- Conta `admin` não tem loja: `orders/merchant` e `stock/mine` respondem 403. A aba Pedidos explica isso sem chamar a API e o Estoque usa a leitura pública com `reserved`.
+- `page_size` máximo de 50 em pedidos. O painel avisa quando mostra só os mais recentes.
+- Escrita sem escopo ou em produto alheio dá 403, e o painel mostra a mensagem em vez de falhar calado: erros de estoque viram toast e rollback, os de catálogo aparecem no formulário. Nome repetido (409) vira erro no campo.
+- A API não tem reativação de produto: desativar é definitivo no painel e a confirmação diz isso.
+- Produto novo ainda não tem linha no inventário (o `PUT` do lojista responde 403 até existir uma): o painel tenta definir o estoque inicial, e se falhar avisa que o produto nasceu sem estoque.
+- A lista pública do catálogo fica em cache por algum tempo depois de editar ou desativar. `src/lib/recent-writes.ts` sobrepõe por 2 minutos o que o próprio lojista acabou de fazer, para a tela não "voltar atrás".
+
+Atalhos (fora de campos de texto e sem diálogo aberto): `g` e depois `v`, `p`, `e`, `r` (produtos) ou `x`; `n` novo produto; `/` busca da aba; `?` ajuda. A paleta ⌘K ganha "Ir para ..." para cada aba e "Novo produto" para contas de lojista e admin, mantendo período e loja quando já está no painel.
+
+Acessibilidade das abas: `tablist` com seta, Home e End, `tabpanel` rotulado, contadores com texto oculto, tabelas com legenda, `rowgroup` no extrato, calendário como tabela, `meter` para cobertura, gaveta e diálogos com foco preso, Esc e retorno do foco. O e2e roda axe em cada aba nos dois temas, nas gavetas e nos diálogos.
 
 ## Layout
 
@@ -105,7 +133,7 @@ página perdida e PIX. Skeletons usam shimmer por `transform`.
 
 ## Acessibilidade
 
-Contraste AA nos dois temas (axe em loja, produto, pedido, pedidos, lojista, entrar e cadastro), foco visível de 2 px,
+Contraste AA nos dois temas (axe em loja, produto, pedido, pedidos, as cinco abas do lojista, entrar e cadastro), foco visível de 2 px,
 link de pular, landmarks, foco movido ao conteúdo a cada rota, `aria-live` para PIX e cópia, tabela com legenda,
 gráficos com resumo textual, texto animado com cópia `sr-only`.
 
@@ -139,6 +167,10 @@ O que mudou, em ordem de ganho:
 ### Elemento compartilhado lista para produto
 
 Mantida a View Transitions. `layoutId` do Motion precisa que o elemento antigo e o novo existam ao mesmo tempo sob um `AnimatePresence`, e pelo motivo acima a rota antiga não fica montada. A View Transitions captura o DOM antes e depois da troca, funciona sem tirar a rota antiga da árvore, roda no compositor e custa 0 kB de JS. Sem medição regressiva: o JS inicial caiu e o Lighthouse não depende dela (ela só roda em navegação).
+
+### Painel e JS inicial
+
+O painel é rota lazy e a API dele (`src/api/merchant.ts`) e os formatadores (`src/lib/format-merchant.ts`) ficam fora do bundle inicial. Medido com `pnpm build` (soma do gzip do que o `index.html` carrega): 199,0 kB antes, 199,2 kB depois (+0,2 kB, o esquema de search params da rota e o ajuste do `onResolved`).
 
 ## Copy
 

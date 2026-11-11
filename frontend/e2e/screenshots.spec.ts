@@ -52,10 +52,21 @@ test("dark captures", async ({ page }) => {
   await expect(page.getByTestId("product-card").first()).toBeVisible();
   await shoot(page, "05-home-escuro");
 
+  await page.setViewportSize({ width: 1280, height: 1160 });
   await signIn(page, "/lojista");
   await expect(page.getByText("Saldo a receber")).toBeVisible();
+  await page.addStyleTag({ content: "*{--noise-opacity:0 !important}" });
   await page.waitForTimeout(1500);
   await shoot(page, "06-lojista-escuro");
+
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.getByRole("tab", { name: /Pedidos/ }).click();
+  await expect(page.getByTestId("merchant-order-row").first()).toBeVisible();
+  await shoot(page, "09-lojista-pedidos-escuro");
+
+  await page.getByRole("tab", { name: /Estoque/ }).click();
+  await expect(page.getByTestId("stock-row").first()).toBeVisible();
+  await shoot(page, "10-lojista-estoque-escuro");
 
   await page.goto("/");
   await page.getByRole("button", { name: /Assistente/ }).click();
