@@ -45,6 +45,8 @@ x-catalog: &catalog
     POSTGRES_HOST: postgres
     POSTGRES_PORT: 5432
     CATALOG_DB: catalog
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
 x-ledger: &ledger
   build:
@@ -211,7 +213,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        for t in orders.events payments.events inventory.events ledger.events orders.events.dlq payments.events.dlq inventory.events.dlq; do
+        for t in orders.events payments.events inventory.events ledger.events catalog.events orders.events.dlq payments.events.dlq inventory.events.dlq catalog.events.dlq; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic $$t --partitions 3 --replication-factor 1
         done
 
@@ -338,6 +340,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+
+  catalog-relay:
+    <<: *catalog
+    command: ["python", "-m", "catalog.relay_main"]
+    depends_on:
+      catalog-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
 
   ledger-migrate:
     <<: *ledger

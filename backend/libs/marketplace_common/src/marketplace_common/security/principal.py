@@ -19,6 +19,8 @@ class Scope(StrEnum):
     NOTIFICATIONS_READ_OWN = "notifications:read:own"
     STOCK_WRITE_OWN = "stock:write:own"
     STOCK_WRITE_ANY = "stock:write:any"
+    CATALOG_WRITE_OWN = "catalog:write:own"
+    CATALOG_WRITE_ANY = "catalog:write:any"
     LEDGER_READ_OWN = "ledger:read:own"
     LEDGER_READ_ANY = "ledger:read:any"
     LEDGER_RECONCILE = "ledger:reconcile"
@@ -33,12 +35,18 @@ _CUSTOMER_SCOPES = frozenset(
 ROLE_SCOPES: dict[Role, frozenset[Scope]] = {
     Role.CUSTOMER: _CUSTOMER_SCOPES,
     Role.MERCHANT: _CUSTOMER_SCOPES
-    | {Scope.ORDERS_READ_MERCHANT, Scope.STOCK_WRITE_OWN, Scope.LEDGER_READ_OWN},
+    | {
+        Scope.ORDERS_READ_MERCHANT,
+        Scope.STOCK_WRITE_OWN,
+        Scope.CATALOG_WRITE_OWN,
+        Scope.LEDGER_READ_OWN,
+    },
     Role.ADMIN: _CUSTOMER_SCOPES
     | {
         Scope.ORDERS_READ_ANY,
         Scope.ORDERS_READ_MERCHANT,
         Scope.STOCK_WRITE_ANY,
+        Scope.CATALOG_WRITE_ANY,
         Scope.LEDGER_READ_ANY,
         Scope.LEDGER_RECONCILE,
         Scope.USERS_MANAGE,

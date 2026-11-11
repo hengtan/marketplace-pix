@@ -198,6 +198,9 @@ async def test_public_routes_work_without_a_token_and_ignore_a_bad_one(world: Wo
         ("POST", "/api/auth/admin/users"),
         ("POST", "/api/assistant/admin/reindex"),
         ("POST", "/api/payments/dev/psp/charges/ch/pay"),
+        ("POST", "/api/catalog/products"),
+        ("PATCH", "/api/catalog/products/abc"),
+        ("DELETE", "/api/catalog/products/abc"),
     ],
 )
 async def test_protected_routes_require_authentication(
@@ -225,6 +228,11 @@ async def test_protected_routes_require_authentication(
         ("POST", "/api/auth/admin/users", ("admin",), 200),
         ("POST", "/api/assistant/admin/reindex", ("customer",), 403),
         ("POST", "/api/assistant/admin/reindex", ("admin",), 200),
+        ("POST", "/api/catalog/products", ("customer",), 403),
+        ("POST", "/api/catalog/products", ("merchant",), 200),
+        ("PATCH", "/api/catalog/products/abc", ("customer",), 403),
+        ("PATCH", "/api/catalog/products/abc", ("merchant",), 200),
+        ("DELETE", "/api/catalog/products/abc", ("admin",), 200),
     ],
 )
 async def test_role_based_authorization(

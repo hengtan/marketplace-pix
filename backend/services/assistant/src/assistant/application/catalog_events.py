@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 CATALOG_TOPIC = "catalog.events"
 PRODUCT_CHANGED = frozenset({"ProductCreated", "ProductUpdated", "ProductPriceChanged"})
-PRODUCT_REMOVED = frozenset({"ProductDeleted"})
+PRODUCT_REMOVED = frozenset({"ProductDeleted", "ProductDeactivated"})
 
 
 class CatalogEventHandler:

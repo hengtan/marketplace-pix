@@ -104,18 +104,21 @@ pagamento é confirmado para um pedido que já estava cancelado (pagamento tardi
 | `LedgerTransactionPosted` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` |
 | `LedgerTransactionReversed` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` (estorno de um pagamento já lançado) |
 
-### catalog.events (produtor: catalog, **ainda não publica**)
+### catalog.events (produtor: catalog)
 
-Contrato que o `assistant` consome para manter o índice de busca e o cache semântico atualizados. A chave é o
-`product_id` e o payload tem `product_id` (os demais campos são livres). Hoje o `catalog` não publica esses
-eventos: sem eles o índice só atualiza no reindex (`POST /admin/reindex`) e o cache só expira por TTL.
+Chave = `product_id` (texto). Publicados pelo outbox do catalog (`catalog-relay`), na mesma transação da escrita.
+Não têm `order_id`: o cabeçalho `event_type` e o `schema_version` seguem a regra geral. Tópicos `catalog.events`
+e `catalog.events.dlq` criados no `kafka-init`.
 
-| Evento | Quando |
-|---|---|
-| `ProductCreated` | produto novo (esvazia o cache dependente de filtros e de "não encontrei") |
-| `ProductUpdated` | descrição, nome, categoria ou nota mudou |
-| `ProductPriceChanged` | preço mudou (invalida as respostas que citam o produto) |
-| `ProductDeleted` | produto saiu do catálogo |
+| Evento | Campos | Quando |
+|---|---|---|
+| `ProductCreated` (v1) | `product_id`, `merchant_id`, `slug`, `name`, `category`, `price_cents`, `currency`, `event_id`, `occurred_at`, `schema_version` | produto novo (esvazia o cache dependente de filtros e de "não encontrei") |
+| `ProductUpdated` (v1) | os mesmos campos de `ProductCreated` (retrato do produto) | nome, descrição, categoria, imagem ou tags mudaram |
+| `ProductPriceChanged` (v1) | `product_id`, `merchant_id`, `old_price_cents`, `new_price_cents`, `currency`, `event_id`, `occurred_at`, `schema_version` | preço mudou (invalida as respostas que citam o produto); uma edição de preço e de texto na mesma chamada gera os dois eventos |
+| `ProductDeactivated` (v1) | `product_id`, `merchant_id`, `event_id`, `occurred_at`, `schema_version` | produto saiu do catálogo (a venda some das listagens e o pedido novo é recusado) |
+
+Edição sem mudança real (mesmos valores) não publica nada. O `assistant` também aceita o tipo legado
+`ProductDeleted` como sinônimo de `ProductDeactivated`.
 
 ### Quem consome o quê
 
@@ -126,7 +129,7 @@ eventos: sem eles o índice só atualiza no reindex (`POST /admin/reindex`) e o 
 | inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `PaymentRefunded`, `OrderCancelled` | reserva; confirma a venda; libera; devolve ao estoque a venda reembolsada |
 | ledger | `OrderCreated`, `PaymentConfirmed`, `PaymentRefunded` | guarda a projeção do pedido; lança a transação; lança o estorno |
 | notifications | `OrderCreated`, `PaymentCreated`, `OrderPaid`, `OrderCancelled` | envia e-mails (Celery) |
-| assistant | `ProductCreated`, `ProductUpdated`, `ProductPriceChanged`, `ProductDeleted` (de `catalog.events`) | reindexa só o que mudou e invalida respostas em cache (`python -m assistant.worker_main`, grupo `assistant`) |
+| assistant | `ProductCreated`, `ProductUpdated`, `ProductPriceChanged`, `ProductDeactivated` (de `catalog.events`) | reindexa só o que mudou e invalida respostas em cache (`python -m assistant.worker_main`, grupo `assistant`) |
 
 ## 5. APIs REST (todas atrás do gateway)
 
@@ -156,6 +159,9 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 | `GET /api/catalog/products/slug/{slug}` | `GET /products/slug/{slug}` |
 | `GET /api/catalog/products/by-ids?ids=a,b` | `GET /products/by-ids?ids=a,b` |
 | `GET /api/catalog/categories` | `GET /categories` |
+| `POST /api/catalog/products` | `POST /products` (lojista no próprio catálogo; `admin` informa `merchant_id`) |
+| `PATCH /api/catalog/products/{id}` | `PATCH /products/{id}` |
+| `DELETE /api/catalog/products/{id}` | `DELETE /products/{id}` (desativa; idempotente, `204`) |
 
 `GET /products` aceita `q`, `category`, `min_price_cents`, `max_price_cents`, `sort`
 (`relevance|price_asc|price_desc|newest|rating`), `page`, `page_size` (padrão 12, máximo 48).
@@ -163,6 +169,13 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 `GET /products/by-ids` devolve o envelope paginado (`items`, `total`, `page`, `page_size`), na ordem pedida,
 ignora ids desconhecidos e aceita no máximo 100 ids (422 se `ids` faltar ou for inválido). Parâmetros fora do
 intervalo devolvem 422 com `detail` em texto.
+
+Escrita (exige token com `catalog:write:own` e dono do produto, ou `catalog:write:any`; `401` sem identidade,
+`403` em produto alheio): `POST` aceita `name`, `description`, `price_cents` (> 0), `category` (slug existente), `slug`
+(opcional, derivado do nome), `image_url`, `tags[]`, `merchant_id` (só `admin`) e devolve `201` com o produto, `409` se o
+slug já existe; `PATCH` aceita `name`, `description`, `price_cents`, `category`, `image_url`, `tags` (ao menos um campo,
+`422` para campos desconhecidos). Produto desativado some de todas as leituras (`404`, fora da lista, de `by-ids` e da
+contagem das categorias). Cada escrita grava o evento correspondente no outbox na mesma transação.
 
 Produto: `id`, `slug`, `name`, `description`, `price_cents`, `currency`, `category`, `image_url` (pode ser nulo),
 `rating` (0 a 5), `reviews_count`, `tags[]`, `merchant` (`id`, `slug`, `name`), `created_at`.
@@ -336,8 +349,8 @@ Papéis e escopos:
 | Papel | Escopos |
 |---|---|
 | `customer` | `orders:create`, `orders:read:own`, `notifications:read:own` |
-| `merchant` | os de `customer` mais `orders:read:merchant`, `stock:write:own`, `ledger:read:own` (e `merchant_id` no token) |
-| `admin` | os de `customer` mais `orders:read:any`, `orders:read:merchant`, `stock:write:any`, `ledger:read:any`, `ledger:reconcile`, `users:manage`, `assistant:admin` |
+| `merchant` | os de `customer` mais `orders:read:merchant`, `stock:write:own`, `catalog:write:own`, `ledger:read:own` (e `merchant_id` no token) |
+| `admin` | os de `customer` mais `orders:read:any`, `orders:read:merchant`, `stock:write:any`, `catalog:write:any`, `ledger:read:any`, `ledger:reconcile`, `users:manage`, `assistant:admin` |
 
 Contas de desenvolvimento (criadas por `identity-seed` quando `IDENTITY_SEED_PASSWORD` existe no `.env`; a
 senha é a desse segredo): `admin@marketplace-pix.local` (admin) e um lojista por loja,
@@ -353,6 +366,7 @@ Matriz de acesso no gateway (`401` sem token válido, `403` sem o escopo):
 | `GET /api/orders`, `GET /api/orders/{id}`, `GET /api/payments/by-order/{id}` | anônimo ou autenticado; o serviço decide pelo dono |
 | `GET /api/orders/merchant` | `orders:read:merchant` |
 | `PUT /api/inventory/stock/{id}`, `GET /api/inventory/stock/mine` | `stock:write:own` ou `stock:write:any` |
+| `POST /api/catalog/products`, `PATCH\|DELETE /api/catalog/products/{id}` | `catalog:write:own` ou `catalog:write:any` (o serviço confere o dono) |
 | `GET /api/ledger/**` | `ledger:read:own` ou `ledger:read:any` (o serviço confere o lojista) |
 | `GET /api/ledger/reconciliation` | `ledger:reconcile` |
 | `GET /api/notifications**` | `notifications:read:own` (o gateway força `customer_id` do token; `admin` pode escolher) |

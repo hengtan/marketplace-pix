@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from marketplace_common.events.models import EventModel
+from marketplace_common.events.models import BaseEvent
 from marketplace_common.events.registry import REGISTRY
 
 SCHEMA_VERSION_HEADER = "schema_version"
@@ -22,7 +22,7 @@ class IncomingEvent:
     payload: dict[str, Any]
     schema_version: int = 1
 
-    def parse(self) -> EventModel:
+    def parse(self) -> BaseEvent:
         """O evento na versão mais nova que este serviço conhece, já migrado por upcasters."""
         return REGISTRY.parse(self.type, self.payload, self.schema_version)
 

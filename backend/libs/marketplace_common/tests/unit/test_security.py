@@ -65,6 +65,13 @@ def test_role_scopes() -> None:
     assert scopes_for_roles(frozenset({"unknown"})) == frozenset()
 
 
+def test_catalog_write_scopes() -> None:
+    assert Scope.CATALOG_WRITE_OWN.value in scopes_for_roles(frozenset({"merchant"}))
+    assert Scope.CATALOG_WRITE_ANY.value not in scopes_for_roles(frozenset({"merchant"}))
+    assert Scope.CATALOG_WRITE_ANY.value in scopes_for_roles(frozenset({"admin"}))
+    assert Scope.CATALOG_WRITE_OWN.value not in scopes_for_roles(frozenset({"customer"}))
+
+
 def test_resolver_as_fastapi_dependency() -> None:
     app = FastAPI()
     resolver = PrincipalResolver(SECRET)

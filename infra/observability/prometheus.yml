@@ -26,6 +26,14 @@ scrape_configs:
           service: catalog
           component: api
 
+  - job_name: catalog-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["catalog-relay:9100"]
+        labels:
+          service: catalog
+          component: relay
+
   - job_name: assistant-api
     metrics_path: /metrics
     static_configs:

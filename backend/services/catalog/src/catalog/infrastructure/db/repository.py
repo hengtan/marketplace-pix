@@ -61,7 +61,7 @@ def order_clauses(sort: SortOrder, search: str | None) -> list[ColumnElement[Any
 
 
 def filter_conditions(query: ProductQuery) -> list[ColumnElement[bool]]:
-    conditions: list[ColumnElement[bool]] = []
+    conditions: list[ColumnElement[bool]] = [ProductModel.active.is_(True)]
     search = query.normalized_search
     if search is not None:
         conditions.extend(_token_matches(token) for token in search.split())
@@ -89,6 +89,7 @@ def to_domain(model: ProductModel) -> Product:
         tags=tuple(model.tags),
         merchant=Merchant(id=model.merchant.id, slug=model.merchant.slug, name=model.merchant.name),
         created_at=model.created_at,
+        active=model.active,
     )
 
 
@@ -117,18 +118,24 @@ class SqlAlchemyCatalogReader:
         )
 
     async def get(self, product_id: UUID) -> Product | None:
-        model = await self._session.get(ProductModel, product_id)
+        model = await self._session.scalar(
+            select(ProductModel).where(ProductModel.id == product_id, ProductModel.active.is_(True))
+        )
         return to_domain(model) if model else None
 
     async def get_by_slug(self, slug: str) -> Product | None:
-        model = await self._session.scalar(select(ProductModel).where(ProductModel.slug == slug))
+        model = await self._session.scalar(
+            select(ProductModel).where(ProductModel.slug == slug, ProductModel.active.is_(True))
+        )
         return to_domain(model) if model else None
 
     async def get_many(self, product_ids: Sequence[UUID]) -> list[Product]:
         rows = (
             (
                 await self._session.scalars(
-                    select(ProductModel).where(ProductModel.id.in_(product_ids))
+                    select(ProductModel).where(
+                        ProductModel.id.in_(product_ids), ProductModel.active.is_(True)
+                    )
                 )
             )
             .unique()
@@ -140,7 +147,10 @@ class SqlAlchemyCatalogReader:
     async def categories(self) -> list[Category]:
         stmt = (
             select(CategoryModel.slug, CategoryModel.label, func.count(ProductModel.id))
-            .outerjoin(ProductModel, ProductModel.category_slug == CategoryModel.slug)
+            .outerjoin(
+                ProductModel,
+                (ProductModel.category_slug == CategoryModel.slug) & ProductModel.active.is_(True),
+            )
             .group_by(CategoryModel.slug, CategoryModel.label)
             .order_by(CategoryModel.label)
         )

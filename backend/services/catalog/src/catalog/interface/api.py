@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from marketplace_common.security import Principal, PrincipalResolver
 
+from catalog.application.commands import ManageProducts, NewProduct
 from catalog.application.ports import ReaderFactory
 from catalog.application.queries import (
     GetProduct,
@@ -15,12 +18,24 @@ from catalog.application.queries import (
     ListCategories,
     SearchProducts,
 )
-from catalog.domain.errors import InvalidQuery, ProductNotFound
+from catalog.domain.errors import (
+    DuplicateSlug,
+    InvalidProduct,
+    InvalidQuery,
+    NotProductOwner,
+    ProductNotFound,
+)
 from catalog.domain.pagination import DEFAULT_PAGE_SIZE, PageRequest
 from catalog.domain.product import ProductQuery
 from catalog.domain.sorting import SortOrder
 from catalog.interface.caching import cached_json
-from catalog.interface.schemas import CategoryOut, ProductOut, ProductPageOut
+from catalog.interface.schemas import (
+    CategoryOut,
+    ProductCreateIn,
+    ProductOut,
+    ProductPageOut,
+    ProductPatchIn,
+)
 
 ReadyCheck = Callable[[], Awaitable[bool]]
 Lifespan = Callable[[FastAPI], AbstractAsyncContextManager[None]]
@@ -36,6 +51,25 @@ def _parse_ids(raw: str) -> list[UUID]:
 def _reader_factory(request: Request) -> ReaderFactory:
     factory: ReaderFactory = request.app.state.reader_factory
     return factory
+
+
+def get_principal(request: Request) -> Principal | None:
+    resolver: PrincipalResolver = request.app.state.principal_resolver
+    return resolver(request)
+
+
+PrincipalDep = Annotated[Principal | None, Depends(get_principal)]
+
+
+def _require(principal: Principal | None) -> Principal:
+    if principal is None:
+        raise HTTPException(401, "authentication required")
+    return principal
+
+
+def _manager(request: Request) -> ManageProducts:
+    manager: ManageProducts = request.app.state.manage_products
+    return manager
 
 
 def build_router() -> APIRouter:
@@ -78,6 +112,42 @@ def build_router() -> APIRouter:
         product = await GetProduct(_reader_factory(request)).by_id(product_id)
         return cached_json(request, ProductOut.from_domain(product))
 
+    @router.post("/products", status_code=201)
+    async def create_product(
+        body: ProductCreateIn, request: Request, principal: PrincipalDep
+    ) -> ProductOut:
+        product = await _manager(request).create(
+            _require(principal),
+            NewProduct(
+                name=body.name,
+                description=body.description,
+                price_cents=body.price_cents,
+                category=body.category,
+                slug=body.slug,
+                image_url=body.image_url,
+                tags=tuple(body.tags),
+                merchant_id=body.merchant_id,
+            ),
+        )
+        return ProductOut.from_domain(product)
+
+    @router.patch("/products/{product_id}")
+    async def patch_product(
+        product_id: UUID, body: ProductPatchIn, request: Request, principal: PrincipalDep
+    ) -> ProductOut:
+        changes = body.model_dump(exclude_unset=True)
+        if not changes:
+            raise InvalidProduct("no fields to change")
+        product = await _manager(request).update(_require(principal), product_id, changes)
+        return ProductOut.from_domain(product)
+
+    @router.delete("/products/{product_id}", status_code=204)
+    async def deactivate_product(
+        product_id: UUID, request: Request, principal: PrincipalDep
+    ) -> Response:
+        await _manager(request).deactivate(_require(principal), product_id)
+        return Response(status_code=204)
+
     @router.get("/categories")
     async def categories(request: Request) -> Response:
         items = await ListCategories(_reader_factory(request)).execute()
@@ -99,13 +169,17 @@ def build_router() -> APIRouter:
 def create_app(
     *,
     reader_factory: ReaderFactory | None = None,
+    manage_products: ManageProducts | None = None,
+    internal_secret: str = "",
     ready_check: ReadyCheck | None = None,
     cache_max_age: int | None = None,
     lifespan: Lifespan | None = None,
 ) -> FastAPI:
     app = FastAPI(title="catalog", lifespan=lifespan)
+    app.state.principal_resolver = PrincipalResolver(internal_secret)
     for name, value in {
         "reader_factory": reader_factory,
+        "manage_products": manage_products,
         "ready_check": ready_check,
         "cache_max_age": cache_max_age,
     }.items():
@@ -116,6 +190,18 @@ def create_app(
     @app.exception_handler(ProductNotFound)
     async def not_found(_: Request, exc: ProductNotFound) -> JSONResponse:
         return JSONResponse({"detail": "product not found"}, status_code=404)
+
+    @app.exception_handler(NotProductOwner)
+    async def not_owner(_: Request, exc: NotProductOwner) -> JSONResponse:
+        return JSONResponse({"detail": "forbidden"}, status_code=403)
+
+    @app.exception_handler(DuplicateSlug)
+    async def duplicate_slug(_: Request, exc: DuplicateSlug) -> JSONResponse:
+        return JSONResponse({"detail": "slug already in use"}, status_code=409)
+
+    @app.exception_handler(InvalidProduct)
+    async def invalid_product(_: Request, exc: InvalidProduct) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=422)
 
     @app.exception_handler(InvalidQuery)
     async def invalid_query(_: Request, exc: InvalidQuery) -> JSONResponse:
