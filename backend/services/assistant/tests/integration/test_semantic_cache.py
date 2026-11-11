@@ -138,6 +138,21 @@ async def test_price_change_event_invalidates_cited_answers(cached, catalog) -> 
     assert not after.cached and "R$ 299,90" in after.answer and "R$ 349,90" not in after.answer
 
 
+async def test_deactivated_product_leaves_the_index_and_the_cited_answers(cached, catalog) -> None:  # type: ignore[no-untyped-def]
+    container, llm = cached
+    handler = CatalogEventHandler(container.ingest, container.cache)
+    before = await ask(container, "quero um fone com cancelamento de ruído")
+    assert "Fone Bluetooth Nova" in before.answer
+
+    catalog.products = [p for p in catalog.products if p.slug != "fone-bluetooth-nova"]
+    outcome = await handler.handle(event("ProductDeactivated", "fone-bluetooth-nova"))
+    assert outcome["cache_invalidated"] == 1
+    assert outcome["reindexed"] == 0
+
+    after = await ask(container, "quero um fone com cancelamento de ruído")
+    assert not after.cached and "Fone Bluetooth Nova" not in after.answer
+
+
 def _repriced(product, cents):  # type: ignore[no-untyped-def]
     from dataclasses import replace
 
@@ -152,6 +167,8 @@ async def test_unrelated_events_keep_entries_but_created_flushes_volatile_ones(c
     assert (await container.cache.summary()).entries == 2
 
     await handler.handle(event("ProductDeleted", "mochila-trilha-30l"))
+    assert (await container.cache.summary()).entries == 2
+    await handler.handle(event("ProductDeactivated", "mochila-trilha-30l"))
     assert (await container.cache.summary()).entries == 2
     assert (await handler.handle(event("OrderCreated", "x")))["ignored"]
 

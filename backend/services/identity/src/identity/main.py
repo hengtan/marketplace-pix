@@ -8,10 +8,15 @@ from datetime import timedelta
 from fastapi import FastAPI
 from marketplace_common.maintenance import CleanupJob, CleanupTarget, RetentionPolicy
 from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
-from marketplace_common.security import PrincipalResolver
+from marketplace_common.resilience import RedisTokenBucket, RouteRateLimiter
+from marketplace_common.security import ClientIpResolver, PrincipalResolver
+from marketplace_common.security.backoff import ProgressiveBackoff
+from marketplace_common.security.revocation import RedisAccessTokenRevocations
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from identity.application.abuse import AbuseGuard, AbusePolicy
 from identity.application.auth import AuthPolicy, AuthService
 from identity.config import load_settings
 from identity.infrastructure.db.session import build_engine, build_session_factory
@@ -47,6 +52,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.identity_retired_public_keys,
         allow_ephemeral=not settings.is_production,
     )
+    redis = (
+        Redis.from_url(
+            settings.redis_url,
+            socket_timeout=settings.redis_timeout_seconds,
+            socket_connect_timeout=settings.redis_timeout_seconds,
+        )
+        if settings.redis_url
+        else None
+    )
     app.state.auth = AuthService(
         lambda: SqlAlchemyUnitOfWork(factory),
         Argon2idHasher(
@@ -63,8 +77,36 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             session_max=timedelta(days=settings.session_max_days),
             max_failed_logins=settings.max_failed_logins,
             lockout=timedelta(minutes=settings.lockout_minutes),
+            access_ttl=timedelta(seconds=settings.access_ttl_seconds),
         ),
+        revocations=None if redis is None else RedisAccessTokenRevocations(redis),
     )
+    abuse = AbusePolicy(
+        login_per_minute_ip_email=settings.auth_login_per_minute_ip_email,
+        login_per_minute_ip=settings.auth_login_per_minute_ip,
+        register_per_hour_ip_email=settings.auth_register_per_hour_ip_email,
+        register_per_hour_ip=settings.auth_register_per_hour_ip,
+        backoff_base_seconds=settings.auth_backoff_base_seconds,
+        backoff_max_seconds=settings.auth_backoff_max_seconds,
+    )
+    app.state.abuse_guard = (
+        AbuseGuard(
+            RouteRateLimiter(
+                abuse.default_policy(),
+                abuse.route_policies(),
+                primary=None if redis is None else RedisTokenBucket(redis, prefix="identity:rl"),
+                operation_timeout=settings.redis_timeout_seconds,
+            ),
+            ProgressiveBackoff(
+                redis,
+                base_seconds=abuse.backoff_base_seconds,
+                max_seconds=abuse.backoff_max_seconds,
+            ),
+        )
+        if settings.abuse_protection_enabled
+        else None
+    )
+    app.state.client_ips = ClientIpResolver(settings.trusted_proxies)
     app.state.jwks = keys.jwks()
     app.state.principal_resolver = PrincipalResolver(settings.internal_auth_secret)
     app.state.ready_check = _db_check(engine)
@@ -82,6 +124,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     stop.set()
     await cleanup
+    if redis is not None:
+        await redis.aclose()
     await engine.dispose()
 
 

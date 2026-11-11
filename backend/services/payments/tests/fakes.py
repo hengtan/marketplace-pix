@@ -99,6 +99,8 @@ class FakePsp:
         self.create_calls = 0
         self.fail_create = False
         self.refuse_cancel = False
+        self.fail_cancel = False
+        self.fail_cancel_for: set[str] = set()
         self.cancelled: list[str] = []
         self.refuse_refund = False
         self.refunded: list[str] = []
@@ -127,6 +129,8 @@ class FakePsp:
         return True
 
     async def cancel_charge(self, charge_id: str) -> bool:
+        if self.fail_cancel or charge_id in self.fail_cancel_for:
+            raise ConnectionError("psp is down")
         if self.refuse_cancel:
             return False
         self.statuses[charge_id] = ChargeStatus.CANCELLED

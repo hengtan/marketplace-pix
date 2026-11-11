@@ -2,17 +2,23 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 from urllib.parse import parse_qsl, urlencode
 
 import httpx
 from fastapi import Request
 from marketplace_common.security import Principal, sign_principal, strip_identity_headers
+from marketplace_common.security.revocation import RevocationUnavailable
 
 from gateway.auth.jwks import JwksUnavailable
 from gateway.auth.policy import Access, build_rules, match
 from gateway.auth.verifier import InvalidToken, TokenVerifier
 
 logger = logging.getLogger(__name__)
+
+
+class Revocations(Protocol):
+    async def is_revoked(self, jti: str) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +32,7 @@ class Denied:
 class Allowed:
     principal: Principal | None
     query: str
+    order_confirmed: bool = False
 
 
 class GatewayAuth:
@@ -35,6 +42,7 @@ class GatewayAuth:
         internal_secret: str,
         guest_checkout: bool = True,
         ordering_url: str = "",
+        revocations: Revocations | None = None,
     ) -> None:
         if not internal_secret:
             raise RuntimeError("INTERNAL_AUTH_SECRET is required when auth is enabled")
@@ -42,6 +50,7 @@ class GatewayAuth:
         self._secret = internal_secret
         self._rules = build_rules(guest_checkout)
         self._ordering_url = ordering_url
+        self._revocations = revocations
 
     async def authorize(
         self, request: Request, client: httpx.AsyncClient, request_id: str
@@ -64,11 +73,13 @@ class GatewayAuth:
             if isinstance(outcome, Denied):
                 return outcome
             query = outcome
+        confirmed = False
         if rule is not None and rule.object_guard:
             denied = await self._check_order_access(request, client, principal, request_id)
             if denied is not None:
                 return denied
-        return Allowed(principal, query)
+            confirmed = True
+        return Allowed(principal, query, confirmed)
 
     def upstream_headers(
         self, incoming: dict[str, str], principal: Principal | None, request_id: str
@@ -89,18 +100,29 @@ class GatewayAuth:
         if access is Access.PUBLIC:
             return None, None
         if header is None:
-            if access is Access.OPTIONAL:
+            if access in (Access.OPTIONAL, Access.SOFT):
                 return None, None
             return None, Denied(401, "authentication required", challenge=True)
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not token:
+            if access is Access.SOFT:
+                return None, None
             return None, Denied(401, "invalid authorization header", challenge=True)
         try:
-            return await self._verifier.verify(token.strip()), None
+            verified = await self._verifier.verify_token(token.strip())
+            if self._revocations is not None and await self._revocations.is_revoked(verified.jti):
+                if access is Access.SOFT:
+                    return None, None
+                return None, Denied(401, "invalid or expired token", challenge=True)
+            return verified.principal, None
         except InvalidToken:
+            if access is Access.SOFT:
+                return None, None
             return None, Denied(401, "invalid or expired token", challenge=True)
-        except JwksUnavailable:
-            logger.error("identity JWKS unavailable, rejecting authenticated request")
+        except (JwksUnavailable, RevocationUnavailable):
+            if access is Access.SOFT:
+                return None, None
+            logger.error("token validation unavailable, rejecting authenticated request")
             return None, Denied(503, "authentication unavailable")
 
     @staticmethod

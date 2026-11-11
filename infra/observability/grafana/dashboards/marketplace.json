@@ -325,7 +325,16 @@
             "renameByName": {
               "Value #A": "Requisições/s",
               "Value #B": "p95 (s)",
-              "Value #C": "Erros 5xx/s"
+              "Value #C": "Erros 5xx/s",
+              "route": "Rota",
+              "service": "Serviço"
+            },
+            "indexByName": {
+              "service": 0,
+              "route": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4
             }
           }
         }
@@ -340,7 +349,8 @@
           "legendFormat": "",
           "refId": "A",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         },
         {
           "datasource": {
@@ -351,7 +361,8 @@
           "legendFormat": "",
           "refId": "B",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         },
         {
           "datasource": {
@@ -362,7 +373,8 @@
           "legendFormat": "",
           "refId": "C",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         }
       ]
     },

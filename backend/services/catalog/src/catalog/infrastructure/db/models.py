@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Computed,
     DateTime,
@@ -17,8 +19,9 @@ from sqlalchemy import (
     Text,
     Uuid,
     func,
+    text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -56,6 +59,7 @@ class ProductModel(Base):
     rating: Mapped[Decimal] = mapped_column(Numeric(2, 1), server_default="0")
     reviews_count: Mapped[int] = mapped_column(Integer, server_default="0")
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(60)), server_default="{}")
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     name_search: Mapped[str] = mapped_column(
         Text, Computed("lower(catalog_unaccent(name))", persisted=True)
@@ -95,5 +99,33 @@ class ProductModel(Base):
             "tags_search",
             postgresql_using="gin",
             postgresql_ops={"tags_search": "gin_trgm_ops"},
+        ),
+    )
+
+
+class OutboxEventModel(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    aggregate_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    topic: Mapped[str] = mapped_column(String(100))
+    key: Mapped[str] = mapped_column(String(100))
+    type: Mapped[str] = mapped_column(String(100))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ix_outbox_unpublished",
+            "created_at",
+            postgresql_where=text("published_at IS NULL"),
+        ),
+        Index(
+            "ix_outbox_published_at",
+            "published_at",
+            postgresql_where=text("published_at IS NOT NULL"),
         ),
     )

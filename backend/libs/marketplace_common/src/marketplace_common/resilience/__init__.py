@@ -38,6 +38,7 @@ from marketplace_common.resilience.retry import (
     is_idempotent_method,
     retry_async,
 )
+from marketplace_common.resilience.shared_breaker import SharedCircuitBreaker
 
 __all__ = [
     "DEADLINE_HEADER",
@@ -60,6 +61,7 @@ __all__ = [
     "RetryBudget",
     "RetryPolicy",
     "RouteRateLimiter",
+    "SharedCircuitBreaker",
     "cap_timeout",
     "check_deadline",
     "current_deadline",

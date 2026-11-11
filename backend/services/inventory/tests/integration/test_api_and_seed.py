@@ -64,6 +64,20 @@ async def test_api_reflects_reservations(client, session_factory, uow_factory):
     assert response.json() == {"product_id": str(product), "available": 3, "reserved": 2}
 
 
+async def test_the_public_api_hides_reserved_from_everyone_but_the_owner(
+    anonymous, session_factory, uow_factory
+):
+    await seed(session_factory)
+    watch = product_id_for("smartwatch-orbit")
+    await ReserveStock(uow_factory).execute(uuid4(), items((watch, 2)))
+    public = await anonymous.get(f"/stock/{watch}")
+    assert public.json() == {"product_id": str(watch), "available": 3}
+    owner = as_user(("merchant",), merchant_id=merchant_id_for("aurora-tech"))
+    assert (await anonymous.get(f"/stock/{watch}", headers=owner)).json()["reserved"] == 2
+    rival = as_user(("merchant",), merchant_id=merchant_id_for("trilha-sports"))
+    assert "reserved" not in (await anonymous.get(f"/stock/{watch}", headers=rival)).json()
+
+
 async def test_ready_checks_the_database(client):
     assert (await client.get("/ready")).status_code == 200
 

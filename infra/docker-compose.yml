@@ -45,6 +45,8 @@ x-catalog: &catalog
     POSTGRES_HOST: postgres
     POSTGRES_PORT: 5432
     CATALOG_DB: catalog
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
 x-ledger: &ledger
   build:
@@ -112,6 +114,7 @@ x-assistant: &assistant
     CATALOG_URL: http://catalog-api:8000
     INVENTORY_URL: http://inventory-api:8000
     ORDERING_URL: http://ordering-api:8000
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     EMBEDDER: hashing
     LLM: mock
@@ -132,6 +135,10 @@ x-identity: &identity
     INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
     IDENTITY_SIGNING_KEY: ${IDENTITY_SIGNING_KEY:-}
     IDENTITY_SEED_PASSWORD: ${IDENTITY_SEED_PASSWORD:-}
+    REDIS_URL: redis://redis:6379/0
+    TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    AUTH_LOGIN_PER_MINUTE_IP_EMAIL: ${AUTH_LOGIN_PER_MINUTE_IP_EMAIL:-10}
+    AUTH_REGISTER_PER_HOUR_IP: ${AUTH_REGISTER_PER_HOUR_IP:-30}
 
 services:
   postgres:
@@ -211,7 +218,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        for t in orders.events payments.events inventory.events ledger.events orders.events.dlq payments.events.dlq inventory.events.dlq; do
+        for t in orders.events payments.events inventory.events ledger.events catalog.events orders.events.dlq payments.events.dlq inventory.events.dlq catalog.events.dlq; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic $$t --partitions 3 --replication-factor 1
         done
 
@@ -338,6 +345,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+
+  catalog-relay:
+    <<: *catalog
+    command: ["python", "-m", "catalog.relay_main"]
+    depends_on:
+      catalog-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
 
   ledger-migrate:
     <<: *ledger
@@ -540,6 +556,8 @@ services:
     depends_on:
       identity-seed:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
       interval: 10s
@@ -567,6 +585,10 @@ services:
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-600}
       RATE_LIMIT_ROUTES:
       RATE_LIMIT_FAILURE_MODE: ${RATE_LIMIT_FAILURE_MODE:-fallback}
+      HSTS_ENABLED: ${HSTS_ENABLED:-false}
+      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      BREAKER_SHARED_STATE: ${BREAKER_SHARED_STATE:-false}
       BREAKER_OPEN_SECONDS: ${BREAKER_OPEN_SECONDS:-10}
     depends_on:
       redis:

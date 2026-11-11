@@ -44,6 +44,7 @@ class Product:
     tags: tuple[str, ...]
     merchant: Merchant
     created_at: datetime
+    active: bool = True
 
     def __post_init__(self) -> None:
         if self.price_cents <= 0:

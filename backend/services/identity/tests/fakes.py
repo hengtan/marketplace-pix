@@ -51,6 +51,15 @@ class FakeTokens:
     async def mark_used(self, record_id: UUID, at: datetime) -> None:
         self._store.tokens[record_id] = replace(self._store.tokens[record_id], used_at=at)
 
+    async def access_tokens_since(
+        self, family_id: UUID, since: datetime
+    ) -> list[tuple[str, datetime]]:
+        return [
+            (t.access_jti, t.issued_at)
+            for t in self._store.tokens.values()
+            if t.family_id == family_id and t.access_jti is not None and t.issued_at > since
+        ]
+
     async def revoke_family(self, family_id: UUID, at: datetime) -> int:
         count = 0
         for key, token in list(self._store.tokens.items()):
@@ -107,8 +116,28 @@ class FakeHasher:
 
 
 class FakeIssuer:
+    def __init__(self) -> None:
+        self.issued = 0
+
     def issue(self, user: User, session_id: UUID, now: datetime) -> IssuedAccessToken:
-        return IssuedAccessToken(f"access.{user.id}.{session_id}", 600)
+        self.issued += 1
+        return IssuedAccessToken(
+            f"access.{user.id}.{session_id}",
+            600,
+            f"jti-{self.issued}",
+            now + timedelta(seconds=600),
+        )
+
+
+class FakeRevocations:
+    def __init__(self) -> None:
+        self.revoked: dict[str, float] = {}
+        self.fail = False
+
+    async def revoke(self, jti: str, ttl_seconds: float) -> None:
+        if self.fail:
+            raise ConnectionError("redis down")
+        self.revoked[jti] = ttl_seconds
 
 
 class MutableClock:

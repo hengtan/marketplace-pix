@@ -43,7 +43,7 @@ class FixtureInventoryGateway:
 
     async def get_stock(self, product_id: UUID) -> StockInfo | None:
         available = self._stock.get(product_id)
-        return None if available is None else StockInfo(product_id, available, 0)
+        return None if available is None else StockInfo(product_id, available)
 
 
 class EmptyOrderGateway:

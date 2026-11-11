@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Annotated
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _find_env_file() -> Path | None:
@@ -28,6 +30,16 @@ class Settings(BaseSettings):
     identity_signing_key: str = ""
     identity_retired_public_keys: list[str] = []
     identity_seed_password: str = ""
+    redis_url: str = ""
+    redis_timeout_seconds: float = 0.5
+    trusted_proxies: Annotated[list[str], NoDecode] = []
+    abuse_protection_enabled: bool = True
+    auth_login_per_minute_ip_email: int = 10
+    auth_login_per_minute_ip: int = 60
+    auth_register_per_hour_ip_email: int = 5
+    auth_register_per_hour_ip: int = 30
+    auth_backoff_base_seconds: float = 2.0
+    auth_backoff_max_seconds: float = 900.0
 
     issuer: str = "marketplace-identity"
     audience: str = "marketplace-api"
@@ -43,6 +55,13 @@ class Settings(BaseSettings):
     refresh_retention_days: int = 7
     cleanup_interval_seconds: float = 300.0
     cleanup_batch_size: int = 1000
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def _split_proxies(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
 
     @property
     def database_url(self) -> str:

@@ -41,9 +41,32 @@ Verificação ponta a ponta com prazo curto: `scripts/e2e-saga.sh`.
 
 ## Kafka e Celery: papéis separados
 
-- Kafka: eventos de domínio (fatos). Tópicos `orders.events`, `payments.events`, `inventory.events`, `ledger.events`, 3 partições, chave `order_id` (ordem por pedido). Cada serviço é um consumer group.
+- Kafka: eventos de domínio (fatos). Tópicos `orders.events`, `payments.events`, `inventory.events`, `ledger.events` (chave `order_id`, ordem por pedido) e `catalog.events` (chave `product_id`), todos com 3 partições e `.dlq`. Cada serviço é um consumer group.
 - Celery com Redis como broker: tarefas (e-mail, conciliação diária).
 - Kafka entrega ao menos uma vez e o rebalanceamento reprocessa: o inbox é obrigatório. Retry e DLQ por tópicos `*.retry` e `*.dlq`, implementados por nós.
+
+## Catálogo, índice do assistente e cache semântico
+
+O `catalog` deixou de ser só leitura: o lojista dono (ou o admin) cria, altera e desativa produtos
+(`POST|PATCH|DELETE /products`). Cada escrita grava o evento (`ProductCreated`, `ProductUpdated`,
+`ProductPriceChanged`, `ProductDeactivated`) no outbox, na mesma transação, e o `catalog-relay` publica em
+`catalog.events`. O `assistant-worker` consome, reindexa só o que mudou e invalida o cache semântico das
+respostas que citam o produto: alterar um preço muda a resposta do chat em segundos, sem reindex manual
+(verificado em `scripts/e2e.sh`, seção 11).
+
+## Identidade do usuário no chat
+
+O gateway assina a identidade do usuário autenticado para o `assistant`, que a verifica com a mesma
+`PrincipalResolver` da biblioteca e a repassa (reassinada, com o mesmo `X-Request-Id`) ao `ordering` quando a
+ferramenta `get_order_status` roda. O dono vê o próprio pedido pelo chat, outro usuário não, e o convidado
+continua consultando por id.
+
+## Borda do gateway
+
+Antes de rotear, o gateway limita o corpo (`413`), resolve o IP real do cliente (`X-Forwarded-For` só de proxy
+em `TRUSTED_PROXIES`), aplica o rate limit, valida o JWT e consulta a lista de `jti` revogados no Redis; toda
+resposta sai com os cabeçalhos de segurança. Pagamento de pedido que existe mas ainda não tem cobrança responde
+`202` com `Retry-After`. Detalhes em `docs/SEGURANCA.md` e `docs/RESILIENCIA.md`.
 
 ## Padrões
 
@@ -57,7 +80,9 @@ Verificação ponta a ponta com prazo curto: `scripts/e2e-saga.sh`.
 | Fail-closed | webhook de PIX | na dúvida, o pedido continua pendente |
 | Circuit breaker, retry com budget, bulkhead | chamadas entre serviços | cada dependência com o seu; retry só em leitura (ver `docs/RESILIENCIA.md`) |
 | Deadline propagation | gateway e serviços | `X-Request-Deadline` com o tempo restante; cada salto limita o timeout a ele |
-| Rate limit distribuído | gateway | token bucket em Lua no Redis, por cliente e rota, com fallback em memória |
+| Rate limit distribuído | gateway, identity | token bucket em Lua no Redis, por cliente e rota (gateway) e por IP+e-mail (cadastro e login), com fallback em memória |
+| Espera progressiva | identity | cada falha seguida dobra o bloqueio por IP+e-mail, no Redis |
+| Lista de revogação | identity e gateway | `jti` de access token revogado no Redis com TTL = vida restante |
 
 ## Tabelas-chave
 

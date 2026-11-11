@@ -10,8 +10,11 @@ from uuid import UUID
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from marketplace_common.observability import get_request_id
+from marketplace_common.security import Principal, PrincipalResolver
 
 from assistant.application.budget import BudgetExceeded
+from assistant.application.identity import CallerIdentity, bind_identity, set_identity
 from assistant.domain.errors import MessageTooLong, SessionNotFound, UpstreamUnavailable
 from assistant.interface.schemas import (
     CacheStatsOut,
@@ -35,7 +38,15 @@ def _container(request: Request) -> Container:
     return container
 
 
-def user_key(request: Request) -> str | None:
+def caller(request: Request) -> CallerIdentity:
+    resolver: PrincipalResolver = request.app.state.principal_resolver
+    request_id = get_request_id() or request.headers.get("x-request-id", "")
+    return CallerIdentity(resolver(request), request_id)
+
+
+def user_key(request: Request, principal: Principal | None = None) -> str | None:
+    if principal is not None:
+        return f"user:{principal.user_id}"
     header = request.headers.get("x-user-id", "").strip()
     if header:
         return f"user:{header[:64]}"
@@ -52,19 +63,23 @@ def build_router() -> APIRouter:
 
     @router.post("/chat", response_model=ChatResponse)
     async def chat(body: ChatRequest, request: Request) -> ChatResponse:
-        result = await _container(request).chat.chat(
-            body.session_id, body.message, user_key(request)
-        )
+        identity = caller(request)
+        with bind_identity(identity):
+            result = await _container(request).chat.chat(
+                body.session_id, body.message, user_key(request, identity.principal)
+            )
         return ChatResponse.from_result(result)
 
     @router.post("/chat/stream")
     async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
         service = _container(request).chat
         message = service.validate_message(body.message)
-        user = user_key(request)
+        identity = caller(request)
+        user = user_key(request, identity.principal)
 
         async def events() -> AsyncIterator[str]:
             STREAMS_ACTIVE.inc()
+            set_identity(identity)
             try:
                 async with aclosing(
                     service.stream(body.session_id, message, user_id=user)
@@ -152,10 +167,12 @@ def build_router() -> APIRouter:
 def create_app(
     *,
     container: Container | None = None,
+    internal_secret: str = "",
     ready_check: ReadyCheck | None = None,
     lifespan: Lifespan | None = None,
 ) -> FastAPI:
     app = FastAPI(title="assistant", lifespan=lifespan)
+    app.state.principal_resolver = PrincipalResolver(internal_secret)
     if container is not None:
         app.state.container = container
     if ready_check is not None:

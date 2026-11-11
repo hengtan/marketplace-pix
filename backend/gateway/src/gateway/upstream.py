@@ -11,10 +11,12 @@ from marketplace_common.resilience import (
     ResilienceError,
     RetryBudget,
     RetryPolicy,
+    SharedCircuitBreaker,
     is_idempotent_method,
     retry_async,
 )
 from marketplace_common.resilience.clock import Sleeper, sleep
+from redis.asyncio import Redis
 
 from gateway.config import Settings
 
@@ -39,6 +41,7 @@ class UpstreamGuard:
         *,
         sleeper: Sleeper = sleep,
         rng: random.Random | None = None,
+        shared_redis: Redis | None = None,
     ) -> None:
         self.registry = BreakerRegistry()
         self._sleeper = sleeper
@@ -58,8 +61,7 @@ class UpstreamGuard:
             half_open_max_calls=settings.breaker_half_open_calls,
         )
         self._breakers: dict[str, CircuitBreaker] = {
-            name: self.registry.get(name, config, is_failure=_is_breaker_failure)
-            for name in services
+            name: self._build_breaker(name, config, settings, shared_redis) for name in services
         }
         self._bulkheads = {
             name: Bulkhead(
@@ -71,6 +73,22 @@ class UpstreamGuard:
             for name in services
         }
         self._budgets = {name: RetryBudget(ratio=settings.retry_budget_ratio) for name in services}
+
+    def _build_breaker(
+        self, name: str, config: BreakerConfig, settings: Settings, shared_redis: Redis | None
+    ) -> CircuitBreaker:
+        if shared_redis is not None and settings.breaker_shared_state:
+            return self.registry.register(
+                SharedCircuitBreaker(
+                    name,
+                    config,
+                    shared_redis,
+                    prefix=settings.breaker_shared_prefix,
+                    sync_interval=settings.breaker_sync_interval,
+                    is_failure=_is_breaker_failure,
+                )
+            )
+        return self.registry.get(name, config, is_failure=_is_breaker_failure)
 
     def snapshot(self) -> dict[str, dict[str, object]]:
         return dict(self.registry.snapshot())

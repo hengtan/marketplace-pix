@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
-class EventModel(BaseModel):
+class BaseEvent(BaseModel):
     """Contrato de um evento em uma versão. Campos desconhecidos são ignorados na leitura."""
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -18,7 +18,14 @@ class EventModel(BaseModel):
     schema_version: int
     event_id: UUID
     occurred_at: datetime
+
+
+class EventModel(BaseEvent):
     order_id: UUID
+
+
+class ProductEventModel(BaseEvent):
+    product_id: UUID
 
 
 class OrderItemV1(BaseModel):
@@ -190,3 +197,48 @@ class LedgerTransactionReversedV1(EventModel):
     transaction_id: UUID
     total_cents: int
     platform_fee_cents: int
+
+
+class ProductCreatedV1(ProductEventModel):
+    event_type = "ProductCreated"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    merchant_id: UUID
+    slug: str
+    name: str
+    category: str
+    price_cents: int
+    currency: str
+
+
+class ProductUpdatedV1(ProductEventModel):
+    event_type = "ProductUpdated"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    merchant_id: UUID
+    slug: str
+    name: str
+    category: str
+    price_cents: int
+    currency: str
+
+
+class ProductPriceChangedV1(ProductEventModel):
+    event_type = "ProductPriceChanged"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    merchant_id: UUID
+    old_price_cents: int
+    new_price_cents: int
+    currency: str
+
+
+class ProductDeactivatedV1(ProductEventModel):
+    event_type = "ProductDeactivated"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    merchant_id: UUID

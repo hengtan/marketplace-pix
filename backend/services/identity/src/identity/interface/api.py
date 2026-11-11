@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Annotated, Any
@@ -7,8 +8,9 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from marketplace_common.security import Principal, PrincipalResolver, Scope
+from marketplace_common.security import ClientIpResolver, Principal, PrincipalResolver, Scope
 
+from identity.application.abuse import AbuseGuard, TooManyAttempts
 from identity.application.auth import AuthService
 from identity.application.errors import (
     EmailAlreadyRegistered,
@@ -41,6 +43,19 @@ def get_auth(request: Request) -> AuthService:
     return auth
 
 
+def client_ip(request: Request) -> str:
+    resolver: ClientIpResolver = request.app.state.client_ips
+    peer = request.client.host if request.client else None
+    return resolver.resolve(
+        peer, request.headers.get("x-forwarded-for"), request.headers.get("x-real-ip")
+    )
+
+
+def abuse_guard(request: Request) -> AbuseGuard | None:
+    guard: AbuseGuard | None = request.app.state.abuse_guard
+    return guard
+
+
 def get_principal(request: Request) -> Principal | None:
     resolver: PrincipalResolver = request.app.state.principal_resolver
     return resolver(request)
@@ -62,16 +77,38 @@ def build_router() -> APIRouter:
     router = APIRouter()
 
     @router.post("/auth/register", status_code=201, response_model=TokensOut)
-    async def register(body: RegisterIn, auth: AuthDep, response: Response) -> TokensOut:
+    async def register(
+        body: RegisterIn, auth: AuthDep, request: Request, response: Response
+    ) -> TokensOut:
         response.headers.update(NO_STORE)
-        return TokensOut.from_domain(
-            await auth.register_customer(body.email, body.name, body.password)
-        )
+        guard, ip = abuse_guard(request), client_ip(request)
+        if guard is not None:
+            await guard.check("register", ip, body.email)
+        try:
+            pair = await auth.register_customer(body.email, body.name, body.password)
+        except (EmailAlreadyRegistered, DomainError):
+            if guard is not None:
+                await guard.failed("register", ip, body.email)
+            raise
+        return TokensOut.from_domain(pair)
 
     @router.post("/auth/login", response_model=TokensOut)
-    async def login(body: LoginIn, auth: AuthDep, response: Response) -> TokensOut:
+    async def login(
+        body: LoginIn, auth: AuthDep, request: Request, response: Response
+    ) -> TokensOut:
         response.headers.update(NO_STORE)
-        return TokensOut.from_domain(await auth.login(body.email, body.password))
+        guard, ip = abuse_guard(request), client_ip(request)
+        if guard is not None:
+            await guard.check("login", ip, body.email)
+        try:
+            pair = await auth.login(body.email, body.password)
+        except InvalidCredentials:
+            if guard is not None:
+                await guard.failed("login", ip, body.email)
+            raise
+        if guard is not None:
+            await guard.succeeded("login", ip, body.email)
+        return TokensOut.from_domain(pair)
 
     @router.post("/auth/refresh", response_model=TokensOut)
     async def refresh(body: RefreshIn, auth: AuthDep, response: Response) -> TokensOut:
@@ -124,11 +161,15 @@ def create_app(
     auth: AuthService | None = None,
     jwks: dict[str, Any] | None = None,
     internal_secret: str = "",
+    abuse_guard: AbuseGuard | None = None,
+    client_ips: ClientIpResolver | None = None,
     ready_check: ReadyCheck | None = None,
     lifespan: Lifespan | None = None,
 ) -> FastAPI:
     app = FastAPI(title="identity", lifespan=lifespan)
     app.state.principal_resolver = PrincipalResolver(internal_secret)
+    app.state.abuse_guard = abuse_guard
+    app.state.client_ips = client_ips or ClientIpResolver([])
     if auth is not None:
         app.state.auth = auth
     if jwks is not None:
@@ -143,6 +184,15 @@ def create_app(
             {"detail": "invalid credentials"},
             status_code=401,
             headers={"WWW-Authenticate": "Bearer", **NO_STORE},
+        )
+
+    @app.exception_handler(TooManyAttempts)
+    async def too_many(_: Request, exc: TooManyAttempts) -> JSONResponse:
+        seconds = max(1, math.ceil(exc.retry_after))
+        return JSONResponse(
+            {"detail": "too many attempts", "retry_after_seconds": seconds},
+            status_code=429,
+            headers={"Retry-After": str(seconds), **NO_STORE},
         )
 
     @app.exception_handler(InvalidRefreshToken)

@@ -43,6 +43,7 @@ class Issuer:
             "iss": ISSUER,
             "aud": AUDIENCE,
             "sub": str(user_id or uuid4()),
+            "jti": uuid4().hex,
             "iat": now,
             "nbf": now,
             "exp": now + 600,
@@ -66,6 +67,7 @@ class World:
         self.jwks_hits = 0
         self.jwks_down = False
         self.order_status = 200
+        self.payment_status = 200
         self.extra_keys: list[dict[str, Any]] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -81,6 +83,10 @@ class World:
             and "/orders/" in request.url.path
         ):
             return httpx.Response(self.order_status, json={"id": "x"})
+        if request.url.host == "payments":
+            if self.payment_status == 404:
+                return httpx.Response(404, json={"detail": "payment not found"})
+            return httpx.Response(self.payment_status, json={"ok": True})
         return httpx.Response(200, json={"ok": True})
 
     def upstream(self, host: str) -> list[httpx.Request]:

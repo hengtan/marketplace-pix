@@ -1,0 +1,12 @@
+{
+  "category": "tecnologia",
+  "currency": "BRL",
+  "event_id": "00000000-0000-4000-8000-0000000000e1",
+  "merchant_id": "66666666-6666-4666-8666-666666666666",
+  "name": "Fone Bluetooth Nova ANC",
+  "occurred_at": "2026-01-15T12:00:00+00:00",
+  "price_cents": 34990,
+  "product_id": "55555555-5555-4555-8555-555555555555",
+  "schema_version": 1,
+  "slug": "fone-bluetooth-nova"
+}

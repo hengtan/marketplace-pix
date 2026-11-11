@@ -79,3 +79,55 @@ async def test_logout_revokes_only_that_session(auth: AuthService) -> None:
     with pytest.raises(InvalidRefreshToken):
         await auth.refresh(phone.refresh_token)
     assert (await auth.refresh(laptop.refresh_token)).access_token
+
+
+async def test_logout_and_reuse_put_the_real_access_token_on_the_redis_list(
+    session_factory,
+) -> None:
+    import os
+    from uuid import uuid4
+
+    import jwt
+    from marketplace_common.security.revocation import RedisAccessTokenRevocations
+    from redis.asyncio import Redis
+
+    from identity.application.auth import AuthPolicy, AuthService
+    from identity.infrastructure.db.uow import SqlAlchemyUnitOfWork
+    from identity.infrastructure.security.jwt_issuer import JwtAccessTokenIssuer
+    from identity.infrastructure.security.keys import load_signing_keys
+    from identity.infrastructure.security.password import Argon2idHasher
+
+    redis = Redis.from_url(os.environ.get("TEST_REDIS_URL", "redis://localhost:6380/15"))
+    try:
+        await redis.ping()
+    except Exception:
+        pytest.skip("redis not available")
+    prefix = f"test-{uuid4().hex}:"
+    auth = AuthService(
+        lambda: SqlAlchemyUnitOfWork(session_factory),
+        Argon2idHasher(time_cost=1, memory_kib=8, parallelism=1),
+        JwtAccessTokenIssuer(load_signing_keys("", [], allow_ephemeral=True), "iss", "aud"),
+        AuthPolicy(),
+        revocations=RedisAccessTokenRevocations(redis, prefix=prefix),
+    )
+
+    def jti(token: str) -> str:
+        return str(jwt.decode(token, options={"verify_signature": False})["jti"])
+
+    try:
+        await auth.register_customer("ana@example.com", "Ana", PASSWORD)
+        first = await auth.login("ana@example.com", PASSWORD)
+        assert await redis.exists(f"{prefix}{jti(first.access_token)}") == 0
+        await auth.logout(first.refresh_token)
+        key = f"{prefix}{jti(first.access_token)}"
+        assert await redis.exists(key) == 1
+        assert 0 < await redis.ttl(key) <= 610
+
+        second = await auth.login("ana@example.com", PASSWORD)
+        rotated = await auth.refresh(second.refresh_token)
+        with pytest.raises(RefreshTokenReuse):
+            await auth.refresh(second.refresh_token)
+        for token in (second.access_token, rotated.access_token):
+            assert await redis.exists(f"{prefix}{jti(token)}") == 1
+    finally:
+        await redis.aclose()

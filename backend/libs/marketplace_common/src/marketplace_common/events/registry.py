@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from marketplace_common.events.models import (
-    EventModel,
+    BaseEvent,
     LedgerTransactionPostedV1,
     LedgerTransactionReversedV1,
     OrderCancelledV1,
@@ -18,6 +18,10 @@ from marketplace_common.events.models import (
     PaymentExpiredV1,
     PaymentRefundedV1,
     PaymentRefundRequestedV1,
+    ProductCreatedV1,
+    ProductDeactivatedV1,
+    ProductPriceChangedV1,
+    ProductUpdatedV1,
     StockCommittedV1,
     StockRejectedV1,
     StockReleasedV1,
@@ -38,11 +42,11 @@ class EventRegistry:
     """Modelos versionados por tipo de evento e as migrações entre versões vizinhas."""
 
     def __init__(self) -> None:
-        self._models: dict[str, dict[int, type[EventModel]]] = {}
+        self._models: dict[str, dict[int, type[BaseEvent]]] = {}
         self._upcasters: dict[tuple[str, int], Migration] = {}
         self._downcasters: dict[tuple[str, int], Migration] = {}
 
-    def register(self, model: type[EventModel]) -> type[EventModel]:
+    def register(self, model: type[BaseEvent]) -> type[BaseEvent]:
         versions = self._models.setdefault(model.event_type, {})
         if model.version in versions:
             raise ValueError(f"{model.event_type} v{model.version} already registered")
@@ -75,7 +79,7 @@ class EventRegistry:
     def latest(self, event_type: str) -> int:
         return self.versions(event_type)[-1]
 
-    def model(self, event_type: str, version: int) -> type[EventModel]:
+    def model(self, event_type: str, version: int) -> type[BaseEvent]:
         try:
             return self._models[event_type][version]
         except KeyError:
@@ -116,11 +120,11 @@ class EventRegistry:
             result["schema_version"] = current
         return result
 
-    def parse(self, event_type: str, payload: Payload, version: int | None = None) -> EventModel:
+    def parse(self, event_type: str, payload: Payload, version: int | None = None) -> BaseEvent:
         upcasted = self.upcast(event_type, payload, version)
         return self.model(event_type, int(upcasted["schema_version"])).model_validate(upcasted)
 
-    def parse_as(self, event_type: str, payload: Payload, version: int) -> EventModel:
+    def parse_as(self, event_type: str, payload: Payload, version: int) -> BaseEvent:
         """Lê o payload com o modelo de uma versão específica (consumidor antigo, dado novo)."""
         return self.model(event_type, version).model_validate(
             {**payload, "schema_version": version}
@@ -146,6 +150,10 @@ def build_default_registry() -> EventRegistry:
         LedgerTransactionReversedV1,
         PaymentRefundRequestedV1,
         PaymentRefundedV1,
+        ProductCreatedV1,
+        ProductUpdatedV1,
+        ProductPriceChangedV1,
+        ProductDeactivatedV1,
     ):
         registry.register(model)
 

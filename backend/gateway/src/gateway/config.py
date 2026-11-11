@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import Annotated
 
 from marketplace_common.resilience import RedisFailureMode
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _find_env_file() -> Path | None:
@@ -33,6 +35,12 @@ class Settings(BaseSettings):
     rate_limit_redis_timeout: float = 0.25
     redis_url: str = ""
 
+    max_request_body_bytes: int = 1_048_576
+    hsts_enabled: bool = False
+    hsts_max_age_seconds: int = 31_536_000
+    cross_origin_resource_policy: str = "same-site"
+    trusted_proxies: Annotated[list[str], NoDecode] = []
+
     request_deadline_seconds: float = 8.0
     max_request_deadline_seconds: float = 30.0
     service_deadlines: dict[str, float] = {"assistant": 25.0}
@@ -44,6 +52,9 @@ class Settings(BaseSettings):
     breaker_window_seconds: float = 30.0
     breaker_open_seconds: float = 10.0
     breaker_half_open_calls: int = 3
+    breaker_shared_state: bool = False
+    breaker_shared_prefix: str = "gw:cb:"
+    breaker_sync_interval: float = 0.25
 
     retry_attempts: int = 3
     retry_base_delay: float = 0.05
@@ -54,10 +65,19 @@ class Settings(BaseSettings):
     bulkhead_max_queue: int = 50
     bulkhead_queue_timeout: float = 1.0
     auth_enabled: bool = True
+    revocation_cache_seconds: float = 0.5
+    revocation_fail_open: bool = True
     allow_guest_checkout: bool = True
     internal_auth_secret: str = ""
     jwt_issuer: str = "marketplace-identity"
     jwt_audience: str = "marketplace-api"
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def _split_proxies(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
 
     def upstreams(self) -> dict[str, str]:
         return {

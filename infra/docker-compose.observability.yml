@@ -93,6 +93,8 @@ services:
 
   catalog-api:
     environment: *otel
+  catalog-relay:
+    environment: *otel
 
   assistant-api:
     environment: *otel

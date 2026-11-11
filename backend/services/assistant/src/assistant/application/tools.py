@@ -89,7 +89,6 @@ class GetStockTool:
             "product_id": str(product_id),
             "name": name,
             "available": stock.available,
-            "reserved": stock.reserved,
         }
         return ToolResult(f"{name}: {stock.available} unidades disponíveis.", data)
 

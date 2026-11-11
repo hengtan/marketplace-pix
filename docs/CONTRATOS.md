@@ -104,18 +104,21 @@ pagamento é confirmado para um pedido que já estava cancelado (pagamento tardi
 | `LedgerTransactionPosted` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` |
 | `LedgerTransactionReversed` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` (estorno de um pagamento já lançado) |
 
-### catalog.events (produtor: catalog, **ainda não publica**)
+### catalog.events (produtor: catalog)
 
-Contrato que o `assistant` consome para manter o índice de busca e o cache semântico atualizados. A chave é o
-`product_id` e o payload tem `product_id` (os demais campos são livres). Hoje o `catalog` não publica esses
-eventos: sem eles o índice só atualiza no reindex (`POST /admin/reindex`) e o cache só expira por TTL.
+Chave = `product_id` (texto). Publicados pelo outbox do catalog (`catalog-relay`), na mesma transação da escrita.
+Não têm `order_id`: o cabeçalho `event_type` e o `schema_version` seguem a regra geral. Tópicos `catalog.events`
+e `catalog.events.dlq` criados no `kafka-init`.
 
-| Evento | Quando |
-|---|---|
-| `ProductCreated` | produto novo (esvazia o cache dependente de filtros e de "não encontrei") |
-| `ProductUpdated` | descrição, nome, categoria ou nota mudou |
-| `ProductPriceChanged` | preço mudou (invalida as respostas que citam o produto) |
-| `ProductDeleted` | produto saiu do catálogo |
+| Evento | Campos | Quando |
+|---|---|---|
+| `ProductCreated` (v1) | `product_id`, `merchant_id`, `slug`, `name`, `category`, `price_cents`, `currency`, `event_id`, `occurred_at`, `schema_version` | produto novo (esvazia o cache dependente de filtros e de "não encontrei") |
+| `ProductUpdated` (v1) | os mesmos campos de `ProductCreated` (retrato do produto) | nome, descrição, categoria, imagem ou tags mudaram |
+| `ProductPriceChanged` (v1) | `product_id`, `merchant_id`, `old_price_cents`, `new_price_cents`, `currency`, `event_id`, `occurred_at`, `schema_version` | preço mudou (invalida as respostas que citam o produto); uma edição de preço e de texto na mesma chamada gera os dois eventos |
+| `ProductDeactivated` (v1) | `product_id`, `merchant_id`, `event_id`, `occurred_at`, `schema_version` | produto saiu do catálogo (a venda some das listagens e o pedido novo é recusado) |
+
+Edição sem mudança real (mesmos valores) não publica nada. O `assistant` também aceita o tipo legado
+`ProductDeleted` como sinônimo de `ProductDeactivated`.
 
 ### Quem consome o quê
 
@@ -126,7 +129,7 @@ eventos: sem eles o índice só atualiza no reindex (`POST /admin/reindex`) e o 
 | inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `PaymentRefunded`, `OrderCancelled` | reserva; confirma a venda; libera; devolve ao estoque a venda reembolsada |
 | ledger | `OrderCreated`, `PaymentConfirmed`, `PaymentRefunded` | guarda a projeção do pedido; lança a transação; lança o estorno |
 | notifications | `OrderCreated`, `PaymentCreated`, `OrderPaid`, `OrderCancelled` | envia e-mails (Celery) |
-| assistant | `ProductCreated`, `ProductUpdated`, `ProductPriceChanged`, `ProductDeleted` (de `catalog.events`) | reindexa só o que mudou e invalida respostas em cache (`python -m assistant.worker_main`, grupo `assistant`) |
+| assistant | `ProductCreated`, `ProductUpdated`, `ProductPriceChanged`, `ProductDeactivated` (de `catalog.events`) | reindexa só o que mudou e invalida respostas em cache (`python -m assistant.worker_main`, grupo `assistant`) |
 
 ## 5. APIs REST (todas atrás do gateway)
 
@@ -156,6 +159,9 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 | `GET /api/catalog/products/slug/{slug}` | `GET /products/slug/{slug}` |
 | `GET /api/catalog/products/by-ids?ids=a,b` | `GET /products/by-ids?ids=a,b` |
 | `GET /api/catalog/categories` | `GET /categories` |
+| `POST /api/catalog/products` | `POST /products` (lojista no próprio catálogo; `admin` informa `merchant_id`) |
+| `PATCH /api/catalog/products/{id}` | `PATCH /products/{id}` |
+| `DELETE /api/catalog/products/{id}` | `DELETE /products/{id}` (desativa; idempotente, `204`) |
 
 `GET /products` aceita `q`, `category`, `min_price_cents`, `max_price_cents`, `sort`
 (`relevance|price_asc|price_desc|newest|rating`), `page`, `page_size` (padrão 12, máximo 48).
@@ -163,6 +169,13 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 `GET /products/by-ids` devolve o envelope paginado (`items`, `total`, `page`, `page_size`), na ordem pedida,
 ignora ids desconhecidos e aceita no máximo 100 ids (422 se `ids` faltar ou for inválido). Parâmetros fora do
 intervalo devolvem 422 com `detail` em texto.
+
+Escrita (exige token com `catalog:write:own` e dono do produto, ou `catalog:write:any`; `401` sem identidade,
+`403` em produto alheio): `POST` aceita `name`, `description`, `price_cents` (> 0), `category` (slug existente), `slug`
+(opcional, derivado do nome), `image_url`, `tags[]`, `merchant_id` (só `admin`) e devolve `201` com o produto, `409` se o
+slug já existe; `PATCH` aceita `name`, `description`, `price_cents`, `category`, `image_url`, `tags` (ao menos um campo,
+`422` para campos desconhecidos). Produto desativado some de todas as leituras (`404`, fora da lista, de `by-ids` e da
+contagem das categorias). Cada escrita grava o evento correspondente no outbox na mesma transação.
 
 Produto: `id`, `slug`, `name`, `description`, `price_cents`, `currency`, `category`, `image_url` (pode ser nulo),
 `rating` (0 a 5), `reviews_count`, `tags[]`, `merchant` (`id`, `slug`, `name`), `created_at`.
@@ -172,10 +185,16 @@ Categoria: `slug`, `label`, `count`.
 
 | Gateway | Serviço |
 |---|---|
-| `GET /api/inventory/stock?product_ids=a,b` | `GET /stock?product_ids=a,b` → `[{product_id, available, reserved}]` |
+| `GET /api/inventory/stock?product_ids=a,b` | `GET /stock?product_ids=a,b` → `[{product_id, available}]` |
 | `GET /api/inventory/stock/{product_id}` | `GET /stock/{product_id}` |
 | `PUT /api/inventory/stock/{product_id}` | `PUT /stock/{product_id}` com `{ "available": 10 }` (lojista só nos próprios produtos, `403` nos demais; `admin` em todos) |
-| `GET /api/inventory/stock/mine` | `GET /stock/mine` → estoque dos produtos do lojista do token |
+| `GET /api/inventory/stock/mine` | `GET /stock/mine` → estoque dos produtos do lojista do token, com `reserved` |
+
+A leitura de estoque é pública e devolve só `available`: `reserved` (a demanda em andamento) aparece apenas para o lojista dono do
+produto (escopo `stock:write:own` e `merchant_id` igual ao do produto) e para o `admin`, em `GET /stock`, `GET /stock/{id}`,
+`GET /stock/mine` e na resposta do `PUT`. Para isso o gateway repassa a identidade assinada quando o token é válido nas leituras de
+estoque; token ausente, inválido ou expirado nessas rotas vale como anônimo (a vitrine continua pública). Produto sem lojista dono
+nunca expõe `reserved` a um lojista.
 
 ### ordering (porta 8001)
 
@@ -202,6 +221,11 @@ Pedido: `id`, `customer_id`, `customer_name`, `customer_email`, `status` (`PENDI
 
 `GET /api/payments/by-order/{id}` só responde para quem pode ver o pedido (o gateway consulta o ordering com
 a identidade do chamador antes; `404` caso contrário).
+
+Logo depois de criar o pedido a cobrança ainda não existe (ela nasce do evento `OrderCreated`). Enquanto o pedido existe e é do
+chamador e a cobrança ainda não foi criada, `GET /api/payments/by-order/{id}` responde `202` com `Retry-After: 1` e corpo
+`{ "detail": "payment is being created", "retry_after_seconds": 1 }` (sem os campos do pagamento: quem recebe `202` deve tentar de
+novo). `404` só quando o pedido não existe ou não é do chamador.
 
 | Gateway | Serviço |
 |---|---|
@@ -259,8 +283,12 @@ instância com pgvector: `localhost:5434` no host, `pgvector:5432` na rede do Do
 | `GET /api/assistant/evals/latest` | `GET /evals/latest` |
 | `GET /api/assistant/cache/stats` | `GET /cache/stats` |
 
-`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Cabeçalho opcional `X-User-Id`
-(identifica o usuário para o orçamento diário; sem ele vale o IP). Resposta: `session_id`, `answer`,
+`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Com token, o gateway repassa a
+identidade assinada (a mesma dos demais serviços, verificada com `INTERNAL_AUTH_SECRET`): o orçamento diário vale
+por usuário e `get_order_status` consulta o ordering **como esse usuário**, então a conta só vê os próprios pedidos
+(pedido alheio responde "não encontrei", igual ao inexistente). Sem token (convidado) o pedido é consultado só por id,
+como no ordering. Cabeçalhos de identidade sem assinatura válida valem como anônimo. O cabeçalho legado `X-User-Id`
+sem assinatura ainda identifica o orçamento (sem ele vale o IP) mas não dá acesso a nenhum pedido. Resposta: `session_id`, `answer`,
 `citations[]` (`product_id`, `slug`, `name`, `score`), `tool_calls[]` (`name`, `arguments`, `result_summary`,
 `duration_ms`), `retrieved[]` (os trechos recuperados com `score`), `latency_ms` e, novos e opcionais,
 `cached` (resposta veio do cache semântico), `degraded` e `warning` (o modelo falhou ou estourou o tempo e a
@@ -300,6 +328,14 @@ Resiliência (detalhes em `docs/RESILIENCIA.md`):
   `{ "detail": "...", "code": "circuit_open" | "overloaded", "service": "catalog", "retry_after_seconds": 10 }`.
   Deadline estourado responde `504`. O campo `detail` continua sendo o texto de sempre.
 - Só `GET` e `HEAD` são retentados pelo gateway (backoff exponencial com jitter e orçamento de retentativas).
+- Toda resposta do gateway (inclusive `401`, `413`, `429`, `5xx` e pré-voo de CORS) traz `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: no-referrer`, `Permissions-Policy` restritiva e `Cross-Origin-Resource-Policy: same-site` (o que o serviço
+  mandar com esses nomes é sobrescrito). `Strict-Transport-Security` só com `HSTS_ENABLED=true` (desligado em desenvolvimento).
+- Corpo de requisição acima de `MAX_REQUEST_BODY_BYTES` (1 MiB por padrão) responde `413` com `{ "detail": "request body too large" }`,
+  decidido pelo `Content-Length` ou, em corpo sem tamanho declarado, quando a soma passa do limite; o serviço não é chamado.
+- O cliente é identificado pelo IP da conexão ou, só quando a conexão vem de um proxy listado em `TRUSTED_PROXIES` (CIDR separados por
+  vírgula), pelo primeiro endereço não confiável de `X-Forwarded-For` lido da direita para a esquerda (`X-Real-IP` na falta dele).
+  O serviço recebe `X-Forwarded-For` com o endereço resolvido.
 
 ### identity (porta 8008): autenticação e autorização
 
@@ -310,7 +346,7 @@ Decisão e justificativa em `docs/adr/0001-identidade-como-servico.md`. O fronte
 | `POST /api/auth/register` | anônimo | `{ email, name, password }` → `201` com tokens (cria sempre um `customer`) |
 | `POST /api/auth/login` | anônimo | `{ email, password }` → `200` com tokens |
 | `POST /api/auth/refresh` | anônimo | `{ refresh_token }` → `200` com tokens novos (o antigo morre) |
-| `POST /api/auth/logout` | anônimo | `{ refresh_token }` → `204` (revoga a sessão; idempotente) |
+| `POST /api/auth/logout` | anônimo | `{ refresh_token }` → `204` (revoga a sessão e os access tokens dela, que passam a receber `401` em até 1 s; idempotente) |
 | `GET /api/auth/me` | token | perfil do usuário do token |
 | `POST /api/auth/admin/users` | `admin` | `{ email, name, password, roles[], merchant_id ou merchant_slug }` → `201` (cria lojista ou admin) |
 
@@ -318,7 +354,19 @@ Resposta de `register`, `login` e `refresh`: `access_token` (JWT), `refresh_toke
 (`Bearer`), `expires_in` (segundos, 600) e `user` (`id`, `email`, `name`, `roles[]`, `merchant_id`). Erros:
 `401 invalid credentials` (mesma resposta para e-mail inexistente, senha errada, conta bloqueada ou
 desativada), `401 invalid refresh token`, `409 email already registered`, `422` (e-mail ou senha fora da
-política: mínimo de 10 caracteres). Respostas de token vêm com `Cache-Control: no-store`.
+política: mínimo de 10 caracteres), `429` (limite de tentativas, abaixo). Respostas de token vêm com `Cache-Control: no-store`.
+
+Proteção contra cadastro em massa e adivinhação de senha (`register` e `login`): limite distribuído (token bucket no Redis,
+compartilhado entre as instâncias) por **IP + e-mail** (padrão: 10 logins por minuto, 5 cadastros por hora) e por **IP** (60 logins por
+minuto, 30 cadastros por hora, para quem troca o e-mail a cada tentativa), mais uma espera progressiva por IP + e-mail: cada falha
+seguida (senha errada, e-mail já cadastrado, senha fora da política) dobra o bloqueio (2 s, 4 s, 8 s... até 15 min) e um login
+bem-sucedido zera. Quem excede recebe `429` com `Retry-After` e corpo `{ "detail": "too many attempts", "retry_after_seconds": N }`.
+O IP é o que o gateway repassa em `X-Forwarded-For`, aceito só de proxy listado em `TRUSTED_PROXIES`; o e-mail só entra nas chaves como hash.
+
+Revogação do access token: o logout, a detecção de reuso do refresh e a conta desativada colocam o `jti` dos access tokens
+ainda vivos da sessão em uma lista no Redis (TTL = vida restante do token, mais 10 s de folga). O gateway consulta a lista
+(cache de 0,5 s) e responde `401` ao token revogado. Com o Redis fora, `REVOCATION_FAIL_OPEN=true` (padrão) aceita o token
+(ele ainda expira sozinho em 10 min) e `false` responde `503` a quem tem token.
 
 Uso no frontend:
 
@@ -327,7 +375,7 @@ Uso no frontend:
 3. Ao receber `401` com token que deveria valer, chamar `/api/auth/refresh` **uma única vez** e repetir a
    chamada. Se o refresh também der `401`, a sessão acabou: voltar ao login. Nunca reutilizar um refresh antigo
    (reapresentar um token já usado revoga a sessão inteira nos dois dispositivos).
-4. O `access_token` é um JWT `EdDSA`; as claims úteis para a UI são `roles`, `scope` e `merchant_id`
+4. O `access_token` é um JWT `EdDSA` com `jti` e `sid`; as claims úteis para a UI são `roles`, `scope` e `merchant_id`
    (decodificar para exibir, nunca para decidir segurança: o servidor revalida tudo).
 5. `Authorization` precisa estar em `Access-Control-Allow-Headers` (o gateway já permite).
 
@@ -336,8 +384,8 @@ Papéis e escopos:
 | Papel | Escopos |
 |---|---|
 | `customer` | `orders:create`, `orders:read:own`, `notifications:read:own` |
-| `merchant` | os de `customer` mais `orders:read:merchant`, `stock:write:own`, `ledger:read:own` (e `merchant_id` no token) |
-| `admin` | os de `customer` mais `orders:read:any`, `orders:read:merchant`, `stock:write:any`, `ledger:read:any`, `ledger:reconcile`, `users:manage`, `assistant:admin` |
+| `merchant` | os de `customer` mais `orders:read:merchant`, `stock:write:own`, `catalog:write:own`, `ledger:read:own` (e `merchant_id` no token) |
+| `admin` | os de `customer` mais `orders:read:any`, `orders:read:merchant`, `stock:write:any`, `catalog:write:any`, `ledger:read:any`, `ledger:reconcile`, `users:manage`, `assistant:admin` |
 
 Contas de desenvolvimento (criadas por `identity-seed` quando `IDENTITY_SEED_PASSWORD` existe no `.env`; a
 senha é a desse segredo): `admin@marketplace-pix.local` (admin) e um lojista por loja,
@@ -348,11 +396,13 @@ Matriz de acesso no gateway (`401` sem token válido, `403` sem o escopo):
 
 | Rota | Acesso |
 |---|---|
-| `GET /api/catalog/**`, `GET /api/inventory/stock**` | público |
+| `GET /api/catalog/**` | público |
+| `GET /api/inventory/stock**` | público (com token válido o gateway repassa a identidade, para o lojista dono ver `reserved`) |
 | `POST /api/orders` | anônimo (convidado) ou autenticado; `ALLOW_GUEST_CHECKOUT=false` exige token |
 | `GET /api/orders`, `GET /api/orders/{id}`, `GET /api/payments/by-order/{id}` | anônimo ou autenticado; o serviço decide pelo dono |
 | `GET /api/orders/merchant` | `orders:read:merchant` |
 | `PUT /api/inventory/stock/{id}`, `GET /api/inventory/stock/mine` | `stock:write:own` ou `stock:write:any` |
+| `POST /api/catalog/products`, `PATCH\|DELETE /api/catalog/products/{id}` | `catalog:write:own` ou `catalog:write:any` (o serviço confere o dono) |
 | `GET /api/ledger/**` | `ledger:read:own` ou `ledger:read:any` (o serviço confere o lojista) |
 | `GET /api/ledger/reconciliation` | `ledger:reconcile` |
 | `GET /api/notifications**` | `notifications:read:own` (o gateway força `customer_id` do token; `admin` pode escolher) |

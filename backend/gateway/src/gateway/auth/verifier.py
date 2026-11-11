@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from uuid import UUID
 
 import jwt
@@ -12,6 +13,12 @@ class InvalidToken(Exception):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedToken:
+    principal: Principal
+    jti: str
+
+
 class TokenVerifier:
     def __init__(
         self, jwks: JwksCache, issuer: str, audience: str, leeway_seconds: int = 5
@@ -22,6 +29,9 @@ class TokenVerifier:
         self._leeway = leeway_seconds
 
     async def verify(self, token: str) -> Principal:
+        return (await self.verify_token(token)).principal
+
+    async def verify_token(self, token: str) -> VerifiedToken:
         try:
             header = jwt.get_unverified_header(token)
         except jwt.PyJWTError as error:
@@ -40,13 +50,16 @@ class TokenVerifier:
                 audience=self._audience,
                 issuer=self._issuer,
                 leeway=self._leeway,
-                options={"require": ["exp", "iat", "sub", "iss", "aud"]},
+                options={"require": ["exp", "iat", "sub", "iss", "aud", "jti"]},
             )
-            return Principal(
-                user_id=UUID(claims["sub"]),
-                roles=frozenset(claims.get("roles", [])),
-                scopes=frozenset(str(claims.get("scope", "")).split()),
-                merchant_id=UUID(claims["merchant_id"]) if claims.get("merchant_id") else None,
+            return VerifiedToken(
+                Principal(
+                    user_id=UUID(claims["sub"]),
+                    roles=frozenset(claims.get("roles", [])),
+                    scopes=frozenset(str(claims.get("scope", "")).split()),
+                    merchant_id=UUID(claims["merchant_id"]) if claims.get("merchant_id") else None,
+                ),
+                str(claims["jti"]),
             )
         except (jwt.PyJWTError, ValueError, TypeError, KeyError) as error:
             raise InvalidToken from error

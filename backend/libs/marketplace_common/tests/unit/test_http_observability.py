@@ -98,3 +98,35 @@ async def test_install_api_observability_enforces_the_deadline_header() -> None:
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
         assert (await c.get("/ping")).status_code == 200
         assert (await c.get("/ping", headers={"X-Request-Deadline": "0"})).status_code == 504
+
+
+def test_routes_from_included_routers_keep_their_template_instead_of_unmatched():
+    from fastapi import APIRouter
+
+    router = APIRouter()
+
+    @router.get("/orders/{order_id}")
+    async def order(order_id: int) -> dict[str, int]:
+        return {"id": order_id}
+
+    @router.get("/ping")
+    async def ping() -> dict[str, bool]:
+        return {"ok": True}
+
+    app = FastAPI()
+    app.include_router(router)
+    app.include_router(router, prefix="/v2")
+    install_api_observability(app, "demo-included")
+    client = TestClient(app)
+
+    client.get("/orders/7")
+    client.get("/v2/orders/8")
+    client.get("/v2/ping")
+    client.get("/does-not-exist")
+    body = client.get("/metrics").text
+
+    assert 'route="/orders/{order_id}"' in body
+    assert 'route="/v2/orders/{order_id}"' in body
+    assert 'route="/v2/ping"' in body
+    assert 'route="/orders/7"' not in body
+    assert sample("http_requests_total", method="GET", route="unmatched", status="404") >= 1

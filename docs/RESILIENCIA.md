@@ -64,6 +64,19 @@ sobe em cascata. Insistir só piora a recuperação do serviço doente.
 proteger. `minimum_calls` baixo abre com ruído. O estado é por processo: cada réplica do gateway aprende
 sozinha (barato e sem ponto central, mas as réplicas divergem por alguns segundos).
 
+**Estado por processo e o modo compartilhado (opcional).** Por padrão cada instância do gateway tem o seu
+breaker: uma réplica que ainda não viu falhas continua mandando tráfego a um serviço que outra já
+considerou doente, e cada réplica gasta as próprias chamadas para descobrir. Com `BREAKER_SHARED_STATE=true`
+(precisa de `REDIS_URL`, padrão desligado) o gateway usa `SharedCircuitBreaker`
+(`resilience/shared_breaker.py`): quem abre grava no Redis uma chave `gw:cb:<serviço>` que vive `open_seconds`;
+as demais leem a chave (no máximo a cada `BREAKER_SYNC_INTERVAL`, 0,25 s) e abrem também, com o tempo
+restante; quem fecha apaga a chave. O que continua local: a janela de falhas e a contagem de sondas do
+half-open (cada réplica sonda por conta própria). Se o Redis falha, o breaker volta a ser o local e a chamada
+não é afetada. Testes: `tests/unit/test_shared_breaker.py` (duas réplicas convergem, a janela restante bate,
+recuperação, falha do Redis), `tests/integration/test_redis_shared_breaker.py` (Redis real) e
+`gateway/tests/test_shared_breaker.py` (duas instâncias do gateway: a que não viu falha responde `503
+circuit_open` sem chamar o serviço).
+
 **Equivalente em .NET.** Polly `AdvancedCircuitBreaker` (v7) ou `AddCircuitBreaker` no
 `Microsoft.Extensions.Resilience` (Polly v8): `FailureRatio` = `failure_rate_threshold`,
 `SamplingDuration` = `window_seconds`, `MinimumThroughput` = `minimum_calls`, `BreakDuration` =
@@ -184,8 +197,12 @@ só conhece o tráfego da própria réplica: com 5 réplicas o limite real é 5 
   global, mas continua existindo.
 - O Redis entra no caminho crítico de toda requisição: custa 1 ida e volta (cerca de 1 ms na mesma rede) e
   por isso tem timeout curto e breaker.
-- Identidade do cliente: usamos o IP da conexão. Atrás de um proxy é preciso confiar no `X-Forwarded-For`
-  de um proxy conhecido, senão todos os usuários parecem o mesmo IP.
+- Identidade do cliente: o IP da conexão ou, só quando a conexão vem de um proxy listado em
+  `TRUSTED_PROXIES` (CIDR, separados por vírgula), o primeiro endereço não confiável de `X-Forwarded-For`, lido
+  da direita para a esquerda (`X-Real-IP` na falta dele). Sem a lista, o cabeçalho é ignorado: um cliente não
+  consegue forjar o IP para fugir do limite (teste: `test_a_client_cannot_dodge_the_limit_by_forging_forwarded_for`).
+  O gateway repassa aos serviços o endereço resolvido em `X-Forwarded-For`. No compose o padrão é a faixa privada
+  inteira (a rede do Docker); em produção liste só os endereços do balanceador.
 
 **Equivalente em .NET.** `Microsoft.AspNetCore.RateLimiting` com `TokenBucketRateLimiter` (por política e
 por partição). A versão distribuída exige um pacote como `RedisRateLimiting` ou um script Lua como o daqui.
@@ -340,9 +357,11 @@ carga real e ajusto. Medir antes de configurar: o caso do timeout do Redis mostr
 
 ## 13. Limitações conhecidas
 
-- O estado dos breakers é por processo (não compartilhado entre réplicas).
-- O rate limit identifica o cliente pelo IP da conexão. Atrás do nginx do frontend todos os usuários
-  aparecem com o mesmo IP, e seria preciso confiar no `X-Forwarded-For` de um proxy conhecido.
+- O estado dos breakers é por processo, a menos que `BREAKER_SHARED_STATE=true` (seção 2): no modo
+  compartilhado só a decisão de abrir é global, a janela de falhas e as sondas seguem locais.
+- Com `TRUSTED_PROXIES` na faixa privada (padrão do compose), quem acessa o gateway direto pela porta publicada
+  no host (que chega pelo gateway da ponte do Docker, também privado) pode forjar `X-Forwarded-For` em
+  desenvolvimento. Em produção use os endereços exatos do proxy.
 - O deadline é cooperativo: handlers que já estão dentro de uma transação não são cancelados.
 - O breaker conta respostas 5xx como falha, inclusive 500 por bug do serviço, o que é o desejado para
   proteger o chamador, mas pode abrir o circuito por um erro de código.

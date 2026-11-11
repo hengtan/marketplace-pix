@@ -50,7 +50,7 @@ async def engine():
     engine: AsyncEngine = create_async_engine(_url(TEST_DB), poolclass=NullPool)
     yield engine
     async with engine.begin() as conn:
-        await conn.execute(text("truncate products, categories, merchants cascade"))
+        await conn.execute(text("truncate products, categories, merchants, outbox_events cascade"))
     await engine.dispose()
 
 

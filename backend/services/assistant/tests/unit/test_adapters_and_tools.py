@@ -43,7 +43,7 @@ class FakeOrders:
 
 async def test_get_stock_resolves_name_and_returns_summary() -> None:
     product_id = pid("x")
-    tool = GetStockTool(FakeInventory(StockInfo(product_id, 3, 1)), FakeCatalog())  # type: ignore[arg-type]
+    tool = GetStockTool(FakeInventory(StockInfo(product_id, 3)), FakeCatalog())  # type: ignore[arg-type]
     result = await tool.run({"product_id": str(product_id)})
     assert result.ok and result.data["name"] == "Produto Y" and result.data["available"] == 3
 
@@ -86,7 +86,7 @@ async def test_order_not_found_and_upstream_down() -> None:
 async def test_http_gateways_map_status_codes() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.startswith("/stock/"):
-            body = {"product_id": request.url.path[7:], "available": 7, "reserved": 2}
+            body = {"product_id": request.url.path[7:], "available": 7}
             return httpx.Response(200, json=body)
         if request.url.path == "/orders/slow":
             raise httpx.ConnectTimeout("slow")
@@ -97,7 +97,7 @@ async def test_http_gateways_map_status_codes() -> None:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     inventory = HttpInventoryGateway(client, "http://inv")
     stock = await inventory.get_stock(uuid4())
-    assert stock is not None and stock.available == 7 and stock.reserved == 2
+    assert stock is not None and stock.available == 7
 
     orders = HttpOrderGateway(client, "http://ord")
     assert await orders.get_order(UUID(int=0)) is None

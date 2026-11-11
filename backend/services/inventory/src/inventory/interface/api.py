@@ -13,6 +13,7 @@ from inventory.application.errors import NotStockOwner
 from inventory.application.ports import UnitOfWork
 from inventory.application.stock_queries import GetStock, SetStock
 from inventory.domain.errors import DomainError
+from inventory.domain.stock import Stock
 from inventory.interface.schemas import SetStockIn, StockOut
 
 UowFactory = Callable[[], UnitOfWork]
@@ -32,6 +33,18 @@ def _parse_ids(raw: str) -> list[UUID]:
     return ids
 
 
+def may_see_reserved(principal: Principal | None, stock: Stock) -> bool:
+    if principal is None:
+        return False
+    if principal.can(Scope.STOCK_WRITE_ANY):
+        return True
+    return (
+        principal.can(Scope.STOCK_WRITE_OWN)
+        and stock.merchant_id is not None
+        and principal.owns_merchant(stock.merchant_id)
+    )
+
+
 def get_principal(request: Request) -> Principal | None:
     resolver: PrincipalResolver = request.app.state.principal_resolver
     return resolver(request)
@@ -43,14 +56,16 @@ PrincipalDep = Annotated[Principal | None, Depends(get_principal)]
 def build_router() -> APIRouter:
     router = APIRouter()
 
-    @router.get("/stock", response_model=list[StockOut])
-    async def list_stock(request: Request, product_ids: str | None = None) -> list[StockOut]:
+    @router.get("/stock", response_model=list[StockOut], response_model_exclude_none=True)
+    async def list_stock(
+        request: Request, principal: PrincipalDep, product_ids: str | None = None
+    ) -> list[StockOut]:
         query = GetStock(request.app.state.uow_factory)
         if product_ids is None:
             stocks = await query.list_all()
         else:
             stocks = await query.execute(_parse_ids(product_ids))
-        return [StockOut.from_domain(s) for s in stocks]
+        return [StockOut.from_domain(s, may_see_reserved(principal, s)) for s in stocks]
 
     @router.get("/stock/mine", response_model=list[StockOut])
     async def my_stock(request: Request, principal: PrincipalDep) -> list[StockOut]:
@@ -61,12 +76,12 @@ def build_router() -> APIRouter:
         stocks = await GetStock(request.app.state.uow_factory).list_by_merchant(
             principal.merchant_id
         )
-        return [StockOut.from_domain(s) for s in stocks]
+        return [StockOut.from_domain(s, include_reserved=True) for s in stocks]
 
-    @router.get("/stock/{product_id}", response_model=StockOut)
-    async def get_stock(product_id: UUID, request: Request) -> StockOut:
+    @router.get("/stock/{product_id}", response_model=StockOut, response_model_exclude_none=True)
+    async def get_stock(product_id: UUID, request: Request, principal: PrincipalDep) -> StockOut:
         (stock,) = await GetStock(request.app.state.uow_factory).execute([product_id])
-        return StockOut.from_domain(stock)
+        return StockOut.from_domain(stock, may_see_reserved(principal, stock))
 
     @router.put("/stock/{product_id}", response_model=StockOut)
     async def put_stock(
@@ -77,7 +92,7 @@ def build_router() -> APIRouter:
         stock = await SetStock(request.app.state.uow_factory).execute(
             product_id, body.available, principal
         )
-        return StockOut.from_domain(stock)
+        return StockOut.from_domain(stock, include_reserved=True)
 
     @router.get("/health")
     async def health() -> dict[str, str]:

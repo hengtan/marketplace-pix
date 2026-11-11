@@ -160,7 +160,9 @@ def build_container(
     owned.append(ollama_client)
     catalog = catalog or HttpCatalogGateway(client, settings.catalog_url)
     inventory = inventory or HttpInventoryGateway(client, settings.inventory_url)
-    orders = orders or HttpOrderGateway(client, settings.ordering_url)
+    orders = orders or HttpOrderGateway(
+        client, settings.ordering_url, settings.internal_auth_secret
+    )
     embedder = embedder or build_embedder(settings, ollama_client)
     llm = llm or build_llm(settings, ollama_client)
 

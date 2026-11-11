@@ -2,7 +2,9 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from marketplace_common.security import sign_principal
 
+from assistant.application.identity import current_identity
 from assistant.application.ports import OrderInfo, StockInfo
 from assistant.domain.errors import UpstreamUnavailable
 from assistant.domain.models import CatalogProduct
@@ -10,9 +12,14 @@ from assistant.domain.models import CatalogProduct
 PAGE_SIZE = 48
 
 
-async def _get(client: httpx.AsyncClient, url: str, params: dict[str, Any] | None = None) -> Any:
+async def _get(
+    client: httpx.AsyncClient,
+    url: str,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> Any:
     try:
-        response = await client.get(url, params=params)
+        response = await client.get(url, params=params, headers=headers)
     except httpx.HTTPError:
         raise UpstreamUnavailable(f"request failed: {url.split('?')[0]}") from None
     if response.status_code == 404:
@@ -76,16 +83,31 @@ class HttpInventoryGateway:
         body = await _get(self._client, f"{self._base}/stock/{product_id}")
         if body is None:
             return None
-        return StockInfo(product_id, int(body["available"]), int(body["reserved"]))
+        return StockInfo(product_id, int(body["available"]))
 
 
 class HttpOrderGateway:
-    def __init__(self, client: httpx.AsyncClient, base_url: str) -> None:
+    """Consulta o pedido em nome de quem está no chat: repassa a identidade assinada do usuário
+    autenticado, e o ordering decide pelo dono. Sem identidade, a chamada é anônima (convidado)."""
+
+    def __init__(self, client: httpx.AsyncClient, base_url: str, internal_secret: str = "") -> None:
         self._client = client
         self._base = base_url.rstrip("/")
+        self._secret = internal_secret
+
+    def _identity_headers(self) -> dict[str, str]:
+        caller = current_identity()
+        if caller is None:
+            return {}
+        headers = {"x-request-id": caller.request_id}
+        if caller.principal is not None and self._secret:
+            headers.update(sign_principal(self._secret, caller.principal, caller.request_id))
+        return headers
 
     async def get_order(self, order_id: UUID) -> OrderInfo | None:
-        body = await _get(self._client, f"{self._base}/orders/{order_id}")
+        body = await _get(
+            self._client, f"{self._base}/orders/{order_id}", headers=self._identity_headers()
+        )
         if body is None:
             return None
         return OrderInfo(

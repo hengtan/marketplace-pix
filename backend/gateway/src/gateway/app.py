@@ -23,11 +23,14 @@ from marketplace_common.resilience import (
     install_deadline,
 )
 from marketplace_common.resilience.clock import Sleeper, sleep
-from marketplace_common.security import strip_identity_headers
+from marketplace_common.security import ClientIpResolver, strip_identity_headers
+from marketplace_common.security.revocation import RevocationChecker
 from starlette.background import BackgroundTask
 
 from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
+from gateway.auth.guard import Revocations
 from gateway.config import Settings
+from gateway.hardening import BodyLimitMiddleware, SecurityHeadersMiddleware, security_headers
 from gateway.rate_limit import Limiter, build_limiter, build_redis
 from gateway.routes import resolve
 from gateway.upstream import UpstreamGuard
@@ -45,6 +48,7 @@ HOP_BY_HOP = {
     "content-length",
 }
 RESPONSE_DROP = HOP_BY_HOP | {"content-encoding"}
+PAYMENT_PENDING_RETRY_SECONDS = 1
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 
 
@@ -94,7 +98,9 @@ def _service_deadline_factory(settings: Settings) -> Callable[[Request, str], De
     return resolve_deadline
 
 
-def _build_auth(settings: Settings, client: httpx.AsyncClient) -> GatewayAuth | None:
+def _build_auth(
+    settings: Settings, client: httpx.AsyncClient, revocations: Revocations | None
+) -> GatewayAuth | None:
     if not settings.auth_enabled:
         return None
     jwks = JwksCache(f"{settings.identity_url}/.well-known/jwks.json", client)
@@ -104,6 +110,7 @@ def _build_auth(settings: Settings, client: httpx.AsyncClient) -> GatewayAuth | 
         settings.internal_auth_secret,
         guest_checkout=settings.allow_guest_checkout,
         ordering_url=settings.ordering_url,
+        revocations=revocations,
     )
 
 
@@ -113,13 +120,21 @@ def create_app(
     rate_limiter: Limiter | None = None,
     sleeper: Sleeper = sleep,
     rng: random.Random | None = None,
+    revocations: Revocations | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     upstreams = settings.upstreams()
     redis = None if rate_limiter is not None else build_redis(settings)
     limiter: Limiter = rate_limiter or build_limiter(settings, redis)
     _service_deadline = _service_deadline_factory(settings)
-    guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng)
+    if revocations is None and redis is not None:
+        revocations = RevocationChecker(
+            redis,
+            cache_seconds=settings.revocation_cache_seconds,
+            fail_open=settings.revocation_fail_open,
+        )
+    guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng, shared_redis=redis)
+    client_ips = ClientIpResolver(settings.trusted_proxies)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -128,7 +143,7 @@ def create_app(
             transport=transport,
             event_hooks=deadline_event_hooks(),
         )
-        app.state.auth = _build_auth(settings, app.state.client)
+        app.state.auth = _build_auth(settings, app.state.client, revocations)
         yield
         await app.state.client.aclose()
         if redis is not None:
@@ -141,6 +156,7 @@ def create_app(
         default_seconds=settings.request_deadline_seconds,
         max_seconds=settings.max_request_deadline_seconds,
     )
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_request_body_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -162,6 +178,15 @@ def create_app(
             "RateLimit-Remaining",
             "RateLimit-Reset",
         ],
+    )
+
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        headers=security_headers(
+            settings.hsts_enabled,
+            settings.hsts_max_age_seconds,
+            settings.cross_origin_resource_policy,
+        ),
     )
 
     @app.get("/health")
@@ -195,7 +220,11 @@ def create_app(
     @app.api_route("/api/{path:path}", methods=METHODS)
     async def proxy(request: Request) -> Response:
         request_id = _request_id(request)
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = client_ips.resolve(
+            request.client.host if request.client else None,
+            request.headers.get("x-forwarded-for"),
+            request.headers.get("x-real-ip"),
+        )
         target = resolve(request.url.path)
         decision = await limiter.acquire(target.service if target else "unmatched", client_ip)
         rate_headers = decision.headers()
@@ -209,13 +238,17 @@ def create_app(
         auth: GatewayAuth | None = request.app.state.auth
         headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
         headers = strip_identity_headers(headers)
+        headers.pop("x-real-ip", None)
+        headers["x-forwarded-for"] = client_ip
         query = request.url.query
+        order_confirmed = False
         if auth is not None:
             verdict = await auth.authorize(request, client, request_id)
             if isinstance(verdict, Denied):
                 challenge = {"WWW-Authenticate": "Bearer"} if verdict.challenge else None
                 return _json(verdict.status, verdict.detail, request_id, challenge)
             query = verdict.query
+            order_confirmed = verdict.order_confirmed
             headers = auth.upstream_headers(headers, verdict.principal, request_id)
         headers["x-request-id"] = request_id
         upstream_request = client.build_request(
@@ -257,6 +290,15 @@ def create_app(
             for key, value in rate_headers.items():
                 streaming.headers[key] = value
             return streaming
+
+        if order_confirmed and upstream.status_code == 404:
+            return _json(
+                202,
+                "payment is being created",
+                request_id,
+                {**rate_headers, "Retry-After": str(PAYMENT_PENDING_RETRY_SECONDS)},
+                {"retry_after_seconds": PAYMENT_PENDING_RETRY_SECONDS},
+            )
 
         response = Response(content=upstream.content, status_code=upstream.status_code)
         for key, value in upstream.headers.multi_items():

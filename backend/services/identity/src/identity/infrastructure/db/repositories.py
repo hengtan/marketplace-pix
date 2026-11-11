@@ -38,6 +38,7 @@ def _token_to_domain(model: RefreshTokenModel) -> RefreshTokenRecord:
         family_expires_at=model.family_expires_at,
         used_at=model.used_at,
         revoked_at=model.revoked_at,
+        access_jti=model.access_jti,
     )
 
 
@@ -97,6 +98,7 @@ class SqlAlchemyRefreshTokenRepository:
                 issued_at=record.issued_at,
                 expires_at=record.expires_at,
                 family_expires_at=record.family_expires_at,
+                access_jti=record.access_jti,
             )
         )
 
@@ -111,6 +113,17 @@ class SqlAlchemyRefreshTokenRepository:
         await self._session.execute(
             update(RefreshTokenModel).where(RefreshTokenModel.id == record_id).values(used_at=at)
         )
+
+    async def access_tokens_since(
+        self, family_id: UUID, since: datetime
+    ) -> list[tuple[str, datetime]]:
+        rows = await self._session.execute(
+            select(RefreshTokenModel.access_jti, RefreshTokenModel.issued_at)
+            .where(RefreshTokenModel.family_id == family_id)
+            .where(RefreshTokenModel.access_jti.is_not(None))
+            .where(RefreshTokenModel.issued_at > since)
+        )
+        return [(jti, issued_at) for jti, issued_at in rows.all() if jti is not None]
 
     async def revoke_family(self, family_id: UUID, at: datetime) -> int:
         result = await self._session.execute(
