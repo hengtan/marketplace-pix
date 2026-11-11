@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     breaker_window_seconds: float = 30.0
     breaker_open_seconds: float = 10.0
     breaker_half_open_calls: int = 3
+    breaker_shared_state: bool = False
+    breaker_shared_prefix: str = "gw:cb:"
+    breaker_sync_interval: float = 0.25
 
     retry_attempts: int = 3
     retry_base_delay: float = 0.05

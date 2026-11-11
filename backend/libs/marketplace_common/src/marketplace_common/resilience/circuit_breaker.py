@@ -281,5 +281,8 @@ class BreakerRegistry:
             self._breakers[name] = breaker
         return breaker
 
+    def register(self, breaker: CircuitBreaker) -> CircuitBreaker:
+        return self._breakers.setdefault(breaker.name, breaker)
+
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return {name: b.snapshot() for name, b in self._breakers.items()}

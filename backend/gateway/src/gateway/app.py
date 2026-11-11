@@ -133,7 +133,7 @@ def create_app(
             cache_seconds=settings.revocation_cache_seconds,
             fail_open=settings.revocation_fail_open,
         )
-    guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng)
+    guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng, shared_redis=redis)
     client_ips = ClientIpResolver(settings.trusted_proxies)
 
     @asynccontextmanager
