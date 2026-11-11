@@ -1,0 +1,12 @@
+{
+  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
+  "files": { "includes": ["src/**", "e2e/**", "*.ts", "!src/index.css", "!src/mocks/handlers-data.ts"] },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "linter": {
+    "rules": {
+      "recommended": true,
+      "suspicious": { "noExplicitAny": "error" }
+    }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}
