@@ -1,120 +1,122 @@
+**English** | [Português (Brasil)](pt-BR/ROADMAP.md)
+
 # Roadmap
 
-Regra de ouro: em cada fase, escrever os testes antes da parte difícil e tentar quebrar de propósito
-(mesma requisição duas vezes, derrubar o worker no meio, mensagem duplicada).
+Golden rule: in each phase, write the tests before the hard part and try to break things on purpose
+(the same request twice, killing the worker midway, a duplicate message).
 
-## Fase 0: Fundação (infra local)
-- [x] Estrutura de pastas e README
-- [x] `docker compose up` sobe Postgres, Redis e Kafka (com tópicos criados)
-- [ ] Padrão de serviço definido (template reaproveitado pelos demais)
+## Phase 0: Foundation (local infra)
+- [x] Folder structure and README
+- [x] `docker compose up` brings up Postgres, Redis, and Kafka (with topics created)
+- [ ] Service pattern defined (a template reused by the others)
 
-## Fase 1: `ordering` (ATACAR PRIMEIRO)
-Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o outbox e depois a saga.
-- [x] Agregado `Order`, value object `Money`, eventos de domínio
-- [x] Caso de uso: criar pedido (UoW + porta)
-- [x] Caso de uso: consultar pedido
-- [ ] Caso de uso: cancelar pedido
-- [x] `Idempotency-Key` no POST (claim na mesma transação do pedido; teste com 5 requisições concorrentes)
-- [x] API FastAPI (`POST /orders`, `GET /orders/{id}`, `/health`, `/ready`) + Dockerfile + compose (profile `services`)
-- [x] Tabela `outbox_events` gravada na mesma transação do pedido (migração Alembic)
-- [x] Relay do outbox publicando no Kafka (chave = order_id)
-- [x] Testes: unit do domínio, integração com Postgres e Kafka reais
-- [ ] Teste que roda as migrações Alembic do zero
-- [ ] Preço vindo do catálogo (hoje o cliente envia `unit_price_cents`)
-- [x] Limpeza (TTL) das `idempotency_keys` e das linhas publicadas do outbox (job em lotes em `marketplace_common.maintenance`)
+## Phase 1: `ordering` (TACKLE FIRST)
+Reason: it is the heart of the system. The domain (DDD), ACID with Unit of Work, the outbox, and later the saga all live here.
+- [x] `Order` aggregate, `Money` value object, domain events
+- [x] Use case: create order (UoW + port)
+- [x] Use case: get order
+- [ ] Use case: cancel order
+- [x] `Idempotency-Key` on POST (claim in the same transaction as the order; tested with 5 concurrent requests)
+- [x] FastAPI API (`POST /orders`, `GET /orders/{id}`, `/health`, `/ready`) + Dockerfile + compose (`services` profile)
+- [x] `outbox_events` table written in the same transaction as the order (Alembic migration)
+- [x] Outbox relay publishing to Kafka (key = order_id)
+- [x] Tests: domain unit tests, integration with real Postgres and Kafka
+- [ ] Test that runs the Alembic migrations from scratch
+- [ ] Price coming from the catalog (today the client sends `unit_price_cents`)
+- [x] Cleanup (TTL) of `idempotency_keys` and published outbox rows (batched job in `marketplace_common.maintenance`)
 
-## Fase 2: `payments` (FEITA)
-- [x] Domínio `Payment` (PENDING, CONFIRMED, EXPIRED), id determinístico por pedido, regras de confirmar/expirar
-- [x] PSP simulado atrás de uma porta (`PspGateway`), idempotente por `reference`
-- [x] Consumidor Kafka de `orders.events` com **inbox** (dedupe por `event_id`, na mesma transação da cobrança)
-- [x] Webhook com HMAC (401 sem assinatura válida) que ainda **consulta o PSP** antes de confirmar (fail-closed, 409 se não pago)
-- [x] Job de expiração (`ExpirePayments`) e eventos `PaymentCreated`, `PaymentConfirmed`, `PaymentExpired` via outbox/relay
-- [x] 53 testes (unit + integração com Postgres e Kafka reais), Dockerfile e 4 serviços no compose
-- [ ] Mensagem que falha sempre (poison): retry limitado e `orders.events.dlq`
-- [x] Limpeza (TTL) do inbox e do outbox publicado
-- [x] Reembolso de pagamento tardio (`PaymentRefundRequested`, `PaymentRefunded`, estorno no ledger e estoque devolvido)
-- [x] Cancelar a cobrança no PSP quando expira (se o PSP recusa porque já foi paga, o pagamento segue pendente para o webhook)
-- [x] `payments/by-order` logo após criar o pedido responde `202` com `Retry-After` em vez de `404`
-- [ ] Extrair outbox, relay e inbox para `backend/libs` (hoje copiados do ordering)
+## Phase 2: `payments` (DONE)
+- [x] `Payment` domain (PENDING, CONFIRMED, EXPIRED), deterministic id per order, confirm/expire rules
+- [x] Simulated PSP behind a port (`PspGateway`), idempotent by `reference`
+- [x] Kafka consumer for `orders.events` with an **inbox** (dedupe by `event_id`, in the same transaction as the charge)
+- [x] Webhook with HMAC (401 without a valid signature) that still **queries the PSP** before confirming (fail-closed, 409 if unpaid)
+- [x] Expiration job (`ExpirePayments`) and `PaymentCreated`, `PaymentConfirmed`, `PaymentExpired` events via outbox/relay
+- [x] 53 tests (unit + integration with real Postgres and Kafka), Dockerfile, and 4 services in compose
+- [ ] Message that always fails (poison): limited retry and `orders.events.dlq`
+- [x] Cleanup (TTL) of the inbox and the published outbox
+- [x] Refund of a late payment (`PaymentRefundRequested`, `PaymentRefunded`, ledger reversal, and stock returned)
+- [x] Cancel the charge at the PSP when it expires (if the PSP refuses because it was already paid, the payment stays pending for the webhook)
+- [x] `payments/by-order` right after creating the order responds `202` with `Retry-After` instead of `404`
+- [ ] Extract outbox, relay, and inbox to `backend/libs` (today copied from ordering)
 
-## Fase 3: Saga completa (ordering + payments) (FEITA)
-- [x] `ordering` consome `payments.events` com inbox: `PaymentConfirmed` marca o pedido como pago, `PaymentExpired` cancela
-- [x] Pedido bloqueado com `FOR UPDATE`: confirmação e expiração concorrentes têm um vencedor só (o outro vira CONFLICT)
-- [x] Teste ponta a ponta nos containers: pedido pago e pedido com PIX expirado
-- [x] Conflito (pagamento confirmado para pedido já cancelado) vira auditoria em `order_audit` e pedido de reembolso
-- [x] Timeout global da saga (`SagaTimeoutManager` no ordering cancela pedido parado em PENDING com `saga timeout`)
-- [ ] Orquestrador explícito (a saga continua coreografada por eventos, com o process manager só para o prazo)
-- [x] Teste automatizado ponta a ponta entre os serviços (`scripts/e2e.sh` e `scripts/e2e-saga.sh`)
+## Phase 3: Complete saga (ordering + payments) (DONE)
+- [x] `ordering` consumes `payments.events` with an inbox: `PaymentConfirmed` marks the order as paid, `PaymentExpired` cancels it
+- [x] Order locked with `FOR UPDATE`: concurrent confirmation and expiration have a single winner (the other becomes a CONFLICT)
+- [x] End-to-end test in the containers: paid order and order with an expired PIX
+- [x] Conflict (payment confirmed for an already cancelled order) becomes an audit record in `order_audit` and a refund request
+- [x] Global saga timeout (`SagaTimeoutManager` in ordering cancels an order stuck in PENDING with `saga timeout`)
+- [ ] Explicit orchestrator (the saga is still choreographed by events, with the process manager only handling the deadline)
+- [x] Automated end-to-end test across the services (`scripts/e2e.sh` and `scripts/e2e-saga.sh`)
 
-## Fase 4: `ledger` (FEITA)
-- [x] Dupla entrada (débitos iguais a créditos, transação desbalanceada é rejeitada)
-- [x] Split lojista e plataforma (10% por lojista, arredondamento que sempre fecha)
-- [x] Concorrência: 50 pagamentos simultâneos mantêm o saldo exato; teste de propriedade (hypothesis)
-- [x] Conciliação (`/reconciliation`) e resumo do lojista com série diária
+## Phase 4: `ledger` (DONE)
+- [x] Double entry (debits equal credits, an unbalanced transaction is rejected)
+- [x] Merchant and platform split (10% per merchant, rounding that always balances)
+- [x] Concurrency: 50 simultaneous payments keep the balance exact; property test (hypothesis)
+- [x] Reconciliation (`/reconciliation`) and merchant summary with a daily series
 
-## Fase 5: `inventory` e `notifications`
-- [x] `inventory`: reserva tudo ou nada, sem overselling (100 reservas para 10 unidades aceitam 10), TTL, liberação
-- [x] Falta de estoque cancela o pedido e a cobrança (saga completa)
-- [x] `notifications`: e-mails via Celery + Mailpit, retry, varredor, resumo diário
+## Phase 5: `inventory` and `notifications`
+- [x] `inventory`: all-or-nothing reservation, no overselling (100 reservations for 10 units accept 10), TTL, release
+- [x] Out of stock cancels the order and the charge (complete saga)
+- [x] `notifications`: emails via Celery + Mailpit, retry, sweeper, daily digest
 
-## Fase 6: `catalog`, gateway e frontend
-- [x] `catalog`: busca sem acento, filtros, ordenação, ETag/304, seed de 24 produtos
-- [x] Preço e lojista do pedido vêm do catálogo (o cliente só envia produto e quantidade)
-- [x] Gateway: rotas do contrato, CORS, `Idempotency-Key`, `X-Request-Id`, limite de requisições, saúde agregada
-- [x] Frontend "Praça" (React 19, Tailwind v4, Radix, Motion, ⌘K, PIX ao vivo, painel do lojista), servido em http://localhost:5173 e verificado no navegador contra o backend real
+## Phase 6: `catalog`, gateway, and frontend
+- [x] `catalog`: accent-insensitive search, filters, sorting, ETag/304, seed of 24 products
+- [x] Order price and merchant come from the catalog (the client only sends product and quantity)
+- [x] Gateway: contract routes, CORS, `Idempotency-Key`, `X-Request-Id`, request limit, aggregated health
+- [x] "Praça" frontend (React 19, Tailwind v4, Radix, Motion, ⌘K, live PIX, merchant dashboard), served at http://localhost:5173 and verified in the browser against the real backend
 
-## Resiliência (FEITA)
-- [x] Retentativas limitadas e DLQ (`<tópico>.dlq`) em todos os consumidores
-- [x] Ferramenta para reprocessar mensagens da DLQ (`marketplace_common.dlq`, dry-run por padrão, anti-laço)
-- [x] Consumidor, outbox e relay extraídos para `backend/libs/marketplace_common`
+## Resilience (DONE)
+- [x] Limited retries and DLQ (`<topic>.dlq`) in all consumers
+- [x] Tool to reprocess DLQ messages (`marketplace_common.dlq`, dry-run by default, loop protection)
+- [x] Consumer, outbox, and relay extracted to `backend/libs/marketplace_common`
 
-## Resiliência avançada (FEITA)
-- [x] Circuit breaker (janela deslizante, falha e lentidão, sondas no half-open), retry com full jitter e budget, deadline propagation, bulkhead
-- [x] Rate limit distribuído no Redis (token bucket em Lua) com fallback e fail-open configuráveis
-- [x] Aplicado no gateway, no cliente do PSP, no webhook e no LLM e embedder do assistant
-- [x] `scripts/chaos.sh` (catalog, payments e Redis), `scripts/loadtest.py`, painel e alertas de SLO (burn rate)
-- [x] Estado do breaker compartilhado entre réplicas (opcional, `BREAKER_SHARED_STATE`, só a decisão de abrir é global)
-- [x] Identificar o cliente pelo `X-Forwarded-For` confiável (`TRUSTED_PROXIES`) no rate limit
+## Advanced resilience (DONE)
+- [x] Circuit breaker (sliding window, failure and slowness, half-open probes), retry with full jitter and budget, deadline propagation, bulkhead
+- [x] Distributed rate limit on Redis (token bucket in Lua) with configurable fallback and fail-open
+- [x] Applied to the gateway, the PSP client, the webhook, and the assistant's LLM and embedder
+- [x] `scripts/chaos.sh` (catalog, payments, and Redis), `scripts/loadtest.py`, SLO dashboard and alerts (burn rate)
+- [x] Breaker state shared across replicas (optional, `BREAKER_SHARED_STATE`, only the decision to open is global)
+- [x] Identify the client by a trusted `X-Forwarded-For` (`TRUSTED_PROXIES`) in the rate limit
 
-## Fase 7: IA
-- [ ] RAG sobre o catálogo (pgvector)
-- [ ] Agente com tool use (estoque, status do pedido)
-- [ ] Avaliação (Promptfoo) e tracing (Langfuse)
+## Phase 7: AI
+- [ ] RAG over the catalog (pgvector)
+- [ ] Agent with tool use (stock, order status)
+- [ ] Evaluation (Promptfoo) and tracing (Langfuse)
 
-## Fase 8: Plataforma
+## Phase 8: Platform
 - [ ] OpenTelemetry, Prometheus, Grafana
-- [ ] GitHub Actions (build, teste, deploy)
-- [ ] k3d + Helm (local) e Terraform + Azure Container Apps (nuvem, com alerta de orçamento)
+- [ ] GitHub Actions (build, test, deploy)
+- [ ] k3d + Helm (local) and Terraform + Azure Container Apps (cloud, with a budget alert)
 
-## Fase 7: IA (FEITA, com modelos simulados)
-- [x] Serviço `assistant`: ingestão com chunking e pgvector (HNSW), busca híbrida com RRF, reranker, filtros, agente com ferramentas, memória e guardrails
-- [x] Avaliação com métricas (hit@k, MRR, aderência ao contexto) que falha o build abaixo dos limiares
-- [x] Interface de chat no frontend (streaming, citações com foto e preço, rastro "Como cheguei nessa resposta", memória)
-- [x] Entendimento de consulta: intenção (catálogo, pedido, estoque, política, fora de escopo), reescrita com sinônimos, correção de digitação, negação e decomposição
-- [x] Cache semântico (pgvector) com TTL e invalidação por eventos do catálogo (`catalog.events`), métricas de hit rate e economia
-- [x] Recuperação avançada: filtros pré-busca, pesos na fusão, MMR, parent-document; variantes comparadas em `docs/RAG-AVALIACAO.md`
-- [x] Avaliação: 111 casos (dev e holdout), hit@k, MRR, nDCG, precisão e revocação de contexto, juiz `JudgeLlm`, portão de regressão no CI
-- [x] Guardrails: injeção direta e indireta, PII em logs e traces, orçamento por sessão e usuário, saída estruturada com reparo, números verificados contra o trecho citado, 41 ataques no red team
-- [x] Observabilidade de LLM: spans por etapa, tokens e custo, painel `assistant` no Grafana
-- [x] Streaming com cancelamento, timeouts e fallback para a busca pura
-- [x] `catalog` publica `catalog.events` por outbox e o assistant reindexa e invalida o cache sem reindex manual
-- [ ] Trocar embeddings e LLM por Ollama (adaptadores prontos e testados contra um servidor HTTP falso, falta rodar com o Ollama real e reavaliar)
-- [x] Serviço `assistant-worker` no `docker-compose`
-- [ ] Job do `assistant-worker` no Prometheus
+## Phase 7: AI (DONE, with simulated models)
+- [x] `assistant` service: ingestion with chunking and pgvector (HNSW), hybrid search with RRF, reranker, filters, agent with tools, memory, and guardrails
+- [x] Evaluation with metrics (hit@k, MRR, context adherence) that fails the build below thresholds
+- [x] Chat interface in the frontend (streaming, citations with photo and price, "How I got this answer" trace, memory)
+- [x] Query understanding: intent (catalog, order, stock, policy, out of scope), rewriting with synonyms, typo correction, negation, and decomposition
+- [x] Semantic cache (pgvector) with TTL and invalidation by catalog events (`catalog.events`), hit rate and savings metrics
+- [x] Advanced retrieval: pre-search filters, fusion weights, MMR, parent-document; variants compared in `docs/RAG-EVALUATION.md`
+- [x] Evaluation: 111 cases (dev and holdout), hit@k, MRR, nDCG, context precision and recall, `JudgeLlm` judge, CI regression gate
+- [x] Guardrails: direct and indirect injection, PII in logs and traces, per-session and per-user budget, structured output with repair, numbers verified against the cited passage, 41 red-team attacks
+- [x] LLM observability: per-stage spans, tokens and cost, `assistant` dashboard in Grafana
+- [x] Streaming with cancellation, timeouts, and fallback to plain search
+- [x] `catalog` publishes `catalog.events` via outbox, and the assistant reindexes and invalidates the cache with no manual reindex
+- [ ] Swap embeddings and LLM for Ollama (adapters are ready and tested against a fake HTTP server; still need to run with real Ollama and re-evaluate)
+- [x] `assistant-worker` service in `docker-compose`
+- [ ] `assistant-worker` job in Prometheus
 
-## Fase 8: Plataforma
-- [x] OpenTelemetry com traces atravessando o Kafka, métricas Prometheus (RED) e dashboard no Grafana
-- [x] CI no GitHub Actions
-- [x] `assistant` na observabilidade e no CI (CI cobre todos os serviços, a biblioteca, o assistente e o frontend)
-- [ ] Azure (Terraform) e Kubernetes (Helm/k3d): adiados
+## Phase 8: Platform
+- [x] OpenTelemetry with traces crossing Kafka, Prometheus metrics (RED), and a Grafana dashboard
+- [x] CI on GitHub Actions
+- [x] `assistant` in observability and CI (CI covers all services, the library, the assistant, and the frontend)
+- [ ] Azure (Terraform) and Kubernetes (Helm/k3d): postponed
 
-## Plataforma: segurança, contratos e saga (FEITA)
-- [x] Serviço `identity` (argon2id, JWT EdDSA, JWKS, refresh rotativo com detecção de reuso), papéis e escopos
-- [x] Gateway valida o token, remove cabeçalhos de identidade do cliente e assina a identidade para os serviços
-- [x] Autorização por objeto (pedido do dono) e multi-tenant (ledger, estoque e pedidos do lojista), com testes de BOLA e de isolamento
-- [x] Versionamento de eventos: `schema_version`, modelos por versão, upcasters, golden files e testes de contrato; `OrderCreated` v2
-- [x] Retenção em lotes de outbox, inbox, idempotência e refresh tokens
-- [x] Timeout global da saga e pagamento tardio reembolsado de forma idempotente e auditável
-- [x] `docs/SEGURANCA.md` e `docs/EVOLUCAO-DE-EVENTOS.md`
-- [x] Revogação do access token (logout, reuso do refresh e conta desativada), cadastro em massa e login com limite por IP+e-mail e espera progressiva, cabeçalhos de segurança e limite de corpo no gateway, `GET /stock` público só com `available`, assistente com a identidade do usuário
-- [ ] MFA e cookie `HttpOnly` por BFF (ver limitações em `docs/SEGURANCA.md`)
+## Platform: security, contracts, and saga (DONE)
+- [x] `identity` service (argon2id, EdDSA JWT, JWKS, rotating refresh with reuse detection), roles and scopes
+- [x] Gateway validates the token, strips identity headers from the client, and signs the identity for the services
+- [x] Object-level authorization (owner's order) and multi-tenancy (merchant's ledger, stock, and orders), with BOLA and isolation tests
+- [x] Event versioning: `schema_version`, per-version models, upcasters, golden files, and contract tests; `OrderCreated` v2
+- [x] Batched retention of outbox, inbox, idempotency, and refresh tokens
+- [x] Global saga timeout and late payment refunded idempotently and auditably
+- [x] `docs/SECURITY.md` and `docs/EVENT-EVOLUTION.md`
+- [x] Access token revocation (logout, refresh reuse, and deactivated account), mass sign-up and login limited per IP+email with progressive backoff, security headers and body size limit on the gateway, public `GET /stock` returning only `available`, assistant with the user's identity
+- [ ] MFA and `HttpOnly` cookie via a BFF (see limitations in `docs/SECURITY.md`)

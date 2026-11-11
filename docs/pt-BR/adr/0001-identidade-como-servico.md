@@ -1,3 +1,5 @@
+[English](../../adr/0001-identity-as-a-service.md) | **Português (Brasil)**
+
 # ADR 0001: identidade como serviço próprio (`identity`, porta 8008)
 
 Status: aceita.
