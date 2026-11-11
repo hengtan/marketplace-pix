@@ -4,7 +4,7 @@ import asyncio
 import math
 import random
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 import httpx
@@ -15,8 +15,11 @@ from marketplace_common.observability import get_request_id
 from marketplace_common.resilience import (
     BulkheadFullError,
     CircuitOpenError,
+    Deadline,
     DeadlineExceeded,
+    current_deadline,
     deadline_event_hooks,
+    deadline_scope,
     install_deadline,
 )
 from marketplace_common.resilience.clock import Sleeper, sleep
@@ -78,6 +81,17 @@ def _unavailable(
     )
 
 
+def _service_deadline_factory(settings: Settings) -> Callable[[Request, str], Deadline | None]:
+    def resolve_deadline(request: Request, service: str) -> Deadline | None:
+        current = current_deadline()
+        override = settings.service_deadlines.get(service)
+        if override is None or "x-request-deadline" in request.headers:
+            return current
+        return Deadline.after(min(override, settings.max_request_deadline_seconds))
+
+    return resolve_deadline
+
+
 def create_app(
     settings: Settings | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -89,6 +103,7 @@ def create_app(
     upstreams = settings.upstreams()
     redis = None if rate_limiter is not None else build_redis(settings)
     limiter: Limiter = rate_limiter or build_limiter(settings, redis)
+    _service_deadline = _service_deadline_factory(settings)
     guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng)
 
     @asynccontextmanager
@@ -184,7 +199,8 @@ def create_app(
             headers=headers,
         )
         try:
-            upstream = await guard.send(client, target.service, upstream_request)
+            with deadline_scope(_service_deadline(request, target.service)):
+                upstream = await guard.send(client, target.service, upstream_request)
         except CircuitOpenError as error:
             return _unavailable(
                 request_id, target.service, "circuit_open", error.retry_after_seconds, rate_headers

@@ -236,3 +236,16 @@ async def test_two_gateway_instances_share_the_redis_bucket() -> None:
             target = first if i % 2 == 0 else second
             codes.append((await target.get("/api/catalog/products")).status_code)
     assert codes == [200, 200, 200, 429, 429]
+
+
+async def test_assistant_gets_a_longer_default_deadline_but_explicit_headers_win() -> None:
+    recorder = Recorder()
+    cfg = settings(request_deadline_seconds=2.0, service_deadlines={"assistant": 20.0})
+    async with Client(recorder, cfg) as c:
+        await c.post("/api/assistant/chat", json={})
+        await c.post("/api/assistant/chat", json={}, headers={"X-Request-Deadline": "3000"})
+        await c.get("/api/catalog/products")
+    long_default, explicit, other = recorder.requests
+    assert 15000 < int(long_default.headers["x-request-deadline"]) <= 20000
+    assert 2000 < int(explicit.headers["x-request-deadline"]) <= 3000
+    assert int(other.headers["x-request-deadline"]) <= 2000

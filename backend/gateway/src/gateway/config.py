@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     request_deadline_seconds: float = 8.0
     max_request_deadline_seconds: float = 30.0
+    service_deadlines: dict[str, float] = {"assistant": 25.0}
 
     breaker_failure_rate: float = 0.5
     breaker_slow_call_seconds: float | None = None
