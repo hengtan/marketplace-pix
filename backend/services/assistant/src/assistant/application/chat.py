@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from opentelemetry.trace import use_span
+
 from assistant.application.agent import AgentLoop
 from assistant.application.budget import BudgetManager
 from assistant.application.guardrails import (
@@ -22,7 +24,15 @@ from assistant.application.semantic_cache import CacheHit, SemanticCache
 from assistant.domain.cost import CostModel, estimate_tokens
 from assistant.domain.errors import MessageTooLong, SessionNotFound
 from assistant.domain.models import AgentOutcome, Citation, Observation, Passage, ToolCall, Turn
-from assistant.metrics import GUARDRAIL_EVENTS
+from assistant.metrics import (
+    CHAT_REQUESTS,
+    GUARDRAIL_EVENTS,
+    LLM_COST,
+    LLM_REQUESTS,
+    LLM_TOKENS,
+    STEP_DURATION,
+)
+from assistant.telemetry import ChatTrace, is_done, next_in_span, preview, step_span
 
 logger = logging.getLogger(__name__)
 
@@ -113,103 +123,177 @@ class ChatService:
     ) -> AsyncIterator[StreamEvent]:
         started = time.perf_counter()
         message = self.validate_message(message)
+        trace = ChatTrace()
+        trace.set_attribute("assistant.question", preview(message))
+        intent = "none"
+        outcome_label = "error"
+        failure: BaseException | None = None
+        try:
+            sid = session_id or uuid4()
+            trace.set_attribute("assistant.session_id", str(sid))
+            with trace.scope():
+                await self._sessions.ensure(sid)
+                history = [_to_turn(m) for m in await self._sessions.messages(sid, self._window)]
 
-        sid = session_id or uuid4()
-        await self._sessions.ensure(sid)
-        history = [_to_turn(m) for m in await self._sessions.messages(sid, self._window)]
-
-        if screen_user_message(message):
-            GUARDRAIL_EVENTS.labels("injection_blocked").inc()
-            await self._persist(sid, message, INJECTION_REFUSAL, [], [], [])
-            latency_ms = int((time.perf_counter() - started) * 1000)
-            yield StreamEvent(
-                "done", ChatResult(sid, INJECTION_REFUSAL, [], [], [], latency_ms, True)
-            )
-            return
-
-        if self._cache is not None:
-            hit, _ = await self._cache.lookup(message, bool(last_products(history)))
-            if hit is not None:
-                async for event in self._replay(sid, message, hit, stream_tokens, started):
-                    yield event
+            if screen_user_message(message):
+                GUARDRAIL_EVENTS.labels("injection_blocked").inc()
+                with trace.scope():
+                    await self._persist(sid, message, INJECTION_REFUSAL, [], [], [])
+                latency_ms = int((time.perf_counter() - started) * 1000)
+                outcome_label = "blocked"
+                yield StreamEvent(
+                    "done", ChatResult(sid, INJECTION_REFUSAL, [], [], [], latency_ms, True)
+                )
                 return
 
-        outcome = AgentOutcome()
-        async for item in self._agent.iterate(message, history):
-            if isinstance(item, AgentOutcome):
-                outcome = item
-            else:
-                yield StreamEvent("tool_call", item)
+            if self._cache is not None:
+                with trace.scope(), step_span("cache") as cache_span:
+                    hit, cache_intent = await self._cache.lookup(
+                        message, bool(last_products(history))
+                    )
+                    cache_span.set_attribute("assistant.cache.hit", hit is not None)
+                if hit is not None:
+                    intent = cache_intent
+                    outcome_label = "cached"
+                    async for event in self._replay(sid, message, hit, stream_tokens, started):
+                        yield event
+                    return
 
-        prompt = self._builder.build(
-            message, outcome.passages, outcome.observations, history, outcome.intent
-        )
-        prompt_tokens = estimate_tokens(prompt.text)
-        if self._budget is not None:
-            await self._budget.reserve(str(sid), user_id, prompt_tokens)
-        parts: list[str] = []
-        if stream_tokens:
-            async for token in self._llm.stream(prompt):
-                parts.append(token)
-                yield StreamEvent("token", token)
-                if self._delay:
-                    await asyncio.sleep(self._delay)
-            raw_answer = "".join(parts)
-        else:
-            raw_answer = await self._llm.generate(prompt)
+            outcome = AgentOutcome()
+            iterator = self._agent.iterate(message, history).__aiter__()
+            while True:
+                item = await next_in_span(iterator, trace.span)
+                if is_done(item):
+                    break
+                if isinstance(item, AgentOutcome):
+                    outcome = item
+                else:
+                    yield StreamEvent("tool_call", item)
+            intent = outcome.intent or "none"
+            trace.set_attribute("assistant.intent", intent)
 
-        allowed = [str(o.data["name"]) for o in outcome.observations if o.data.get("name")]
-        verdict = self._guard.verify(
-            raw_answer,
-            [c.passage for c in prompt.context],
-            allowed,
-            await self._known_names(),
-            _evidence(outcome.observations),
-            message,
-        )
-        if verdict.issues:
-            GUARDRAIL_EVENTS.labels("answer_corrected").inc()
-        if self._budget is not None:
-            await self._budget.record(
-                str(sid), user_id, prompt_tokens, estimate_tokens(verdict.answer)
+            prompt = self._builder.build(
+                message, outcome.passages, outcome.observations, history, outcome.intent
             )
+            prompt_tokens = estimate_tokens(prompt.text)
+            if self._budget is not None:
+                with trace.scope():
+                    await self._budget.reserve(str(sid), user_id, prompt_tokens)
 
-        remembered = _remembered_products(verdict.citations, outcome)
-        await self._persist(
-            sid, message, verdict.answer, verdict.citations, outcome.tool_calls, remembered
-        )
-        restricted = any("product_ids" in t.arguments for t in outcome.tool_calls)
-        if self._cache is not None and verdict.grounded and outcome.intent and not restricted:
-            await self._cache.store(
-                message,
-                outcome.intent,
-                _cache_payload(verdict.answer, verdict.citations, prompt, outcome.tool_calls),
-                [c.passage.product_id for c in prompt.context],
-                estimate_tokens(prompt.text) + estimate_tokens(verdict.answer),
-                [t.name for t in outcome.tool_calls],
+            generate = trace.child("generate")
+            generate.handle.set_attribute("gen_ai.request.model", self._llm.name)
+            generate.handle.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+            parts: list[str] = []
+            try:
+                if stream_tokens:
+                    llm_stream = self._llm.stream(prompt).__aiter__()
+                    while True:
+                        token = await next_in_span(llm_stream, generate.handle.span)
+                        if is_done(token):
+                            break
+                        parts.append(token)
+                        yield StreamEvent("token", token)
+                        if self._delay:
+                            await asyncio.sleep(self._delay)
+                    raw_answer = "".join(parts)
+                else:
+                    with use_span(
+                        generate.handle.span,
+                        end_on_exit=False,
+                        record_exception=False,
+                        set_status_on_exception=False,
+                    ):
+                        raw_answer = await self._llm.generate(prompt)
+            except BaseException as exc:
+                generate.end(exc)
+                LLM_REQUESTS.labels(self._llm.name, "error").inc()
+                raise
+            completion_tokens = estimate_tokens(raw_answer)
+            generate.handle.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
+            cost = self._cost.cost_usd(prompt_tokens, completion_tokens)
+            generate.handle.set_attribute("assistant.cost_usd", round(cost, 8))
+            generate.end()
+            LLM_REQUESTS.labels(self._llm.name, "ok").inc()
+            LLM_TOKENS.labels(self._llm.name, "prompt").inc(prompt_tokens)
+            LLM_TOKENS.labels(self._llm.name, "completion").inc(completion_tokens)
+            LLM_COST.labels(self._llm.name).inc(cost)
+
+            allowed = [str(o.data["name"]) for o in outcome.observations if o.data.get("name")]
+            known = await self._known_names()
+            with trace.scope(), step_span("guard") as guard_span:
+                verdict = self._guard.verify(
+                    raw_answer,
+                    [c.passage for c in prompt.context],
+                    allowed,
+                    known,
+                    _evidence(outcome.observations),
+                    message,
+                )
+                guard_span.set_attribute("assistant.guard.issues", len(verdict.issues))
+            if verdict.issues:
+                GUARDRAIL_EVENTS.labels("answer_corrected").inc()
+            with trace.scope():
+                if self._budget is not None:
+                    await self._budget.record(
+                        str(sid), user_id, prompt_tokens, estimate_tokens(verdict.answer)
+                    )
+                remembered = _remembered_products(verdict.citations, outcome)
+                await self._persist(
+                    sid, message, verdict.answer, verdict.citations, outcome.tool_calls, remembered
+                )
+                restricted = any("product_ids" in t.arguments for t in outcome.tool_calls)
+                if (
+                    self._cache is not None
+                    and verdict.grounded
+                    and outcome.intent
+                    and not restricted
+                ):
+                    await self._cache.store(
+                        message,
+                        outcome.intent,
+                        _cache_payload(
+                            verdict.answer, verdict.citations, prompt, outcome.tool_calls
+                        ),
+                        [c.passage.product_id for c in prompt.context],
+                        prompt_tokens + estimate_tokens(verdict.answer),
+                        [t.name for t in outcome.tool_calls],
+                    )
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            outcome_label = "ok"
+            trace.set_attribute("assistant.grounded", verdict.grounded)
+            trace.set_attribute("assistant.latency_ms", latency_ms)
+            logger.info(
+                "chat done session=%s tools=%d retrieved=%d cited=%d grounded=%s latency_ms=%d",
+                sid,
+                len(outcome.tool_calls),
+                len(outcome.passages),
+                len(verdict.citations),
+                verdict.grounded,
+                latency_ms,
             )
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        logger.info(
-            "chat done session=%s tools=%d retrieved=%d cited=%d grounded=%s latency_ms=%d",
-            sid,
-            len(outcome.tool_calls),
-            len(outcome.passages),
-            len(verdict.citations),
-            verdict.grounded,
-            latency_ms,
-        )
-        yield StreamEvent(
-            "done",
-            ChatResult(
-                session_id=sid,
-                answer=verdict.answer,
-                citations=verdict.citations,
-                tool_calls=outcome.tool_calls,
-                retrieved=[c.passage for c in prompt.context],
-                latency_ms=latency_ms,
-                grounded=verdict.grounded,
-            ),
-        )
+            yield StreamEvent(
+                "done",
+                ChatResult(
+                    session_id=sid,
+                    answer=verdict.answer,
+                    citations=verdict.citations,
+                    tool_calls=outcome.tool_calls,
+                    retrieved=[c.passage for c in prompt.context],
+                    latency_ms=latency_ms,
+                    grounded=verdict.grounded,
+                ),
+            )
+        except BaseException as exc:
+            failure = exc
+            raise
+        finally:
+            cancelled = isinstance(failure, GeneratorExit | asyncio.CancelledError)
+            if cancelled:
+                outcome_label = "cancelled"
+            trace.set_attribute("assistant.outcome", outcome_label)
+            trace.end(None if cancelled else failure)
+            CHAT_REQUESTS.labels(intent, outcome_label).inc()
+            STEP_DURATION.labels("total").observe(time.perf_counter() - started)
 
     async def _persist(
         self,

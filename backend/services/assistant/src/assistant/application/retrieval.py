@@ -16,6 +16,8 @@ from assistant.domain.fusion import reciprocal_rank_fusion
 from assistant.domain.lexicon import SHOPPING_WORDS
 from assistant.domain.models import Filters, Passage
 from assistant.domain.text import content_tokens, normalize, stem
+from assistant.metrics import RETRIEVAL_RESULTS
+from assistant.telemetry import step_span
 
 logger = logging.getLogger(__name__)
 
@@ -89,18 +91,27 @@ class HybridRetriever:
 
     async def retrieve(self, question: str, restrict: Filters | None = None) -> RetrievalResult:
         cfg = self._config
-        plan = await self._understanding.plan(question, cfg.plan_options())
+        with step_span("rewrite") as span:
+            plan = await self._understanding.plan(question, cfg.plan_options())
+            span.set_attribute("assistant.rewrite.parts", len(plan.parts))
+            span.set_attribute(
+                "assistant.rewrite.expansions", sum(len(p.expansions) for p in plan.parts)
+            )
+            span.set_attribute(
+                "assistant.rewrite.corrections", sum(len(p.corrections) for p in plan.parts)
+            )
         if len(plan.parts) == 1:
-            result = await self._retrieve_part(plan.parts[0], restrict)
-            return replace(result, plan=plan)
-
-        per_part = max(1, cfg.final // len(plan.parts))
-        merged: list[Passage] = []
-        for part in plan.parts:
-            sub = await self._retrieve_part(part, restrict)
-            merged.extend(sub.passages[:per_part])
-        unique = _one_per_product(merged)[: cfg.final]
-        return RetrievalResult(unique, Filters(), question, "decomposed", unique, plan)
+            result = replace(await self._retrieve_part(plan.parts[0], restrict), plan=plan)
+        else:
+            per_part = max(1, cfg.final // len(plan.parts))
+            merged: list[Passage] = []
+            for part in plan.parts:
+                sub = await self._retrieve_part(part, restrict)
+                merged.extend(sub.passages[:per_part])
+            unique = _one_per_product(merged)[: cfg.final]
+            result = RetrievalResult(unique, Filters(), question, "decomposed", unique, plan)
+        RETRIEVAL_RESULTS.labels("hit" if result.passages else "empty").inc()
+        return result
 
     async def _retrieve_part(self, part: QueryPart, restrict: Filters | None) -> RetrievalResult:
         cfg = self._config
@@ -158,13 +169,16 @@ class HybridRetriever:
         search_filters = filters if cfg.prefilter else Filters(product_ids=filters.product_ids)
         base_text = " ".join(part.tokens)
         query_text = " ".join([*part.tokens, *extras])
-        vector = (await self._embedder.embed([query_text]))[0]
-        vector_hits = await self._store.vector_search(
-            vector, name, search_filters, cfg.branch_limit
-        )
-        text_hits = await self._store.text_search(
-            query_text, name, search_filters, cfg.branch_limit
-        )
+        with step_span("retrieve") as span:
+            vector = (await self._embedder.embed([query_text]))[0]
+            vector_hits = await self._store.vector_search(
+                vector, name, search_filters, cfg.branch_limit
+            )
+            text_hits = await self._store.text_search(
+                query_text, name, search_filters, cfg.branch_limit
+            )
+            span.set_attribute("assistant.retrieve.vector_hits", len(vector_hits))
+            span.set_attribute("assistant.retrieve.text_hits", len(text_hits))
         rankings = [[p.chunk_id for p in vector_hits], [p.chunk_id for p in text_hits]]
         weights = [cfg.vector_weight, cfg.text_weight]
         pool = [*vector_hits, *text_hits]
@@ -184,7 +198,9 @@ class HybridRetriever:
             ordered = [p for p in ordered if _passes(filters, p)]
         ordered = self._exclude(ordered, part.exclusions)
         candidates = _one_per_product(ordered)[: cfg.candidates]
-        reranked = self._reranker.rerank(base_text, candidates, cfg.candidates, extras)
+        with step_span("rerank") as span:
+            reranked = self._reranker.rerank(base_text, candidates, cfg.candidates, extras)
+            span.set_attribute("assistant.rerank.candidates", len(candidates))
         return reranked, candidates
 
     def _exclude(self, passages: list[Passage], terms: tuple[str, ...]) -> list[Passage]:

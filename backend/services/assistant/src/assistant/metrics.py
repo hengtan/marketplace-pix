@@ -27,3 +27,21 @@ BUDGET_REJECTIONS = Counter(
     "assistant_budget_rejections_total", "Requests refused by the budget", ["scope", "limit"]
 )
 GUARDRAIL_EVENTS = Counter("assistant_guardrail_events_total", "Guardrail interventions", ["kind"])
+
+CHAT_REQUESTS = Counter(
+    "assistant_chat_requests_total", "Chat requests by intent and outcome", ["intent", "outcome"]
+)
+LLM_REQUESTS = Counter("assistant_llm_requests_total", "Model calls", ["model", "result"])
+LLM_TOKENS = Counter(
+    "assistant_llm_tokens_total", "Estimated tokens sent to and received from the model",
+    ["model", "direction"],
+)  # fmt: skip
+LLM_COST = Counter("assistant_llm_cost_usd_total", "Estimated model cost in USD", ["model"])
+RETRIEVAL_RESULTS = Counter(
+    "assistant_retrieval_total", "Retrievals by whether they found passages", ["result"]
+)
+FALLBACKS = Counter("assistant_fallback_total", "Degraded answers by reason", ["reason"])
+STREAMS_CANCELLED = Counter(
+    "assistant_stream_cancelled_total", "Streams closed before the answer was complete"
+)
+STREAMS_ACTIVE = Gauge("assistant_streams_active", "Streams currently open")
