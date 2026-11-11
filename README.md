@@ -94,9 +94,12 @@ docker compose -f infra/docker-compose.yml --env-file .env --profile services up
 |---|---|---|
 | ordering-api | FastAPI: `POST /orders` (exige `Idempotency-Key`), `GET /orders/{id}`, `/health`, `/ready` | http://localhost:8001/docs |
 | ordering-relay | publica o outbox no Kafka | (sem porta) |
+| payments-api | webhook do PSP (HMAC), `GET /payments/by-order/{id}`, rota dev do PSP simulado | http://localhost:8002/docs |
+| payments-worker | consome `orders.events` (com inbox) e expira cobranças | (sem porta) |
+| payments-relay | publica o outbox do payments em `payments.events` | (sem porta) |
 | ordering-migrate | roda `alembic upgrade head` e termina | (one-shot) |
 
-Testes de um serviço: `cd backend/services/ordering && uv run pytest` (a infra precisa estar de pé).
+Testes de um serviço: `cd backend/services/<ordering|payments> && uv run pytest` (a infra precisa estar de pé).
 
 ## Roadmap
 
