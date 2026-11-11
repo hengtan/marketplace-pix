@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 
 import httpx
+from marketplace_common.resilience import deadline_event_hooks
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from assistant.application.agent import AgentLoop
@@ -39,6 +40,7 @@ from assistant.infrastructure.http.gateways import (
 )
 from assistant.infrastructure.llm.mock import MockLlm
 from assistant.infrastructure.llm.ollama import OllamaLlm
+from assistant.infrastructure.resilient import ModelGuard, ResilientEmbedder, ResilientLlm
 
 NAMES_TTL_SECONDS = 60.0
 
@@ -61,15 +63,21 @@ class Container:
 
 def build_embedder(settings: Settings, client: httpx.AsyncClient) -> Embedder:
     if settings.embedder == "ollama":
-        return OllamaEmbedder(
+        embedder = OllamaEmbedder(
             client, settings.ollama_embed_model, settings.embedding_dim, settings.ollama_url
+        )
+        return ResilientEmbedder(
+            embedder, ModelGuard("assistant-embedder", timeout=settings.ollama_timeout_seconds)
         )
     return HashingEmbedder(settings.embedding_dim)
 
 
 def build_llm(settings: Settings, client: httpx.AsyncClient) -> LlmClient:
     if settings.llm == "ollama":
-        return OllamaLlm(client, settings.ollama_chat_model, settings.ollama_url)
+        llm = OllamaLlm(client, settings.ollama_chat_model, settings.ollama_url)
+        return ResilientLlm(
+            llm, ModelGuard("assistant-llm", timeout=settings.ollama_timeout_seconds)
+        )
     return MockLlm()
 
 
@@ -105,9 +113,13 @@ def build_container(
     owned: list[httpx.AsyncClient] = []
     client = http_client
     if client is None:
-        client = httpx.AsyncClient(timeout=settings.http_timeout_seconds)
+        client = httpx.AsyncClient(
+            timeout=settings.http_timeout_seconds, event_hooks=deadline_event_hooks()
+        )
         owned.append(client)
-    ollama_client = httpx.AsyncClient(timeout=settings.ollama_timeout_seconds)
+    ollama_client = httpx.AsyncClient(
+        timeout=settings.ollama_timeout_seconds, event_hooks=deadline_event_hooks()
+    )
     owned.append(ollama_client)
     catalog = catalog or HttpCatalogGateway(client, settings.catalog_url)
     inventory = inventory or HttpInventoryGateway(client, settings.inventory_url)

@@ -7,7 +7,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "marketplace-common",
+    "marketplace-common[redis]",
     "fastapi>=0.162.4",
     "httpx>=0.28.1",
     "pydantic-settings>=2.16.2",

@@ -13,7 +13,8 @@ from payments.application.handle_order_event import HandleOrderEvent
 from payments.config import load_settings
 from payments.infrastructure.db.session import build_engine, build_session_factory
 from payments.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from payments.infrastructure.psp.simulated import SimulatedPsp
+from payments.infrastructure.psp.resilient import ResilientPsp
+from payments.infrastructure.psp.simulated import PspChargeNotFound, SimulatedPsp
 
 ORDERS_TOPIC = "orders.events"
 CONSUMER_GROUP = "payments"
@@ -27,9 +28,12 @@ async def main() -> None:
     factory = build_session_factory(engine)
     uow_factory = lambda: SqlAlchemyUnitOfWork(factory)  # noqa: E731
 
-    handler = HandleOrderEvent(
-        uow_factory, SimulatedPsp(factory), ttl=timedelta(minutes=settings.pix_ttl_minutes)
+    psp = ResilientPsp(
+        SimulatedPsp(factory),
+        timeout=settings.psp_timeout_seconds,
+        neutral_errors=(PspChargeNotFound,),
     )
+    handler = HandleOrderEvent(uow_factory, psp, ttl=timedelta(minutes=settings.pix_ttl_minutes))
     consumer = KafkaEventConsumer(
         settings.kafka_bootstrap_servers, ORDERS_TOPIC, CONSUMER_GROUP, handler
     )

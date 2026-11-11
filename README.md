@@ -90,6 +90,8 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 scripts/up.sh      # cria o .env se faltar, sobe tudo (com build) e espera ficar saudável
 scripts/e2e.sh     # teste de ponta a ponta pelo gateway (23 verificações), repetível
 scripts/reset.sh   # apaga containers e volumes para recomeçar do zero
+scripts/chaos.sh   # teste de caos: derruba catalog, payments e Redis e valida breaker, fail fast e recuperação
+python3 scripts/loadtest.py --duration 30 --concurrency 20   # teste de carga (p50/p95/p99, 429 e erros)
 ```
 
 ### Assistente de compras (RAG com modelos simulados)

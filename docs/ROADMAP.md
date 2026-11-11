@@ -65,6 +65,14 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Ferramenta para reprocessar mensagens da DLQ (`marketplace_common.dlq`, dry-run por padrão, anti-laço)
 - [x] Consumidor, outbox e relay extraídos para `backend/libs/marketplace_common`
 
+## Resiliência avançada (FEITA)
+- [x] Circuit breaker (janela deslizante, falha e lentidão, sondas no half-open), retry com full jitter e budget, deadline propagation, bulkhead
+- [x] Rate limit distribuído no Redis (token bucket em Lua) com fallback e fail-open configuráveis
+- [x] Aplicado no gateway, no cliente do PSP, no webhook e no LLM e embedder do assistant
+- [x] `scripts/chaos.sh` (catalog, payments e Redis), `scripts/loadtest.py`, painel e alertas de SLO (burn rate)
+- [ ] Estado do breaker compartilhado entre réplicas (hoje é por processo)
+- [ ] Identificar o cliente pelo `X-Forwarded-For` confiável no rate limit
+
 ## Fase 7: IA
 - [ ] RAG sobre o catálogo (pgvector)
 - [ ] Agente com tool use (estoque, status do pedido)

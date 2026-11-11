@@ -222,7 +222,18 @@ Ferramentas do agente (chamam os outros serviços por HTTP): `search_products`, 
 
 Proxy reverso FastAPI. Roteia `/api/<serviço>/...` para o serviço, repassa método, corpo, query e headers
 relevantes (incluindo `Idempotency-Key`), cria `X-Request-Id`, aplica CORS para `http://localhost:5173`,
-agrega `GET /api/health`.
+agrega `GET /api/health` (com o estado do circuit breaker de cada serviço em `breakers`).
+
+Resiliência (detalhes em `docs/RESILIENCIA.md`):
+
+- Limite de requisições distribuído (Redis), por cliente e por rota. Toda resposta traz `RateLimit-Limit`,
+  `RateLimit-Remaining` e `RateLimit-Reset`; o `429` traz `Retry-After`.
+- `X-Request-Deadline`: tempo restante da requisição em milissegundos. O gateway aceita o do cliente (teto de
+  30 s), usa 8 s por padrão (25 s no assistant) e repassa o que sobrou aos serviços.
+- Serviço com circuito aberto ou bulkhead cheio responde `503` com `Retry-After` e corpo
+  `{ "detail": "...", "code": "circuit_open" | "overloaded", "service": "catalog", "retry_after_seconds": 10 }`.
+  Deadline estourado responde `504`. O campo `detail` continua sendo o texto de sempre.
+- Só `GET` e `HEAD` são retentados pelo gateway (backoff exponencial com jitter e orçamento de retentativas).
 
 ## 6. Dados de seed (determinísticos)
 

@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from marketplace_common.resilience import deadline_event_hooks
 
 from ordering.application.errors import CatalogUnavailable
 from ordering.application.ports import CatalogProduct
@@ -18,7 +19,12 @@ class HttpCatalogGateway:
         attempts: int = 2,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout, transport=transport)
+        self._client = httpx.AsyncClient(
+            base_url=base_url,
+            timeout=timeout,
+            transport=transport,
+            event_hooks=deadline_event_hooks(),
+        )
         self._attempts = attempts
 
     async def aclose(self) -> None:

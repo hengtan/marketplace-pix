@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Any
@@ -124,7 +125,13 @@ def create_app(
 
     @app.exception_handler(UpstreamUnavailable)
     async def upstream(_: Request, exc: UpstreamUnavailable) -> JSONResponse:
-        return JSONResponse({"detail": "upstream service unavailable"}, status_code=502)
+        if exc.retry_after_seconds is None:
+            return JSONResponse({"detail": "upstream service unavailable"}, status_code=502)
+        return JSONResponse(
+            {"detail": "model temporarily unavailable", "code": "model_unavailable"},
+            status_code=503,
+            headers={"Retry-After": str(max(1, math.ceil(exc.retry_after_seconds)))},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, exc: RequestValidationError) -> JSONResponse:
