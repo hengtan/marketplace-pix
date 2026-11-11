@@ -6,6 +6,7 @@ Uso:
   python3 scripts/loadtest.py --rps 200 --duration 20 --json docs/loadtest-result.json
 
 Cenário: mistura de leituras (catálogo, estoque) e criação de pedidos com Idempotency-Key.
+Os pedidos consomem estoque, por isso o script repõe o estoque dos produtos de seed antes de começar.
 Sai com código 1 se a taxa de erros (5xx + falhas de transporte) passar de --max-error-rate.
 """
 
@@ -76,11 +77,9 @@ def build_request(rng: random.Random) -> tuple[str, str, str, dict[str, object]]
         return "product_by_slug", "GET", f"/api/catalog/products/slug/{slug}", {}
     if roll < 0.70:
         return "categories", "GET", "/api/catalog/categories", {}
-    if roll < 0.85:
+    if roll < 0.90:
         ids = ",".join(product_id(s) for s in rng.sample(SEED_PRODUCTS, 3))
         return "stock", "GET", f"/api/inventory/stock?product_ids={ids}", {}
-    if roll < 0.95:
-        return "health", "GET", "/api/health", {}
     body = {
         "customer_id": str(uuid.uuid4()),
         "customer_name": "Carga",
@@ -176,11 +175,18 @@ def print_report(result: dict[str, object], args: argparse.Namespace) -> None:
         )
 
 
+async def restock(client: httpx.AsyncClient, available: int) -> None:
+    for slug in SEED_PRODUCTS:
+        await client.put(f"/api/inventory/stock/{product_id(slug)}", json={"available": available})
+
+
 async def run(args: argparse.Namespace) -> dict[str, object]:
     stats = Stats()
     limits = httpx.Limits(max_connections=args.concurrency + 10)
     interval = args.concurrency / args.rps if args.rps else 0.0
     async with httpx.AsyncClient(base_url=args.base, limits=limits) as client:
+        if args.restock:
+            await restock(client, args.restock)
         started = time.perf_counter()
         stop_at = started + args.duration
         await asyncio.gather(
@@ -201,6 +207,9 @@ def main() -> int:
     parser.add_argument("--rps", type=float, default=0.0, help="taxa alvo total (0 = o máximo possível)")
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument(
+        "--restock", type=int, default=100000, help="repõe o estoque antes (0 desliga)"
+    )
     parser.add_argument("--json", help="grava o resultado completo neste arquivo")
     parser.add_argument("--max-error-rate", type=float, default=1.0, help="percentual aceito")
     args = parser.parse_args()

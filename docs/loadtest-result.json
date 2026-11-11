@@ -1,0 +1,210 @@
+{
+ "environment": "stack local no Docker Desktop (8 vCPU), gateway com 1 worker uvicorn, host com carga alta de outros processos",
+ "config": {
+  "concurrency": 20,
+  "duration_s": 30
+ },
+ "runs": {
+  "a1": {
+   "requests": 4590,
+   "duration_s": 30.44,
+   "throughput_rps": 150.8,
+   "status": {
+    "200": 4097,
+    "201": 493
+   },
+   "rate_limited_pct": 0.0,
+   "error_pct": 0.0,
+   "latency_ms": {
+    "p50": 76.5,
+    "p95": 432.9,
+    "p99": 844.6,
+    "max": 1371.1
+   },
+   "per_endpoint": {
+    "categories": {
+     "requests": 429,
+     "p50_ms": 83.2,
+     "p95_ms": 441.5,
+     "p99_ms": 933.1
+    },
+    "create_order": {
+     "requests": 493,
+     "p50_ms": 77.1,
+     "p95_ms": 476.6,
+     "p99_ms": 914.0
+    },
+    "list_products": {
+     "requests": 1841,
+     "p50_ms": 85.2,
+     "p95_ms": 449.4,
+     "p99_ms": 801.1
+    },
+    "product_by_slug": {
+     "requests": 926,
+     "p50_ms": 82.0,
+     "p95_ms": 417.8,
+     "p99_ms": 889.5
+    },
+    "stock": {
+     "requests": 901,
+     "p50_ms": 53.4,
+     "p95_ms": 372.0,
+     "p99_ms": 811.1
+    }
+   },
+   "transport_errors": {}
+  },
+  "a2": {
+   "requests": 3287,
+   "duration_s": 30.13,
+   "throughput_rps": 109.1,
+   "status": {
+    "200": 2938,
+    "201": 349
+   },
+   "rate_limited_pct": 0.0,
+   "error_pct": 0.0,
+   "latency_ms": {
+    "p50": 103.9,
+    "p95": 618.6,
+    "p99": 1153.7,
+    "max": 2530.5
+   },
+   "per_endpoint": {
+    "categories": {
+     "requests": 313,
+     "p50_ms": 110.5,
+     "p95_ms": 646.1,
+     "p99_ms": 1201.7
+    },
+    "create_order": {
+     "requests": 349,
+     "p50_ms": 113.6,
+     "p95_ms": 721.6,
+     "p99_ms": 1195.7
+    },
+    "list_products": {
+     "requests": 1321,
+     "p50_ms": 101.3,
+     "p95_ms": 568.7,
+     "p99_ms": 1180.0
+    },
+    "product_by_slug": {
+     "requests": 668,
+     "p50_ms": 112.8,
+     "p95_ms": 639.8,
+     "p99_ms": 1030.6
+    },
+    "stock": {
+     "requests": 636,
+     "p50_ms": 93.5,
+     "p95_ms": 616.9,
+     "p99_ms": 1081.5
+    }
+   },
+   "transport_errors": {}
+  },
+  "a3": {
+   "requests": 3682,
+   "duration_s": 30.13,
+   "throughput_rps": 122.2,
+   "status": {
+    "200": 3294,
+    "201": 388
+   },
+   "rate_limited_pct": 0.0,
+   "error_pct": 0.0,
+   "latency_ms": {
+    "p50": 96.1,
+    "p95": 535.3,
+    "p99": 935.5,
+    "max": 2374.9
+   },
+   "per_endpoint": {
+    "categories": {
+     "requests": 363,
+     "p50_ms": 111.3,
+     "p95_ms": 547.5,
+     "p99_ms": 714.9
+    },
+    "create_order": {
+     "requests": 388,
+     "p50_ms": 98.7,
+     "p95_ms": 495.5,
+     "p99_ms": 995.0
+    },
+    "list_products": {
+     "requests": 1477,
+     "p50_ms": 102.7,
+     "p95_ms": 535.3,
+     "p99_ms": 999.1
+    },
+    "product_by_slug": {
+     "requests": 744,
+     "p50_ms": 103.0,
+     "p95_ms": 592.6,
+     "p99_ms": 935.5
+    },
+    "stock": {
+     "requests": 710,
+     "p50_ms": 67.4,
+     "p95_ms": 460.7,
+     "p99_ms": 904.7
+    }
+   },
+   "transport_errors": {}
+  },
+  "b": {
+   "requests": 4818,
+   "duration_s": 30.57,
+   "throughput_rps": 157.6,
+   "status": {
+    "200": 1798,
+    "201": 180,
+    "429": 2840
+   },
+   "rate_limited_pct": 58.95,
+   "error_pct": 0.0,
+   "latency_ms": {
+    "p50": 78.7,
+    "p95": 486.3,
+    "p99": 918.8,
+    "max": 1263.4
+   },
+   "per_endpoint": {
+    "categories": {
+     "requests": 456,
+     "p50_ms": 72.7,
+     "p95_ms": 741.9,
+     "p99_ms": 1104.7
+    },
+    "create_order": {
+     "requests": 521,
+     "p50_ms": 83.7,
+     "p95_ms": 524.2,
+     "p99_ms": 776.2
+    },
+    "list_products": {
+     "requests": 1932,
+     "p50_ms": 93.4,
+     "p95_ms": 446.6,
+     "p99_ms": 765.0
+    },
+    "product_by_slug": {
+     "requests": 961,
+     "p50_ms": 87.5,
+     "p95_ms": 501.8,
+     "p99_ms": 676.0
+    },
+    "stock": {
+     "requests": 948,
+     "p50_ms": 63.3,
+     "p95_ms": 431.2,
+     "p99_ms": 957.9
+    }
+   },
+   "transport_errors": {}
+  }
+ }
+}
