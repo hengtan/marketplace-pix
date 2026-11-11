@@ -52,6 +52,14 @@ class RequestIdMiddleware:
 
 
 def _route_template(scope: Scope) -> str:
+    """Template da rota (`/orders/{order_id}`), nunca o caminho com ids. O FastAPI recente aninha os
+    routers incluídos e guarda a rota efetiva (com o prefixo) em `scope["fastapi"]`."""
+    effective = (scope.get("fastapi") or {}).get("effective_route_context")
+    matched = scope.get("route")
+    for candidate in (effective, matched):
+        template = getattr(candidate, "path_format", None) or getattr(candidate, "path", None)
+        if isinstance(template, str) and template:
+            return template
     app = scope.get("app")
     for route in getattr(app, "routes", []):
         match, _ = route.matches(scope)
