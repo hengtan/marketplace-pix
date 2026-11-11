@@ -1,88 +1,90 @@
-# Praça, frontend do marketplace PIX
+**English** | [Português (Brasil)](README.pt-BR.md)
 
-Loja, checkout com PIX e painel do lojista. React 19, Vite, TypeScript estrito, Tailwind CSS v4,
-TanStack Router e Query, Zustand, React Hook Form com Zod, Motion, cmdk, Recharts.
-A SPA fala apenas com o gateway (`/api/...`), conforme `docs/CONTRATOS.md`.
+# Praça, the marketplace PIX frontend
 
-## Como rodar
+Storefront, PIX checkout, and merchant dashboard. React 19, Vite, strict TypeScript, Tailwind CSS v4,
+TanStack Router and Query, Zustand, React Hook Form with Zod, Motion, cmdk, Recharts.
+The SPA talks only to the gateway (`/api/...`), as defined in `docs/CONTRACTS.md`.
 
-Requisitos: Node 22+ e pnpm.
+## Running it
+
+Requirements: Node 22+ and pnpm.
 
 ```bash
 pnpm install
 
-# 1) Sozinho, com mocks (MSW) fiéis ao contrato, estado persistido no localStorage
+# 1) Standalone, with contract-faithful mocks (MSW) and state persisted in localStorage
 pnpm dev:mock            # http://localhost:5173
 
-# 2) Com o backend real (gateway em http://localhost:8000)
-cp .env.example .env     # ajuste VITE_API_URL se preciso
+# 2) Against the real backend (gateway at http://localhost:8000)
+cp .env.example .env     # adjust VITE_API_URL if needed
 pnpm dev                 # http://localhost:5173
 ```
 
-Para testar a ferramenta de simulação com o backend real, use `VITE_ENABLE_DEV_TOOLS=true pnpm dev`.
+To try the simulation tool against the real backend, use `VITE_ENABLE_DEV_TOOLS=true pnpm dev`.
 
-## Variáveis de ambiente
+## Environment variables
 
-| Variável | Padrão | Efeito |
+| Variable | Default | Effect |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:8000` | Base do gateway. Vazia no Docker (usa o proxy do nginx, mesma origem) |
-| `VITE_USE_MOCKS` | `false` | `true` liga o MSW e todos os endpoints do contrato com estado em memória |
-| `VITE_ENABLE_DEV_TOOLS` | `false` | `true` mostra o botão "Simular pagamento" no painel PIX |
-| `VITE_PROXY_TARGET` | vazia | Só no `pnpm dev`: encaminha `/api` do Vite para o gateway (use com `VITE_API_URL=` vazia para evitar CORS em outra porta) |
+| `VITE_API_URL` | `http://localhost:8000` | Gateway base URL. Empty in Docker (uses the nginx proxy, same origin) |
+| `VITE_USE_MOCKS` | `false` | `true` enables MSW and every contract endpoint with in-memory state |
+| `VITE_ENABLE_DEV_TOOLS` | `false` | `true` shows the "Simular pagamento" (simulate payment) button on the PIX panel |
+| `VITE_PROXY_TARGET` | empty | `pnpm dev` only: forwards Vite's `/api` to the gateway (use it with an empty `VITE_API_URL` to avoid CORS on another port) |
 
 ## Scripts
 
-| Script | O que faz |
+| Script | What it does |
 |---|---|
-| `pnpm dev` / `pnpm dev:mock` | Servidor de desenvolvimento (real / mocks) |
-| `pnpm build` | Typecheck e build de produção em `dist/` |
-| `pnpm typecheck` | `tsc` estrito |
+| `pnpm dev` / `pnpm dev:mock` | Development server (real backend / mocks) |
+| `pnpm build` | Typecheck and production build into `dist/` |
+| `pnpm typecheck` | Strict `tsc` |
 | `pnpm lint` / `pnpm format` | Biome |
-| `pnpm test` | Vitest (unitários e de componentes) |
-| `pnpm e2e` | Playwright com mocks (fluxo de compra, paleta, tema, axe) |
-| `pnpm screenshots` | Regera `docs/screenshots/` |
+| `pnpm test` | Vitest (unit and component tests) |
+| `pnpm e2e` | Playwright with mocks (purchase flow, command palette, theme, axe) |
+| `pnpm screenshots` | Regenerates `docs/screenshots/` |
 
-Na primeira execução do Playwright: `pnpm exec playwright install chromium`.
+On the first Playwright run: `pnpm exec playwright install chromium`.
 
-## Cenários demonstráveis com os mocks
+## Demo scenarios with the mocks
 
-- Compra completa: carrinho, checkout, QR Code, "Simular pagamento", sucesso.
-- PIX expirado: use um e-mail ou nome contendo `expira` (o PIX vence em 25 s e o pedido é cancelado com `payment expired`).
-- Estoque insuficiente: `relogio-gps-trail` tem 3 unidades e `smartwatch-orbit` tem 5. Peça mais do que o disponível
-  (por exemplo reduzindo o estoque pelo `PUT /api/inventory/stock/{id}` ou comprando duas vezes) e o pedido é cancelado com `out of stock`.
-- Erro de listagem: buscar por `__erro` devolve 500.
-- Para zerar o estado dos mocks, limpe o `localStorage` do site.
+- Full purchase: cart, checkout, QR code, "Simular pagamento" (simulate payment), success.
+- Expired PIX: use an email or name containing `expira` (the PIX expires in 25 s and the order is canceled with `payment expired`).
+- Insufficient stock: `relogio-gps-trail` has 3 units and `smartwatch-orbit` has 5. Order more than what is available
+  (for example by lowering the stock through `PUT /api/inventory/stock/{id}` or by buying twice) and the order is canceled with `out of stock`.
+- Listing error: searching for `__erro` returns a 500.
+- To reset the mock state, clear the site's `localStorage`.
 
-## Assistente de compras
+## Shopping assistant
 
-O botão flutuante (canto inferior direito), a paleta ⌘K ("Perguntar ao assistente" ou "Perguntar: seu texto") e o
-atalho `Ctrl /` (`⌘ /` no Mac) abrem o chat. Esc fecha e o foco volta ao botão.
+The floating button (bottom right corner), the ⌘K palette ("Perguntar ao assistente" or "Perguntar: your text") and the
+`Ctrl /` shortcut (`⌘ /` on Mac) open the chat. Esc closes it and focus returns to the button.
 
-- Streaming: `POST /api/assistant/chat/stream` lido com `fetch` e um parser de SSE tolerante a chunks quebrados
-  (`src/features/assistant/sse.ts`). Eventos `tool_call` viram estados vivos, `token` monta o texto e `done` traz sessão,
-  citações e rastro. O botão de parar usa `AbortController` e há timeout de 45 s sem eventos.
-- Respostas: renderizador próprio e seguro (negrito, listas, quebras de linha, chips `[1]` para `/produto/:slug`), sem
-  `dangerouslySetInnerHTML`. Os produtos citados aparecem como cartões com preço e "Adicionar".
-- "Como cheguei nessa resposta": ferramentas chamadas (argumentos, resumo, duração), trechos recuperados com pontuação e
-  latência, em linha do tempo.
-- Sessão em `localStorage` (`praca-assistant-session`), recarregada por `GET /api/assistant/sessions/{id}`.
-  "Nova conversa" limpa tudo.
-- Mocks (`src/mocks/assistant.ts`) simulam SSE com `tool_call`, citações e rastro. Frases de teste: `simular erro`
-  (evento `error`), `simular limite` e `simular limite da sessao` (429 de orçamento), `simular muitas` (429), `simular indisponivel` (503), `simular degradado` (aviso de resposta parcial) e `resposta lenta` (tokens devagar, bom para testar o botão de parar).
-- Contra o backend real em outra porta: `VITE_PROXY_TARGET=http://localhost:8000 VITE_API_URL= pnpm exec vite --port 5174`.
-- No nginx, `/api/assistant/chat/stream` tem `proxy_buffering off` para o texto chegar token a token.
+- Streaming: `POST /api/assistant/chat/stream` is read with `fetch` and an SSE parser that tolerates split chunks
+  (`src/features/assistant/sse.ts`). `tool_call` events become live states, `token` builds the text, and `done` carries the session,
+  citations, and trace. The stop button uses `AbortController`, and there is a 45 s timeout when no events arrive.
+- Answers: a custom, safe renderer (bold, lists, line breaks, `[1]` chips linking to `/produto/:slug`) with no
+  `dangerouslySetInnerHTML`. Cited products appear as cards with price and "Adicionar" (add).
+- "Como cheguei nessa resposta" (how I got this answer): tools called (arguments, summary, duration) and retrieved passages with score and
+  latency, in a timeline.
+- Session in `localStorage` (`praca-assistant-session`), reloaded through `GET /api/assistant/sessions/{id}`.
+  "Nova conversa" (new conversation) clears everything.
+- Mocks (`src/mocks/assistant.ts`) simulate SSE with `tool_call`, citations, and trace. Test phrases: `simular erro`
+  (`error` event), `simular limite` and `simular limite da sessao` (budget 429), `simular muitas` (429), `simular indisponivel` (503), `simular degradado` (partial-answer warning), and `resposta lenta` (slow tokens, good for testing the stop button).
+- Against the real backend on another port: `VITE_PROXY_TARGET=http://localhost:8000 VITE_API_URL= pnpm exec vite --port 5174`.
+- In nginx, `/api/assistant/chat/stream` has `proxy_buffering off` so text arrives token by token.
 
-Captura em `docs/screenshots/07-assistente-escuro.png`.
+Screenshot at `docs/screenshots/07-assistente-escuro.png`.
 
-## Conta e rotas protegidas
+## Account and protected routes
 
-`/entrar` e `/cadastro` falam com `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh` e
-`GET /api/auth/me` (mock MSW com as contas `lojista@praca.dev` e `cliente@praca.dev`, senha `praca1234`). `/lojista` e `/conta`
-exigem sessão; a loja segue aberta para convidados. O access token fica em memória e o refresh em `sessionStorage` (renovação silenciosa ao carregar); detalhes e a recomendação de cookie httpOnly em `docs/AUTH-TOKENS.md`. O cliente HTTP renova uma vez em 401 e, sem renovação possível, leva ao login preservando o destino.
+`/entrar` (sign in) and `/cadastro` (sign up) talk to `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, and
+`GET /api/auth/me` (MSW mock with the accounts `lojista@praca.dev` and `cliente@praca.dev`, password `praca1234`). `/lojista` and `/conta`
+require a session; the store stays open to guests. The access token lives in memory and the refresh token in `sessionStorage` (silent renewal on load); details and the httpOnly cookie recommendation are in `docs/AUTH-TOKENS.md`. The HTTP client refreshes once on a 401 and, if it cannot refresh, sends the user to sign-in while preserving the destination.
 
-## Desempenho
+## Performance
 
-Números antes e depois, e o que mudou, em `docs/DESIGN.md` (seção Desempenho). Resumo: celular simulado (4G lento, CPU 4x) home 88 a 91 e produto 87 a 88 (antes 84 a 85 e 82 a 83), JS inicial ~199 kB gzip. Recharts (~111 kB gzip) só carrega no painel.
+Before and after numbers, and what changed, are in `docs/DESIGN.md` (Performance section). Summary: simulated mobile (slow 4G, 4x CPU) home 88 to 91 and product 87 to 88 (before 84 to 85 and 82 to 83), initial JS ~199 kB gzip. Recharts (~111 kB gzip) only loads on the dashboard.
 
 ## Docker
 
@@ -91,27 +93,27 @@ docker build -t marketplace-pix-frontend .
 docker run --rm -p 8080:80 -e API_UPSTREAM=http://host.docker.internal:8000 marketplace-pix-frontend
 ```
 
-Build multi-stage: Node compila e o nginx serve a SPA com fallback para `index.html` e proxy de `/api/` para
-`API_UPSTREAM` (padrão `http://gateway:8000`). `GET /healthz` responde `ok`.
+Multi-stage build: Node compiles and nginx serves the SPA with a fallback to `index.html` and a proxy from `/api/` to
+`API_UPSTREAM` (default `http://gateway:8000`). `GET /healthz` returns `ok`.
 
-## Estrutura
+## Structure
 
 ```
 src/
-  api/        cliente tipado, schemas Zod e endpoints do contrato
-  mocks/      dados de seed, banco em memória (idempotência, saga, ledger) e handlers MSW
-  hooks/      queries do TanStack Query e useOrderStatus (polling de 2 s, trocável por SSE)
-  store/      carrinho (persistido), cliente, tema, UI
-  components/ componentes reutilizáveis e base de UI (Radix)
-  features/   painel PIX, linha do tempo, hero, assistant (chat, SSE, rastro)
-  pages/      rotas (carregadas sob demanda)
-docs/         DESIGN.md e screenshots
+  api/        typed client, Zod schemas, and contract endpoints
+  mocks/      seed data, in-memory database (idempotency, saga, ledger), and MSW handlers
+  hooks/      TanStack Query queries and useOrderStatus (2 s polling, swappable for SSE)
+  store/      cart (persisted), customer, theme, UI
+  components/ reusable components and UI base (Radix)
+  features/   PIX panel, timeline, hero, assistant (chat, SSE, trace)
+  pages/      routes (lazy loaded)
+docs/         DESIGN.md, AUTH-TOKENS.md, and screenshots
 e2e/          Playwright
 ```
 
-## Decisões
+## Decisions
 
-- `customer_id` é um uuid salvo em `localStorage`. A `Idempotency-Key` é gerada por tentativa de checkout
-  (assinatura de itens e e-mail) e mantida até o sucesso, então reenvios por falha de rede não duplicam o pedido.
-- A pré-visualização de e-mail busca `/api/notifications/{id}/preview` e renderiza em um `iframe` com `sandbox` vazio.
-- `GET /products/by-ids` é lido como envelope paginado, conforme a versão atual do contrato.
+- `customer_id` is a uuid saved in `localStorage`. The `Idempotency-Key` is generated per checkout attempt
+  (signature of items and email) and kept until success, so retries after a network failure do not duplicate the order.
+- The email preview fetches `/api/notifications/{id}/preview` and renders it in an `iframe` with an empty `sandbox`.
+- `GET /products/by-ids` is read as a paginated envelope, matching the current version of the contract.
