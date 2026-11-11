@@ -195,6 +195,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.addInitScript((t) => localStorage.setItem("praca-theme", t), theme);
     await open(page);
     await page.getByRole("button", { name: /Assistente/ }).click();
+    await expect(panel(page)).toBeVisible();
     await expectNoA11yViolations(page);
 
     await ask(page, "quero um fone com cancelamento de ruído");
@@ -210,3 +211,29 @@ for (const theme of ["light", "dark"] as const) {
     await expectNoA11yViolations(page);
   });
 }
+
+test("shows a friendly limit message with the wait time and no retry", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: /Assistente/ }).click();
+  await ask(page, "simular limite");
+  const alert = panel(page).getByRole("alert");
+  await expect(alert).toContainText("limite de uso do assistente por hoje");
+  await expect(alert).toContainText("em 2 horas");
+  await expect(alert.getByRole("button", { name: /Tentar de novo/ })).toHaveCount(0);
+  await expectNoA11yViolations(page);
+});
+
+test("shows the 503 wait and flags degraded answers", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: /Assistente/ }).click();
+  await ask(page, "simular indisponivel");
+  await expect(panel(page).getByRole("alert")).toContainText("em 30 segundos");
+  await expect(panel(page).getByRole("button", { name: /Tentar de novo em/ })).toBeDisabled();
+
+  await page.getByRole("button", { name: /Nova conversa/ }).click();
+  await ask(page, "simular degradado fone");
+  await expect(page.getByTestId("degraded-notice")).toContainText(
+    "modelo do assistente está indisponível",
+  );
+  await expectNoA11yViolations(page);
+});

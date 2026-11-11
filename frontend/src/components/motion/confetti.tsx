@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
 const COLORS = [
@@ -50,7 +50,7 @@ export function Confetti({
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-[90] overflow-hidden">
       {pieces.map((p) => (
-        <motion.span
+        <m.span
           key={p.id}
           className="absolute will-change-transform"
           style={{

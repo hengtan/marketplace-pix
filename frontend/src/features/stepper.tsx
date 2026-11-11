@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { EASE, SPRING_POP } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ export function Stepper({ steps, current }: { steps: string[]; current: number }
             className={cn("flex items-center", i < steps.length - 1 && "flex-1")}
           >
             <span className="flex items-center gap-3">
-              <motion.span
+              <m.span
                 layout
                 initial={false}
                 animate={{ scale: active ? 1.08 : 1 }}
@@ -32,7 +32,7 @@ export function Stepper({ steps, current }: { steps: string[]; current: number }
                 {active && (
                   <span className="absolute inset-0 animate-[pulse-ring_2.4s_ease-out_infinite] rounded-full bg-primary/30" />
                 )}
-              </motion.span>
+              </m.span>
               <span
                 className={cn(
                   "hidden text-sm font-semibold sm:block",
@@ -44,7 +44,7 @@ export function Stepper({ steps, current }: { steps: string[]; current: number }
             </span>
             {i < steps.length - 1 && (
               <span className="relative mx-3 h-0.5 flex-1 overflow-hidden rounded-full bg-border sm:mx-5">
-                <motion.span
+                <m.span
                   className="absolute inset-0 origin-left bg-pix"
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: done ? 1 : 0 }}

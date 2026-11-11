@@ -2,25 +2,26 @@ import { Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router"
 import { ArrowUpRight, Moon, Search, ShoppingBag, Sun } from "lucide-react";
 import {
   AnimatePresence,
+  LazyMotion,
   MotionConfig,
-  motion,
+  m,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useSpring,
 } from "motion/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Toaster, toast } from "sonner";
-import { NotificationBell } from "@/components/notification-bell";
 import { Kbd } from "@/components/ui/misc";
 import { AssistantLauncher } from "@/features/assistant/launcher";
 import { CART_BUTTON_ID } from "@/lib/fly";
 import { EASE, SPRING, SPRING_POP } from "@/lib/motion";
+import { endTransition, exitComplete, useRouteTransition } from "@/lib/route-transition";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/store/auth";
 import { selectCount, useCart } from "@/store/cart";
 import { useTheme } from "@/store/theme";
 import { useUi } from "@/store/ui";
-import { Cursor } from "./cursor";
 import { UserMenu } from "./user-menu";
 import { Wordmark } from "./wordmark";
 
@@ -33,6 +34,15 @@ const CommandPalette = lazy(() =>
 const AssistantPanel = lazy(() =>
   import("@/features/assistant/panel").then((m) => ({ default: m.AssistantPanel })),
 );
+
+const NotificationBell = lazy(() =>
+  import("@/components/notification-bell").then((m) => ({ default: m.NotificationBell })),
+);
+const Cursor = lazy(() => import("./cursor").then((m) => ({ default: m.Cursor })));
+const Toaster = lazy(() => import("./toaster"));
+const loadMotionFeatures = () => import("@/lib/motion-features").then((m) => m.default);
+
+const MODIFIERS = new Set(["Control", "Meta", "Shift", "Alt"]);
 
 const NAV = [
   { to: "/", label: "Loja" },
@@ -50,7 +60,7 @@ function CartCount({ count }: { count: number }) {
   return (
     <AnimatePresence mode="popLayout" initial={false}>
       {count > 0 && (
-        <motion.span
+        <m.span
           key={count}
           initial={{ scale: 0.2, y: 8, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -59,7 +69,7 @@ function CartCount({ count }: { count: number }) {
           className="tabular absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-pix px-1 text-[0.7rem] leading-5 font-bold text-[oklch(0.2_0.06_165)] shadow-[0_0_0_2px_var(--background)]"
         >
           {count}
-        </motion.span>
+        </m.span>
       )}
     </AnimatePresence>
   );
@@ -70,7 +80,7 @@ function CartButton() {
   const bump = useUi((s) => s.cartBump);
   const setCartOpen = useUi((s) => s.setCartOpen);
   return (
-    <motion.button
+    <m.button
       key={bump}
       id={CART_BUTTON_ID}
       type="button"
@@ -84,7 +94,7 @@ function CartButton() {
     >
       <ShoppingBag className="size-5" />
       <CartCount count={count} />
-    </motion.button>
+    </m.button>
   );
 }
 
@@ -98,7 +108,7 @@ function ThemeToggle() {
       aria-label={theme === "dark" ? "Mudar para o tema claro" : "Mudar para o tema escuro"}
     >
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span
+        <m.span
           key={theme}
           initial={{ rotate: -80, scale: 0.4, opacity: 0 }}
           animate={{ rotate: 0, scale: 1, opacity: 1 }}
@@ -107,7 +117,7 @@ function ThemeToggle() {
           className="grid place-items-center"
         >
           {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </button>
   );
@@ -115,6 +125,7 @@ function ThemeToggle() {
 
 function Header() {
   const setPaletteOpen = useUi((s) => s.setPaletteOpen);
+  const signedIn = useAuth((s) => Boolean(s.accessToken));
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const reduce = useReducedMotion();
@@ -148,7 +159,7 @@ function Header() {
                 )}
               >
                 {active && (
-                  <motion.span
+                  <m.span
                     layoutId="nav-pill"
                     className="absolute inset-0 -z-10 rounded-full bg-primary-soft"
                     transition={reduce ? { duration: 0 } : SPRING}
@@ -177,7 +188,11 @@ function Header() {
           >
             <Search className="size-5" />
           </button>
-          <NotificationBell />
+          {signedIn && (
+            <Suspense fallback={<span className="size-11" />}>
+              <NotificationBell />
+            </Suspense>
+          )}
           <ThemeToggle />
           <UserMenu />
           <CartButton />
@@ -199,7 +214,7 @@ function Header() {
         ))}
       </nav>
       {!reduce && (
-        <motion.div
+        <m.div
           aria-hidden
           className="absolute inset-x-0 bottom-0 h-[2px] origin-left bg-[linear-gradient(90deg,var(--primary),oklch(0.65_0.22_320),var(--sun))]"
           style={{ scaleX: progress }}
@@ -263,9 +278,8 @@ function Footer() {
 }
 
 export function AppShell() {
-  const toastTheme = useTheme((s) => s.theme);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
+  const leaving = useRouteTransition((s) => s.leaving);
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   const assistantOpen = useUi((s) => s.assistantOpen);
@@ -274,6 +288,7 @@ export function AppShell() {
   const [assistantReady, setAssistantReady] = useState(false);
   const [cartReady, setCartReady] = useState(false);
   const [paletteReady, setPaletteReady] = useState(false);
+  const [extrasReady, setExtrasReady] = useState(false);
 
   useEffect(() => {
     if (assistantOpen) setAssistantReady(true);
@@ -296,19 +311,28 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    const idle = (window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 2500)))(() => {
+    const events = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    const timer = setTimeout(() => wake(), 6000);
+    function wake(e?: Event) {
+      if (e instanceof KeyboardEvent && (e.ctrlKey || e.metaKey || MODIFIERS.has(e.key))) return;
+      clearTimeout(timer);
+      for (const name of events) window.removeEventListener(name, wake);
       setAssistantReady(true);
       setCartReady(true);
       setPaletteReady(true);
-    });
+      setExtrasReady(true);
+    }
+    for (const name of events) window.addEventListener(name, wake, { passive: true });
     return () => {
-      if (typeof idle === "number" && window.cancelIdleCallback) window.cancelIdleCallback(idle);
+      clearTimeout(timer);
+      for (const name of events) window.removeEventListener(name, wake);
     };
   }, []);
 
   useEffect(
     () =>
       router.subscribe("onResolved", () => {
+        endTransition();
         if (first.current) {
           first.current = false;
           return;
@@ -321,51 +345,57 @@ export function AppShell() {
   );
 
   return (
-    <MotionConfig reducedMotion="user">
-      <a
-        href="#conteudo"
-        className="sr-only z-[100] rounded-full bg-foreground px-5 py-2.5 text-background focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
-      >
-        Pular para o conteúdo
-      </a>
-      <Header />
-      <main id="conteudo" ref={mainRef} tabIndex={-1} className="outline-none">
-        <motion.div
-          key={pathname}
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, ease: EASE }}
+    <LazyMotion features={loadMotionFeatures}>
+      <MotionConfig reducedMotion="user">
+        <a
+          href="#conteudo"
+          className="sr-only z-[100] rounded-full bg-foreground px-5 py-2.5 text-background focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
         >
-          <Outlet />
-        </motion.div>
-      </main>
-      <Footer />
-      <Suspense fallback={null}>
-        {cartReady && <CartDrawer />}
-        {paletteReady && <CommandPalette />}
-      </Suspense>
-      <AssistantLauncher />
-      {assistantReady && (
-        <Suspense fallback={null}>
-          <AssistantPanel />
-        </Suspense>
-      )}
-      <Cursor />
-      <Toaster
-        position="bottom-right"
-        offset={{ right: 24, bottom: 92 }}
-        mobileOffset={{ right: 16, bottom: 84 }}
-        theme={toastTheme}
-        style={
-          {
-            "--normal-bg": "var(--glass)",
-            "--normal-border": "var(--border-strong)",
-            "--normal-text": "var(--foreground)",
-            "--border-radius": "1.1rem",
-          } as React.CSSProperties
-        }
-        toastOptions={{ className: "!backdrop-blur-xl !shadow-lift" }}
-      />
-    </MotionConfig>
+          Pular para o conteúdo
+        </a>
+        <Header />
+        <main id="conteudo" ref={mainRef} tabIndex={-1} className="outline-none">
+          <AnimatePresence mode="wait" initial={false} onExitComplete={exitComplete}>
+            {!leaving && (
+              <m.div
+                key="page"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
+                exit={{ opacity: 0, y: -10, transition: { duration: 0.18, ease: "easeIn" } }}
+              >
+                <Outlet />
+              </m.div>
+            )}
+          </AnimatePresence>
+        </main>
+        <Footer />
+        {cartReady && (
+          <Suspense fallback={null}>
+            <CartDrawer />
+          </Suspense>
+        )}
+        {paletteReady && (
+          <Suspense fallback={null}>
+            <CommandPalette />
+          </Suspense>
+        )}
+        <AssistantLauncher />
+        {assistantReady && (
+          <Suspense fallback={null}>
+            <AssistantPanel />
+          </Suspense>
+        )}
+        {extrasReady && (
+          <>
+            <Suspense fallback={null}>
+              <Cursor />
+            </Suspense>
+            <Suspense fallback={null}>
+              <Toaster />
+            </Suspense>
+          </>
+        )}
+      </MotionConfig>
+    </LazyMotion>
   );
 }

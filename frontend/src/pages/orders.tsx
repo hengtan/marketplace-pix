@@ -34,7 +34,7 @@ export default function OrdersPage() {
             ))}
           </ul>
         ) : isError ? (
-          <ErrorState message={error.message} onRetry={() => refetch()} />
+          <ErrorState error={error} message={error.message} onRetry={() => refetch()} />
         ) : data.items.length === 0 ? (
           <EmptyState
             art="orders"

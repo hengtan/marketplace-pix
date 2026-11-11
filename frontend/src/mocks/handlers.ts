@@ -39,6 +39,13 @@ function notFound(detail: string) {
   return HttpResponse.json({ detail }, { status: 404 });
 }
 
+const pendingCharges = new Set<string>();
+
+const publicStock = ({ product_id, available }: { product_id: string; available: number }) => ({
+  product_id,
+  available,
+});
+
 export const handlers = [
   ...assistantHandlers,
   ...authHandlers,
@@ -121,11 +128,11 @@ export const handlers = [
     const ids = (new URL(request.url).searchParams.get("product_ids") ?? "")
       .split(",")
       .filter(Boolean);
-    return HttpResponse.json(ids.map((id) => db.getStock(id)));
+    return HttpResponse.json(ids.map((id) => publicStock(db.getStock(id))));
   }),
 
   http.get(url("/api/inventory/stock/:id"), ({ params }) =>
-    HttpResponse.json(db.getStock(String(params.id))),
+    HttpResponse.json(publicStock(db.getStock(String(params.id)))),
   ),
 
   http.put(url("/api/inventory/stock/:id"), async ({ params, request }) => {
@@ -142,6 +149,15 @@ export const handlers = [
     const body = (await request.json()) as Parameters<typeof db.createOrder>[0];
     try {
       const { id } = db.createOrder(body, key);
+      if (
+        /cobranca lenta/i.test(
+          `${body.customer_name} ${body.customer_email}`
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, ""),
+        )
+      ) {
+        pendingCharges.add(id);
+      }
       return HttpResponse.json({ id }, { status: 201 });
     } catch (err) {
       return HttpResponse.json(
@@ -168,7 +184,15 @@ export const handlers = [
 
   http.get(url("/api/payments/by-order/:orderId"), async ({ params }) => {
     await delay(LATENCY / 2);
-    const p = db.getPayment(String(params.orderId));
+    const orderId = String(params.orderId);
+    const p = db.getPayment(orderId);
+    if (!p && db.getOrder(orderId)?.status === "PENDING" && pendingCharges.has(orderId)) {
+      pendingCharges.delete(orderId);
+      return HttpResponse.json(
+        { detail: "payment is being created" },
+        { status: 202, headers: { "Retry-After": "1" } },
+      );
+    }
     return p ? HttpResponse.json(p) : notFound("Pagamento ainda não gerado");
   }),
 

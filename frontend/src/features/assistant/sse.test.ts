@@ -139,6 +139,47 @@ describe("parseAssistantEvent", () => {
     );
   });
 
+  it("maps the budget error with its scope, limit and wait", () => {
+    expect(
+      parseAssistantEvent({
+        event: "error",
+        data: '{"detail":"budget exceeded","scope":"user","limit":"tokens","retry_after_seconds":600}',
+      }),
+    ).toEqual({
+      type: "error",
+      detail: "budget exceeded",
+      scope: "user",
+      limit: "tokens",
+      retryAfter: 600,
+    });
+  });
+
+  it("maps the degraded warning", () => {
+    expect(
+      parseAssistantEvent({
+        event: "warning",
+        data: '{"detail":"model unavailable","reason":"llm_timeout"}',
+      }),
+    ).toEqual({ type: "warning", detail: "model unavailable", reason: "llm_timeout" });
+  });
+
+  it("keeps degraded and warning from a done event", () => {
+    const event = parseAssistantEvent({
+      event: "done",
+      data: JSON.stringify({
+        session_id: "s1",
+        answer: "ok",
+        degraded: true,
+        warning: "model unavailable",
+        cached: false,
+      }),
+    });
+    expect(event).toMatchObject({
+      type: "done",
+      result: { degraded: true, warning: "model unavailable", cached: false },
+    });
+  });
+
   it("skips unknown events and malformed tokens", () => {
     expect(parseAssistantEvent({ event: "ping", data: "{}" })).toBeNull();
     expect(parseAssistantEvent({ event: "token", data: "{broken" })).toBeNull();

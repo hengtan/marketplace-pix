@@ -68,11 +68,15 @@ export function useStock(ids: string[]) {
   });
 }
 
-export function useRelatedProducts(category: string | undefined, excludeId: string | undefined) {
+export function useRelatedProducts(
+  category: string | undefined,
+  excludeId: string | undefined,
+  ready = true,
+) {
   return useQuery({
     queryKey: ["related", category, excludeId],
     queryFn: () => api.products({ category, sort: "rating", page_size: 5 }),
-    enabled: Boolean(category),
+    enabled: Boolean(category) && ready,
     staleTime: 60_000,
     select: (page) => page.items.filter((p) => p.id !== excludeId).slice(0, 4),
   });
@@ -86,8 +90,9 @@ export function prefetchProduct(client: QueryClient, slug: string) {
   });
 }
 
-export function useOrders(customerId: string, page: number) {
+export function useOrders(customerId: string, page: number, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: qk.orders(customerId, page),
     queryFn: () => api.orders(customerId, page, 8),
     placeholderData: keepPreviousData,

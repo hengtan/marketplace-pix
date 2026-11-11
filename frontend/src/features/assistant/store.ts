@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { ApiError } from "@/api/client";
 import { fetchSession, StreamError, streamChat } from "./api";
-import { describeError, TIMEOUT_MESSAGE } from "./copy";
+import { DEGRADED_NOTICE, describeFailure, TIMEOUT_MESSAGE } from "./copy";
 import type { Citation, Retrieved, ToolCall } from "./types";
 
 export interface ChatMessage {
@@ -14,6 +14,10 @@ export interface ChatMessage {
   latencyMs: number | null;
   status: "streaming" | "done" | "error" | "stopped";
   error?: string;
+  retryAfter?: number;
+  retryable?: boolean;
+  degraded?: boolean;
+  notice?: string;
 }
 
 interface AssistantState {
@@ -105,8 +109,14 @@ export const useAssistant = create<AssistantState>((set, get) => {
           patch(reply.id, (m) => ({ toolCalls: [...m.toolCalls, event.call] }));
         } else if (event.type === "token") {
           patch(reply.id, (m) => ({ content: m.content + event.text }));
+        } else if (event.type === "warning") {
+          patch(reply.id, { degraded: true, notice: DEGRADED_NOTICE });
         } else if (event.type === "error") {
-          throw new StreamError(event.detail, "server");
+          throw new StreamError(event.detail, "server", {
+            scope: event.scope,
+            limit: event.limit,
+            retryAfter: event.retryAfter,
+          });
         } else {
           finished = true;
           const r = event.result;
@@ -119,6 +129,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
             retrieved: r.retrieved,
             latencyMs: r.latency_ms,
             status: "done",
+            ...(r.degraded ? { degraded: true, notice: DEGRADED_NOTICE } : {}),
           });
         }
       }
@@ -139,7 +150,13 @@ export const useAssistant = create<AssistantState>((set, get) => {
         set((s) => ({ sessionId: null, messages: s.messages.filter((m) => m.id !== reply.id) }));
         return run(question, false);
       } else {
-        patch(reply.id, { status: "error", error: describeError(err) });
+        const failure = describeFailure(err);
+        patch(reply.id, {
+          status: "error",
+          error: failure.message,
+          retryAfter: failure.retryAfter,
+          retryable: failure.retryable,
+        });
       }
     } finally {
       clearTimeout(timer);

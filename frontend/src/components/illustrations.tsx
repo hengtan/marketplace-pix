@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { EASE } from "@/lib/motion";
 
@@ -17,7 +17,7 @@ function Draw({
 }) {
   const reduce = useReducedMotion();
   return (
-    <motion.path
+    <m.path
       d={d}
       fill="none"
       strokeWidth={strokeWidth}
@@ -42,12 +42,12 @@ function Bob({
 }) {
   const reduce = useReducedMotion();
   return (
-    <motion.g
+    <m.g
       animate={reduce ? undefined : { y: [0, -amp, 0] }}
       transition={{ duration: 4.5, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut", delay }}
     >
       {children}
-    </motion.g>
+    </m.g>
   );
 }
 
@@ -64,7 +64,7 @@ function Spark({
 }) {
   const reduce = useReducedMotion();
   return (
-    <motion.path
+    <m.path
       d={`M${x} ${y - 6}v12M${x - 6} ${y}h12`}
       strokeWidth="2.4"
       strokeLinecap="round"
@@ -87,7 +87,7 @@ const SCENES: Record<ArtName, ReactNode> = {
         <Draw d="M58 74l-3 12h58" className="stroke-primary" strokeWidth={4} delay={0.15} />
         <circle cx="64" cy="96" r="6" className="fill-foreground" />
         <circle cx="102" cy="96" r="6" className="fill-foreground" />
-        <motion.rect
+        <m.rect
           x="68"
           y="48"
           width="16"
@@ -153,7 +153,7 @@ const SCENES: Record<ArtName, ReactNode> = {
       <Bob amp={3}>
         <Draw d="M80 24L130 98H30z" className="stroke-danger" strokeWidth={5} />
         <Draw d="M80 52v22" className="stroke-danger" strokeWidth={6} delay={0.6} />
-        <motion.circle
+        <m.circle
           cx="80"
           cy="86"
           r="3.5"
@@ -170,7 +170,7 @@ const SCENES: Record<ArtName, ReactNode> = {
   lost: (
     <>
       <ellipse cx="80" cy="106" rx="34" ry="6" className="fill-foreground/10" />
-      <motion.ellipse
+      <m.ellipse
         cx="80"
         cy="106"
         rx="34"
@@ -188,7 +188,7 @@ const SCENES: Record<ArtName, ReactNode> = {
           className="stroke-primary"
           strokeWidth={5}
         />
-        <motion.circle
+        <m.circle
           cx="80"
           cy="50"
           r="9"
@@ -216,7 +216,7 @@ const SCENES: Record<ArtName, ReactNode> = {
         />
         {[0, 1, 2].map((r) =>
           [0, 1, 2].map((c) => (
-            <motion.rect
+            <m.rect
               key={`${r}-${c}`}
               x={58 + c * 16}
               y={38 + r * 16}

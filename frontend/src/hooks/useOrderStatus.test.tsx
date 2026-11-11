@@ -1,8 +1,12 @@
 import { renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "@/api/endpoints";
+import { stockSchema } from "@/api/schemas";
+import { env } from "@/lib/env";
 import { PRODUCTS } from "@/mocks/data";
 import * as db from "@/mocks/db";
+import { server } from "@/mocks/server";
 import { wrapper } from "@/test/utils";
 import { useOrderStatus } from "./useOrderStatus";
 
@@ -38,6 +42,26 @@ describe("useOrderStatus", () => {
     expect(result.current.isLive).toBe(false);
   });
 
+  it("treats 202 as a charge still being created and refetches after Retry-After", async () => {
+    const id = place();
+    let calls = 0;
+    const real = db.getPayment(id);
+    server.use(
+      http.get(`${env.apiUrl.replace(/\/$/, "")}/api/payments/by-order/:orderId`, () => {
+        calls++;
+        return calls < 3
+          ? HttpResponse.json({}, { status: 202, headers: { "Retry-After": "0" } })
+          : HttpResponse.json(real);
+      }),
+    );
+    const { result } = renderHook(() => useOrderStatus(id, 40), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.order?.status).toBe("PENDING"));
+    expect(result.current.payment).toBeUndefined();
+    await waitFor(() => expect(result.current.payment?.status).toBe("PENDING"), { timeout: 4000 });
+    expect(calls).toBeGreaterThanOrEqual(3);
+    expect(result.current.error).toBeNull();
+  });
+
   it("surfaces a cancellation with reason when stock is insufficient", async () => {
     const id = place("ana@exemplo.com", 9999);
     const { result } = renderHook(() => useOrderStatus(id, 50), { wrapper: wrapper() });
@@ -65,5 +89,19 @@ describe("mock order creation", () => {
     const second = db.createOrder(input, "same");
     expect(second.id).toBe(first.id);
     expect(second.replay).toBe(true);
+  });
+});
+
+describe("public stock", () => {
+  it("accepts rows without reserved", () => {
+    expect(stockSchema.safeParse({ product_id: "p", available: 3 }).success).toBe(true);
+    expect(stockSchema.safeParse({ product_id: "p", available: 3, reserved: 1 }).success).toBe(
+      true,
+    );
+  });
+
+  it("the mock no longer leaks reserved to the public", async () => {
+    const rows = await api.stock([product.id]);
+    expect(rows[0]).not.toHaveProperty("reserved");
   });
 });

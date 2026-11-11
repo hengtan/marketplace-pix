@@ -68,7 +68,7 @@ atalho `Ctrl /` (`⌘ /` no Mac) abrem o chat. Esc fecha e o foco volta ao botã
 - Sessão em `localStorage` (`praca-assistant-session`), recarregada por `GET /api/assistant/sessions/{id}`.
   "Nova conversa" limpa tudo.
 - Mocks (`src/mocks/assistant.ts`) simulam SSE com `tool_call`, citações e rastro. Frases de teste: `simular erro`
-  (evento `error`) e `resposta lenta` (tokens devagar, bom para testar o botão de parar).
+  (evento `error`), `simular limite` e `simular limite da sessao` (429 de orçamento), `simular muitas` (429), `simular indisponivel` (503), `simular degradado` (aviso de resposta parcial) e `resposta lenta` (tokens devagar, bom para testar o botão de parar).
 - Contra o backend real em outra porta: `VITE_PROXY_TARGET=http://localhost:8000 VITE_API_URL= pnpm exec vite --port 5174`.
 - No nginx, `/api/assistant/chat/stream` tem `proxy_buffering off` para o texto chegar token a token.
 
@@ -78,13 +78,11 @@ Captura em `docs/screenshots/07-assistente-escuro.png`.
 
 `/entrar` e `/cadastro` falam com `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh` e
 `GET /api/auth/me` (mock MSW com as contas `lojista@praca.dev` e `cliente@praca.dev`, senha `praca1234`). `/lojista` e `/conta`
-exigem sessão; a loja segue aberta para convidados. O cliente HTTP renova o token uma vez em 401.
+exigem sessão; a loja segue aberta para convidados. O access token fica em memória e o refresh em `sessionStorage` (renovação silenciosa ao carregar); detalhes e a recomendação de cookie httpOnly em `docs/AUTH-TOKENS.md`. O cliente HTTP renova uma vez em 401 e, sem renovação possível, leva ao login preservando o destino.
 
 ## Desempenho
 
-Build de produção servido por `vite preview` contra o backend real, Lighthouse 13 na home: desktop 98 de desempenho
-(LCP 1,1 s, TBT 0 ms, CLS 0); celular com a simulação padrão (4G lento, CPU 4x) de 84 a 88 (LCP 3,9 s, CLS 0).
-Recharts (~111 kB gzip) só carrega no painel; o assistente, o carrinho e a paleta carregam sob demanda.
+Números antes e depois, e o que mudou, em `docs/DESIGN.md` (seção Desempenho). Resumo: celular simulado (4G lento, CPU 4x) home 88 a 91 e produto 87 a 88 (antes 84 a 85 e 82 a 83), JS inicial ~199 kB gzip. Recharts (~111 kB gzip) só carrega no painel.
 
 ## Docker
 

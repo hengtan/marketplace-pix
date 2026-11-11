@@ -1,6 +1,6 @@
 import { Sparkles } from "lucide-react";
 import {
-  motion,
+  m,
   useMotionValue,
   useReducedMotion,
   useScroll,
@@ -15,6 +15,7 @@ import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format";
 import { EASE, finePointer } from "@/lib/motion";
+import { bootedFromShell } from "@/lib/shell";
 import { cn } from "@/lib/utils";
 import { useUi } from "@/store/ui";
 
@@ -38,32 +39,29 @@ function Layer({
   const x = useTransform(sx, (v) => v * depth);
   const y = useTransform(sy, (v) => v * depth);
   return (
-    <motion.div className={cn("absolute will-change-transform", className)} style={{ x, y }}>
-      <motion.div
+    <m.div className={cn("absolute will-change-transform", className)} style={{ x, y }}>
+      <m.div
         initial={{ opacity: 0, y: 28, scale: 0.94 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 1, delay, ease: EASE }}
         className="h-full w-full"
       >
         {children}
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   );
 }
 
 function Chip({ children, tone = "surface" }: { children: ReactNode; tone?: "surface" | "pix" }) {
-  const reduce = useReducedMotion();
   return (
-    <motion.div
-      animate={reduce ? undefined : { y: [0, -7, 0] }}
-      transition={{ duration: 5, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+    <div
       className={cn(
-        "glass flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap shadow-lift",
+        "glass flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap shadow-lift [animation:bob_5s_ease-in-out_infinite]",
         tone === "pix" && "!bg-pix !text-[oklch(0.2_0.06_165)]",
       )}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -93,17 +91,11 @@ function Receipt() {
             strokeLinejoin="round"
             aria-hidden
           >
-            <motion.path
+            <path
               d="M5 12.5l4.5 4.5L19 7.5"
-              initial={reduce ? false : { pathLength: 0 }}
-              animate={{ pathLength: [0, 1, 1, 0] }}
-              transition={{
-                duration: 4,
-                times: [0, 0.2, 0.85, 1],
-                repeat: Number.POSITIVE_INFINITY,
-                repeatDelay: 0.6,
-                delay: 1.4,
-              }}
+              pathLength={1}
+              className="[animation:check-draw_4.6s_ease-in-out_1.4s_infinite]"
+              style={{ strokeDasharray: 1, strokeDashoffset: reduce ? 0 : 1 }}
             />
           </svg>
         </span>
@@ -226,9 +218,9 @@ export function Hero({
       </div>
       <div className="grid-lines pointer-events-none absolute inset-0 -z-10" aria-hidden />
       <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 pt-8 pb-16 sm:px-6 md:pt-14 lg:grid-cols-[1.1fr_1fr] lg:pb-24">
-        <motion.div style={reduce ? undefined : { y: textY, opacity: fade }}>
-          <motion.p
-            initial={reduce ? false : { opacity: 0, y: 12 }}
+        <m.div style={reduce ? undefined : { y: textY, opacity: fade }}>
+          <m.p
+            initial={reduce || bootedFromShell ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: EASE }}
             className="glass inline-flex items-center gap-2.5 rounded-full py-1.5 pr-4 pl-2 text-sm font-medium"
@@ -237,23 +229,23 @@ export function Hero({
               <span className="size-2 animate-pulse rounded-full bg-current" />
             </span>
             PIX com confirmação em tempo real
-          </motion.p>
+          </m.p>
           <h1 id="hero-title" className="text-display mt-6">
             <SplitWords text="Compre hoje." delay={0.1} />
             <br />
             <SplitWords text="Pague em" delay={0.25} />{" "}
             <SplitWords text="segundos." delay={0.4} italicFrom={0} className="text-primary" />
           </h1>
-          <motion.p
+          <m.p
             className="mt-7 max-w-[36ch] text-lg text-muted sm:text-xl"
-            initial={reduce ? false : { y: 16 }}
+            initial={reduce || bootedFromShell ? false : { y: 16 }}
             animate={{ y: 0 }}
             transition={{ duration: 0.8, delay: 0.2, ease: EASE }}
           >
             Produtos de lojistas independentes, estoque conferido em tempo real e pagamento por PIX
             que confirma na hora.
-          </motion.p>
-          <motion.div
+          </m.p>
+          <m.div
             className="mt-9 flex flex-wrap items-center gap-3"
             initial={reduce ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -269,8 +261,8 @@ export function Hero({
                 <Sparkles /> Perguntar ao assistente
               </Button>
             </Magnetic>
-          </motion.div>
-          <motion.dl
+          </m.div>
+          <m.dl
             className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-6"
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -292,11 +284,11 @@ export function Hero({
                 <dt className="text-sm text-muted">{s.l}</dt>
               </div>
             ))}
-          </motion.dl>
-        </motion.div>
-        <motion.div style={reduce ? undefined : { y: sceneY }}>
+          </m.dl>
+        </m.div>
+        <m.div style={reduce ? undefined : { y: sceneY }}>
           <Scene sx={sx} sy={sy} />
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

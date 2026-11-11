@@ -1,4 +1,4 @@
-import { ApiError, buildUrl, request, toError } from "@/api/client";
+import { ApiError, type ApiErrorInfo, authedFetch, buildUrl, request, toError } from "@/api/client";
 import { readSse, type SseMessage } from "./sse";
 import { type AssistantEvent, chatResponseSchema, sessionSchema, toolCallSchema } from "./types";
 
@@ -6,6 +6,7 @@ export class StreamError extends Error {
   constructor(
     message: string,
     readonly kind: "malformed" | "server",
+    readonly info: ApiErrorInfo = {},
   ) {
     super(message);
     this.name = "StreamError";
@@ -36,9 +37,24 @@ export function parseAssistantEvent(message: SseMessage): AssistantEvent | null 
       if (!parsed.success) throw new StreamError("Resposta inesperada do servidor.", "malformed");
       return { type: "done", result: parsed.data };
     }
+    case "warning": {
+      const body = (json ?? {}) as { detail?: unknown; reason?: unknown };
+      return {
+        type: "warning",
+        detail: typeof body.detail === "string" ? body.detail : "",
+        reason: typeof body.reason === "string" ? body.reason : "",
+      };
+    }
     case "error": {
-      const detail = (json as { detail?: unknown } | undefined)?.detail;
-      return { type: "error", detail: typeof detail === "string" ? detail : "" };
+      const body = (json ?? {}) as Record<string, unknown>;
+      const wait = body.retry_after_seconds ?? body.retry_after;
+      return {
+        type: "error",
+        detail: typeof body.detail === "string" ? body.detail : "",
+        scope: typeof body.scope === "string" ? body.scope : undefined,
+        limit: typeof body.limit === "string" ? body.limit : undefined,
+        retryAfter: typeof wait === "number" ? wait : undefined,
+      };
     }
     default:
       return null;
@@ -51,7 +67,7 @@ export async function* streamChat(
 ): AsyncGenerator<AssistantEvent> {
   let res: Response;
   try {
-    res = await fetch(buildUrl("/api/assistant/chat/stream"), {
+    res = await authedFetch(buildUrl("/api/assistant/chat/stream"), {
       method: "POST",
       signal,
       headers: { Accept: "text/event-stream", "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, QrCode, ShieldCheck, ShoppingBag, Store } from "lucide-react";
-import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { m, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@/api/client";
 import { AnimatedNumber } from "@/components/motion/animated-number";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge, Skeleton, Stars } from "@/components/ui/misc";
 import { useProduct, useRelatedProducts, useStock } from "@/hooks/queries";
 import { useAddToCart } from "@/hooks/useAddToCart";
-import { usePageTitle } from "@/hooks/utils";
+import { useAfterDelay, usePageTitle } from "@/hooks/utils";
 import { formatMoney as money } from "@/lib/format";
 import { MAX_PER_ITEM } from "@/store/cart";
 import { useUi } from "@/store/ui";
@@ -47,7 +47,8 @@ export default function ProductPage() {
   const { data: product, isPending, error, refetch } = useProduct(slug);
   usePageTitle(product?.name ?? "Produto");
   const { data: stock } = useStock(product ? [product.id] : []);
-  const related = useRelatedProducts(product?.category, product?.id);
+  const belowFoldReady = useAfterDelay(900);
+  const related = useRelatedProducts(product?.category, product?.id, belowFoldReady);
   const relatedStock = useStock((related.data ?? []).map((p) => p.id));
   const addToCart = useAddToCart();
   const [qty, setQty] = useState(1);
@@ -91,6 +92,7 @@ export default function ProductPage() {
     <article className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
       <Link
         to="/"
+        viewTransition
         className="inline-flex items-center gap-2 rounded-md py-2 text-sm text-muted hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Voltar para a loja
@@ -98,7 +100,7 @@ export default function ProductPage() {
 
       <div className="mt-4 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
         <div ref={heroRef} className="relative lg:sticky lg:top-24 lg:self-start">
-          <motion.div style={reduce ? undefined : { scale: heroScale, y: heroY }}>
+          <m.div style={reduce ? undefined : { scale: heroScale, y: heroY }}>
             <div
               data-vt
               style={{ viewTransitionName: "product-hero" }}
@@ -114,7 +116,7 @@ export default function ProductPage() {
                 size={960}
               />
             </div>
-          </motion.div>
+          </m.div>
           <div className="absolute top-4 left-4">
             <StockBadge available={available} hideInStock />
           </div>

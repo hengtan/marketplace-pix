@@ -9,6 +9,8 @@ interface Account extends User {
   password: string;
 }
 
+const SEEDED = new Set(["lojista@praca.dev", "cliente@praca.dev"]);
+
 const accounts = new Map<string, Account>([
   [
     "lojista@praca.dev",
@@ -33,7 +35,36 @@ const accounts = new Map<string, Account>([
 ]);
 
 const ACCESS_TTL = 900;
-const sessions = new Map<string, string>();
+const SESSIONS_KEY = "praca-mock-sessions";
+const ACCOUNTS_KEY = "praca-mock-accounts";
+
+const PERSIST = import.meta.env.MODE !== "test";
+
+function restore<T>(key: string): [string, T][] {
+  if (!PERSIST) return [];
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "[]") as [string, T][];
+  } catch {
+    return [];
+  }
+}
+
+function persist(key: string, map: Map<string, unknown>) {
+  if (!PERSIST) return;
+  try {
+    localStorage.setItem(key, JSON.stringify([...map]));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const sessions = new Map<string, string>(restore<string>(SESSIONS_KEY));
+for (const [email, account] of restore<Account>(ACCOUNTS_KEY)) accounts.set(email, account);
+
+function lookup(token: string | undefined): string | undefined {
+  if (!token) return undefined;
+  return sessions.get(token) ?? new Map(restore<string>(SESSIONS_KEY)).get(token);
+}
 
 function publicUser({ password: _password, ...user }: Account): User {
   return user;
@@ -44,6 +75,7 @@ function issue(account: Account) {
   const refresh = `ref.${crypto.randomUUID()}`;
   sessions.set(access, account.email);
   sessions.set(refresh, account.email);
+  persist(SESSIONS_KEY, sessions);
   return {
     access_token: access,
     refresh_token: refresh,
@@ -55,7 +87,7 @@ function issue(account: Account) {
 
 function bearer(request: Request): Account | null {
   const token = request.headers.get("Authorization")?.replace(/^Bearer /, "");
-  const email = token ? sessions.get(token) : undefined;
+  const email = lookup(token);
   return email ? (accounts.get(email) ?? null) : null;
 }
 
@@ -79,6 +111,7 @@ export const authHandlers = [
       password: body.password,
     };
     accounts.set(email, account);
+    persist(ACCOUNTS_KEY, new Map([...accounts].filter(([k]) => !SEEDED.has(k))));
     return HttpResponse.json(issue(account), { status: 201 });
   }),
 
@@ -93,11 +126,20 @@ export const authHandlers = [
 
   http.post(url("/api/auth/refresh"), async ({ request }) => {
     const body = (await request.json()) as { refresh_token: string };
-    const email = sessions.get(body.refresh_token);
+    const email = lookup(body.refresh_token);
     const account = email ? accounts.get(email) : undefined;
+    sessions.delete(body.refresh_token);
+    persist(SESSIONS_KEY, sessions);
     if (!account) return HttpResponse.json({ detail: "Sessão expirada" }, { status: 401 });
     const { access_token, refresh_token, token_type, expires_in } = issue(account);
     return HttpResponse.json({ access_token, refresh_token, token_type, expires_in });
+  }),
+
+  http.post(url("/api/auth/logout"), async ({ request }) => {
+    const body = (await request.json()) as { refresh_token?: string };
+    if (body.refresh_token) sessions.delete(body.refresh_token);
+    persist(SESSIONS_KEY, sessions);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   http.get(url("/api/auth/me"), async ({ request }) => {

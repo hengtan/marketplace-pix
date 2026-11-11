@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { m, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { useEffect, useState } from "react";
 import { finePointer } from "@/lib/motion";
 
@@ -39,13 +39,13 @@ export function Cursor() {
 
   if (!on) return null;
   return (
-    <motion.div
+    <m.div
       aria-hidden
       className="pointer-events-none fixed top-0 left-0 z-[120] will-change-transform"
       style={{ x: sx, y: sy }}
     >
       <div className="-translate-x-1/2 -translate-y-1/2 relative grid size-[72px] place-items-center">
-        <motion.span
+        <m.span
           className="absolute inset-0 rounded-full border border-primary/70"
           animate={{
             scale: mode === "label" ? 1 : mode === "hover" ? 0.62 : 0.2,
@@ -55,14 +55,14 @@ export function Cursor() {
           }}
           transition={{ type: "spring", stiffness: 400, damping: 28 }}
         />
-        <motion.span
+        <m.span
           className="relative text-[0.72rem] font-semibold text-white"
           animate={{ opacity: mode === "label" ? 1 : 0 }}
           transition={{ duration: 0.15 }}
         >
           {label}
-        </motion.span>
+        </m.span>
       </div>
-    </motion.div>
+    </m.div>
   );
 }

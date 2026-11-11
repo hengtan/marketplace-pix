@@ -1,20 +1,45 @@
-import type { z } from "zod";
+import type * as z from "zod/mini";
 import { env } from "@/lib/env";
-import { useAuth } from "@/store/auth";
+import { notifySessionExpired } from "@/lib/session";
+import { useAuth, whenRestored } from "@/store/auth";
 import { errorSchema, refreshResponseSchema } from "./schemas";
+
+export interface ApiErrorInfo {
+  retryAfter?: number;
+  scope?: string;
+  limit?: string;
+  code?: string;
+}
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  readonly retryAfter?: number;
+  readonly scope?: string;
+  readonly limit?: string;
+  readonly code?: string;
+  constructor(message: string, status: number, info: ApiErrorInfo = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfter = info.retryAfter;
+    this.scope = info.scope;
+    this.limit = info.limit;
+    this.code = info.code;
   }
+}
+
+export function parseRetryAfter(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.ceil((date - Date.now()) / 1000));
 }
 
 type Query = Record<string, string | number | undefined | null>;
 
-interface RequestOptions<S extends z.ZodType> {
+interface RequestOptions<S extends z.ZodMiniType> {
   schema: S;
   query?: Query;
   method?: "GET" | "POST" | "PUT";
@@ -22,6 +47,7 @@ interface RequestOptions<S extends z.ZodType> {
   headers?: Record<string, string>;
   signal?: AbortSignal;
   auth?: boolean;
+  waitForRestore?: boolean;
 }
 
 export function buildUrl(path: string, query?: Query): string {
@@ -37,13 +63,26 @@ export function buildUrl(path: string, query?: Query): string {
 
 export async function toError(res: Response): Promise<ApiError> {
   let message = "Algo deu errado. Tente novamente em instantes.";
+  let info: ApiErrorInfo = { retryAfter: parseRetryAfter(res.headers.get("Retry-After")) };
   try {
-    const parsed = errorSchema.safeParse(await res.json());
+    const body: unknown = await res.json();
+    const parsed = errorSchema.safeParse(body);
     if (parsed.success && typeof parsed.data.detail === "string") message = parsed.data.detail;
+    if (body && typeof body === "object") {
+      const extra = body as Record<string, unknown>;
+      info = {
+        retryAfter:
+          info.retryAfter ??
+          (typeof extra.retry_after_seconds === "number" ? extra.retry_after_seconds : undefined),
+        scope: typeof extra.scope === "string" ? extra.scope : undefined,
+        limit: typeof extra.limit === "string" ? extra.limit : undefined,
+        code: typeof extra.code === "string" ? extra.code : undefined,
+      };
+    }
   } catch {
     /* body is not JSON */
   }
-  return new ApiError(message, res.status);
+  return new ApiError(message, res.status, info);
 }
 
 let refreshing: Promise<boolean> | null = null;
@@ -77,9 +116,28 @@ export function refreshOnce(): Promise<boolean> {
   return refreshing;
 }
 
-async function send(path: string, opts: RequestOptions<z.ZodType>, token: string | null) {
+declare global {
+  interface Window {
+    __early?: Record<string, Promise<Response | undefined> | undefined>;
+  }
+}
+
+async function takeEarly(url: string): Promise<Response | undefined> {
+  const pending = window.__early?.[url];
+  if (!pending || !window.__early) return undefined;
+  delete window.__early[url];
+  const res = await pending;
+  return res?.ok ? res : undefined;
+}
+
+async function send(path: string, opts: RequestOptions<z.ZodMiniType>, token: string | null) {
   const { query, method = "GET", body, headers, signal } = opts;
-  return fetch(buildUrl(path, query), {
+  const url = buildUrl(path, query);
+  if (method === "GET" && !token) {
+    const early = await takeEarly(url);
+    if (early) return early;
+  }
+  return fetch(url, {
     method,
     signal,
     headers: {
@@ -92,16 +150,52 @@ async function send(path: string, opts: RequestOptions<z.ZodType>, token: string
   });
 }
 
-export async function request<S extends z.ZodType>(
+export async function authedFetch(
+  url: string,
+  init: RequestInit & { headers?: Record<string, string> } = {},
+): Promise<Response> {
+  await whenRestored();
+  const attempt = (token: string | null) =>
+    fetch(url, {
+      ...init,
+      headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+  const signedIn = Boolean(useAuth.getState().accessToken);
+  let res = await attempt(useAuth.getState().accessToken);
+  if (res.status === 401 && signedIn) {
+    if (useAuth.getState().refreshToken && (await refreshOnce())) {
+      res = await attempt(useAuth.getState().accessToken);
+    } else {
+      useAuth.getState().clear();
+    }
+    if (res.status === 401) {
+      useAuth.getState().clear();
+      notifySessionExpired();
+    }
+  }
+  return res;
+}
+
+export async function request<S extends z.ZodMiniType>(
   path: string,
   opts: RequestOptions<S>,
 ): Promise<z.infer<S>> {
   const useToken = opts.auth !== false;
   let res: Response;
   try {
+    if (useToken && opts.waitForRestore !== false) await whenRestored();
+    const signedIn = Boolean(useAuth.getState().accessToken);
     res = await send(path, opts, useToken ? useAuth.getState().accessToken : null);
-    if (res.status === 401 && useToken && useAuth.getState().refreshToken) {
-      if (await refreshOnce()) res = await send(path, opts, useAuth.getState().accessToken);
+    if (res.status === 401 && useToken && signedIn) {
+      if (useAuth.getState().refreshToken && (await refreshOnce())) {
+        res = await send(path, opts, useAuth.getState().accessToken);
+      } else {
+        useAuth.getState().clear();
+      }
+      if (res.status === 401) {
+        useAuth.getState().clear();
+        notifySessionExpired();
+      }
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
@@ -117,7 +211,7 @@ export async function request<S extends z.ZodType>(
 }
 
 export async function fetchText(path: string): Promise<string> {
-  const res = await fetch(buildUrl(path));
+  const res = await authedFetch(buildUrl(path));
   if (!res.ok) throw await toError(res);
   return res.text();
 }

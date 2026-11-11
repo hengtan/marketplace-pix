@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 
 const SPARKS = Array.from({ length: 16 }, (_, i) => i);
 
@@ -10,7 +10,7 @@ export function SuccessMark() {
         SPARKS.map((i) => {
           const angle = (i / SPARKS.length) * Math.PI * 2;
           return (
-            <motion.span
+            <m.span
               key={i}
               className="absolute size-2 rounded-full"
               style={{ background: i % 3 === 0 ? "var(--primary)" : "var(--pix)" }}
@@ -25,7 +25,7 @@ export function SuccessMark() {
             />
           );
         })}
-      <motion.div
+      <m.div
         className="grid size-24 place-items-center rounded-full bg-pix"
         initial={reduce ? false : { scale: 0.3, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -41,14 +41,14 @@ export function SuccessMark() {
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <motion.path
+          <m.path
             d="M5 12.5l4.5 4.5L19 7.5"
             initial={reduce ? false : { pathLength: 0 }}
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.5, delay: 0.25, ease: "easeOut" }}
           />
         </svg>
-      </motion.div>
+      </m.div>
     </div>
   );
 }
