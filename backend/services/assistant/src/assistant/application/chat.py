@@ -9,14 +9,20 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from assistant.application.agent import AgentLoop
-from assistant.application.guardrails import GroundingGuard
+from assistant.application.budget import BudgetManager
+from assistant.application.guardrails import (
+    INJECTION_REFUSAL,
+    GroundingGuard,
+    screen_user_message,
+)
 from assistant.application.planner import last_products
 from assistant.application.ports import LlmClient, Prompt, SessionStore, StoredMessage
 from assistant.application.prompt import PromptBuilder
 from assistant.application.semantic_cache import CacheHit, SemanticCache
 from assistant.domain.cost import CostModel, estimate_tokens
 from assistant.domain.errors import MessageTooLong, SessionNotFound
-from assistant.domain.models import AgentOutcome, Citation, Passage, ToolCall, Turn
+from assistant.domain.models import AgentOutcome, Citation, Observation, Passage, ToolCall, Turn
+from assistant.metrics import GUARDRAIL_EVENTS
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +71,9 @@ class ChatService:
         token_delay_seconds: float = 0.0,
         cache: SemanticCache | None = None,
         cost: CostModel | None = None,
+        budget: BudgetManager | None = None,
     ) -> None:
+        self._budget = budget
         self._cache = cache
         self._cost = cost or CostModel()
         self._agent = agent
@@ -86,16 +94,22 @@ class ChatService:
             raise MessageTooLong(f"message exceeds {self._max_chars} characters")
         return message
 
-    async def chat(self, session_id: UUID | None, message: str) -> ChatResult:
+    async def chat(
+        self, session_id: UUID | None, message: str, user_id: str | None = None
+    ) -> ChatResult:
         result: ChatResult | None = None
-        async for event in self.stream(session_id, message, stream_tokens=False):
+        async for event in self.stream(session_id, message, stream_tokens=False, user_id=user_id):
             if event.kind == "done":
                 result = event.payload
         assert result is not None
         return result
 
     async def stream(
-        self, session_id: UUID | None, message: str, stream_tokens: bool = True
+        self,
+        session_id: UUID | None,
+        message: str,
+        stream_tokens: bool = True,
+        user_id: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         started = time.perf_counter()
         message = self.validate_message(message)
@@ -103,6 +117,15 @@ class ChatService:
         sid = session_id or uuid4()
         await self._sessions.ensure(sid)
         history = [_to_turn(m) for m in await self._sessions.messages(sid, self._window)]
+
+        if screen_user_message(message):
+            GUARDRAIL_EVENTS.labels("injection_blocked").inc()
+            await self._persist(sid, message, INJECTION_REFUSAL, [], [], [])
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            yield StreamEvent(
+                "done", ChatResult(sid, INJECTION_REFUSAL, [], [], [], latency_ms, True)
+            )
+            return
 
         if self._cache is not None:
             hit, _ = await self._cache.lookup(message, bool(last_products(history)))
@@ -121,6 +144,9 @@ class ChatService:
         prompt = self._builder.build(
             message, outcome.passages, outcome.observations, history, outcome.intent
         )
+        prompt_tokens = estimate_tokens(prompt.text)
+        if self._budget is not None:
+            await self._budget.reserve(str(sid), user_id, prompt_tokens)
         parts: list[str] = []
         if stream_tokens:
             async for token in self._llm.stream(prompt):
@@ -138,7 +164,15 @@ class ChatService:
             [c.passage for c in prompt.context],
             allowed,
             await self._known_names(),
+            _evidence(outcome.observations),
+            message,
         )
+        if verdict.issues:
+            GUARDRAIL_EVENTS.labels("answer_corrected").inc()
+        if self._budget is not None:
+            await self._budget.record(
+                str(sid), user_id, prompt_tokens, estimate_tokens(verdict.answer)
+            )
 
         remembered = _remembered_products(verdict.citations, outcome)
         await self._persist(
@@ -233,6 +267,14 @@ class ChatService:
         if created is None:
             raise SessionNotFound(str(session_id))
         return created, await self._sessions.messages(session_id)
+
+
+def _evidence(observations: Sequence[Observation]) -> list[str]:
+    evidence: list[str] = []
+    for obs in observations:
+        evidence.append(obs.summary)
+        evidence.extend(str(v) for v in obs.data.values() if isinstance(v, str | int | float))
+    return evidence
 
 
 def _citation_dict(c: Citation) -> dict[str, Any]:

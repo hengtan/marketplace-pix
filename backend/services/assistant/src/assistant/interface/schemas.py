@@ -135,6 +135,7 @@ class ReindexOut(BaseModel):
     indexed: int
     skipped: int
     removed: int
+    flagged: int = 0
 
 
 class EvalRunOut(BaseModel):

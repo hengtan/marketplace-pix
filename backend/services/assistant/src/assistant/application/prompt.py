@@ -3,6 +3,7 @@ import re
 from collections.abc import Sequence
 
 from assistant.application.ports import ContextItem, Prompt
+from assistant.domain.injection import InjectionDetector
 from assistant.domain.models import Observation, Passage, Turn
 from assistant.domain.text import format_brl, normalize
 
@@ -38,20 +39,39 @@ _STRUCTURAL_TAGS = re.compile(
     re.IGNORECASE,
 )
 _SENTENCE = re.compile(r"[^.!?\n]+[.!?]*|\n")
+_FAKE_BLOCK = re.compile(
+    r"<\s*(system|sistema|instrucoes|instruções|assistant)\b[^>]*>.*?<\s*/\s*\1\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_DETECTOR = InjectionDetector()
+INDIRECT_THRESHOLD = 0.5
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 REMOVED_MARK = "[trecho removido por suspeita de injeção]"
+LINK_MARK = "[link removido]"
 
 
 def sanitize_untrusted(text: str) -> tuple[str, int]:
     """Neutralizes third-party text before it enters a prompt: control characters and
     fake structural tags are removed and sentences that look like instructions to the
     model are replaced by a marker. Returns the clean text and how many were removed."""
-    cleaned = _STRUCTURAL_TAGS.sub("", _CONTROL.sub("", text)).replace("<", "").replace(">", "")
+    stripped = _CONTROL.sub("", text)
     flagged = 0
+    if _FAKE_BLOCK.search(stripped):
+        flagged += 1
+        stripped = _FAKE_BLOCK.sub(" ", stripped)
+    cleaned = _STRUCTURAL_TAGS.sub("", stripped).replace("<", "").replace(">", "")
+    if _IMAGE.search(cleaned) or _URL.search(cleaned):
+        flagged += 1
+        cleaned = _URL.sub(LINK_MARK, _IMAGE.sub("", cleaned))
     parts: list[str] = []
     for match in _SENTENCE.finditer(cleaned):
         sentence = match.group(0)
-        if _SUSPICIOUS.search(normalize(sentence)):
+        if (
+            _SUSPICIOUS.search(normalize(sentence))
+            or _DETECTOR.scan(sentence).score >= INDIRECT_THRESHOLD
+        ):
             flagged += 1
             parts.append(REMOVED_MARK + " ")
         else:

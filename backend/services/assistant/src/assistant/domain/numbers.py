@@ -18,6 +18,14 @@ def _to_decimal(raw: str) -> Decimal | None:
         return None
 
 
+_MONEY = re.compile(r"R\$\s*(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)")
+
+
+def extract_money(text: str) -> list[Decimal]:
+    values = (_to_decimal(m.group(1)) for m in _MONEY.finditer(text))
+    return [v for v in values if v is not None]
+
+
 def extract_numbers(text: str) -> list[Decimal]:
     cleaned = _SCALE.sub(" ", _MARKER.sub(" ", text))
     numbers = (_to_decimal(m.group(0)) for m in _NUMBER.finditer(cleaned))

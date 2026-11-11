@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     llm_price_prompt_per_1k: float = 0.0005
     llm_price_completion_per_1k: float = 0.0015
 
+    budget_enabled: bool = True
+    budget_session_tokens: int = 20_000
+    budget_session_cost_usd: float = 0.05
+    budget_user_daily_tokens: int = 100_000
+    budget_user_daily_cost_usd: float = 0.25
+
+    planner: Literal["rules", "llm"] = "rules"
     agent_max_steps: int = 3
     max_message_chars: int = 1000
     history_window: int = 6

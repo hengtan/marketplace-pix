@@ -63,7 +63,7 @@ def settings() -> Settings:
 @pytest.fixture
 async def engine(settings: Settings):
     engine: AsyncEngine = create_async_engine(settings.database_url, poolclass=NullPool)
-    wipe = text("truncate chunks, sessions, messages, eval_runs, semantic_cache cascade")
+    wipe = text("truncate chunks, sessions, messages, eval_runs, semantic_cache, llm_usage cascade")
     async with engine.begin() as conn:
         await conn.execute(wipe)
     yield engine

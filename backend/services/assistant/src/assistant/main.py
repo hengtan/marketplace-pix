@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from assistant.config import load_settings
 from assistant.infrastructure.db.session import build_engine
+from assistant.infrastructure.logging_pii import install_pii_redaction
 from assistant.interface.api import ReadyCheck, create_app
 from assistant.wiring import build_container
 
@@ -29,6 +30,7 @@ def _db_check(engine: AsyncEngine) -> ReadyCheck:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    install_pii_redaction()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     settings = load_settings()
     engine = build_engine(settings.database_url)

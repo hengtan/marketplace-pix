@@ -184,5 +184,6 @@ def test_guard_allows_names_confirmed_by_tools() -> None:
         [],
         allowed_names=["Relógio GPS Trail"],
         known_names=["Relógio GPS Trail"],
+        evidence=["Relógio GPS Trail: 3 unidades disponíveis."],
     )
     assert result.grounded

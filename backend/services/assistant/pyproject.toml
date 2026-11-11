@@ -50,6 +50,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*" = ["E501"]
+"tests/attacks.py" = ["E501"]
 
 [tool.mypy]
 strict = true

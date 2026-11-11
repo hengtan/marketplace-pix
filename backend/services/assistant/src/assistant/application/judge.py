@@ -3,7 +3,13 @@ from typing import Protocol
 
 from assistant.domain.text import normalize
 
-_REFUSALS = ("nao encontrei", "so consigo ajudar", "nao consegui", "me envie o codigo")
+_REFUSALS = (
+    "nao encontrei",
+    "so consigo ajudar",
+    "nao consegui",
+    "me envie o codigo",
+    "nao posso seguir",
+)
 
 
 @dataclass(frozen=True)

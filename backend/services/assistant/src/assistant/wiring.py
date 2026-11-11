@@ -6,9 +6,11 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from assistant.application.agent import AgentLoop
+from assistant.application.budget import BudgetConfig, BudgetManager
 from assistant.application.chat import ChatService
 from assistant.application.guardrails import GroundingGuard
 from assistant.application.ingest import IngestCatalog
+from assistant.application.llm_planner import LlmPlanner
 from assistant.application.planner import RuleBasedPlanner
 from assistant.application.ports import (
     CatalogGateway,
@@ -18,6 +20,7 @@ from assistant.application.ports import (
     InventoryGateway,
     LlmClient,
     OrderGateway,
+    Planner,
     Tool,
 )
 from assistant.application.prompt import PromptBuilder
@@ -39,6 +42,7 @@ from assistant.infrastructure.db.chunk_store import PgChunkStore
 from assistant.infrastructure.db.eval_store import PgEvalStore
 from assistant.infrastructure.db.session import build_session_factory
 from assistant.infrastructure.db.session_store import PgSessionStore
+from assistant.infrastructure.db.usage_store import PgUsageStore
 from assistant.infrastructure.embedders.hashing import HashingEmbedder
 from assistant.infrastructure.embedders.ollama import OllamaEmbedder
 from assistant.infrastructure.http.gateways import (
@@ -50,6 +54,12 @@ from assistant.infrastructure.llm.mock import MockLlm
 from assistant.infrastructure.llm.ollama import OllamaLlm
 
 NAMES_TTL_SECONDS = 60.0
+TOOL_DESCRIPTIONS = {
+    "search_products": 'busca produtos no catálogo; argumentos {"query": texto}',
+    "get_stock": 'consulta o estoque; argumentos {"product_id": uuid}',
+    "get_order_status": 'consulta um pedido; argumentos {"order_id": uuid}',
+    "get_policy": 'responde sobre trocas, entrega, pagamento; argumentos {"question": texto}',
+}
 
 
 @dataclass
@@ -158,7 +168,10 @@ def build_container(
         "get_order_status": GetOrderStatusTool(orders),
         "get_policy": GetPolicyTool(),
     }
-    agent = AgentLoop(RuleBasedPlanner(), tools, settings.agent_max_steps, understanding)
+    planner: Planner = RuleBasedPlanner()
+    if settings.planner == "llm":
+        planner = LlmPlanner(llm, planner, TOOL_DESCRIPTIONS)
+    agent = AgentLoop(planner, tools, settings.agent_max_steps, understanding)
     delay = token_delay_seconds
     if delay is None:
         delay = settings.stream_token_delay_ms / 1000
@@ -182,6 +195,17 @@ def build_container(
         token_delay_seconds=delay,
         cache=cache,
         cost=cost,
+        budget=BudgetManager(
+            PgUsageStore(factory),
+            BudgetConfig(
+                settings.budget_enabled,
+                settings.budget_session_tokens,
+                settings.budget_session_cost_usd,
+                settings.budget_user_daily_tokens,
+                settings.budget_user_daily_cost_usd,
+            ),
+            cost,
+        ),
     )
     ingest = IngestCatalog(
         catalog,

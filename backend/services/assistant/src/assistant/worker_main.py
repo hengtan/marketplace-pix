@@ -9,6 +9,7 @@ from marketplace_common.observability import setup_worker_observability
 from assistant.application.catalog_events import CATALOG_TOPIC, CatalogEventHandler
 from assistant.config import load_settings
 from assistant.infrastructure.db.session import build_engine
+from assistant.infrastructure.logging_pii import install_pii_redaction
 from assistant.wiring import build_container
 
 CONSUMER_GROUP = "assistant"
@@ -24,6 +25,7 @@ async def purge_loop(purge: Callable[[], Awaitable[int]], stop: asyncio.Event) -
 
 
 async def main() -> None:
+    install_pii_redaction()
     setup_worker_observability("assistant-worker")
     settings = load_settings()
     engine = build_engine(settings.database_url)
