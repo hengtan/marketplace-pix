@@ -1,3 +1,5 @@
+[English](../CONTRACTS.md) | **Português (Brasil)**
+
 # Contratos do projeto
 
 Fonte única de verdade para eventos, APIs, portas e dados de seed. Quem implementa um serviço segue este
@@ -58,7 +60,7 @@ Mensagem: chave = `order_id` (texto), valor = JSON, headers `event_id` (uuid), `
 O mesmo `schema_version` (inteiro) também vai dentro do JSON. Mensagem sem a versão vale como `1`.
 Consumidores deduplicam por `event_id` (inbox) e ignoram tipos que não tratam. Datas em ISO 8601 UTC.
 
-Versionamento (detalhes em `docs/EVOLUCAO-DE-EVENTOS.md`): cada tipo tem um modelo pydantic por versão em
+Versionamento (detalhes em `docs/pt-BR/EVOLUCAO-DE-EVENTOS.md`): cada tipo tem um modelo pydantic por versão em
 `marketplace_common.events`, com upcasters entre versões vizinhas. Regras: mudança compatível (campo novo
 **opcional**) sobe a versão, e consumidores ignoram campos que não conhecem; mudança incompatível (remover,
 renomear, mudar tipo ou semântica) vira um tipo novo. Cada produtor tem um teste de contrato contra os arquivos
@@ -313,8 +315,8 @@ Orçamento: estourar o limite de tokens ou de custo da sessão ou do usuário no
 
 Ferramentas do agente (chamam os outros serviços por HTTP): `search_products`, `get_stock`
 (inventory), `get_order_status` (ordering) e `get_policy` (respostas fixas sobre troca, entrega, pagamento,
-cancelamento e garantia). O pipeline completo, com números medidos, está em `docs/RAG-EXPLICADO.md` e
-`docs/RAG-AVALIACAO.md`.
+cancelamento e garantia). O pipeline completo, com números medidos, está em `docs/pt-BR/RAG-EXPLICADO.md` e
+`docs/pt-BR/RAG-AVALIACAO.md`.
 
 ### gateway (porta 8000)
 
@@ -322,7 +324,7 @@ Proxy reverso FastAPI. Roteia `/api/<serviço>/...` para o serviço, repassa mé
 relevantes (incluindo `Idempotency-Key`), cria `X-Request-Id`, aplica CORS para `http://localhost:5173`,
 agrega `GET /api/health` (com o estado do circuit breaker de cada serviço em `breakers`).
 
-Resiliência (detalhes em `docs/RESILIENCIA.md`):
+Resiliência (detalhes em `docs/pt-BR/RESILIENCIA.md`):
 
 - Limite de requisições distribuído (Redis), por cliente e por rota. Toda resposta traz `RateLimit-Limit`,
   `RateLimit-Remaining` e `RateLimit-Reset`; o `429` traz `Retry-After`.
@@ -343,7 +345,7 @@ Resiliência (detalhes em `docs/RESILIENCIA.md`):
 
 ### identity (porta 8008): autenticação e autorização
 
-Decisão e justificativa em `docs/adr/0001-identidade-como-servico.md`. O frontend fala só com `/api/auth/*`.
+Decisão e justificativa em `docs/pt-BR/adr/0001-identidade-como-servico.md`. O frontend fala só com `/api/auth/*`.
 
 | Gateway | Acesso | Corpo e resposta |
 |---|---|---|
