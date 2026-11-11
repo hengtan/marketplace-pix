@@ -334,6 +334,24 @@ export function parseStockInput(
 export type AlertTone = "danger" | "warn" | "good";
 export type MerchantTab = "visao-geral" | "pedidos" | "estoque" | "produtos" | "extrato";
 
+export const MERCHANT_TABS: { id: MerchantTab; label: string; key: string }[] = [
+  { id: "visao-geral", label: "Visão geral", key: "v" },
+  { id: "pedidos", label: "Pedidos", key: "p" },
+  { id: "estoque", label: "Estoque", key: "e" },
+  { id: "produtos", label: "Produtos", key: "r" },
+  { id: "extrato", label: "Extrato", key: "x" },
+];
+
+export const PERIODS = [7, 14, 30] as const;
+
+export function parseTab(value: unknown): MerchantTab {
+  return MERCHANT_TABS.find((t) => t.id === value)?.id ?? "visao-geral";
+}
+
+export function parsePeriod(value: unknown): (typeof PERIODS)[number] {
+  return PERIODS.find((p) => p === value) ?? 30;
+}
+
 export interface MerchantAlert {
   id: string;
   tone: AlertTone;

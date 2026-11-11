@@ -287,6 +287,15 @@
   }
   .marquee:hover .marquee-track { animation-play-state: paused; }
   .ring-glow { box-shadow: var(--shadow-glow); }
+  .row-flash { animation: row-flash 3.2s ease-out 1; }
+  .live-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: var(--pix);
+    animation: live-dot 1.8s ease-out infinite;
+  }
   .hide-scrollbar { scrollbar-width: none; }
   .hide-scrollbar::-webkit-scrollbar { display: none; }
 }
@@ -318,6 +327,14 @@
   17% { stroke-dashoffset: 0; }
   72% { stroke-dashoffset: 0; }
   87%, 100% { stroke-dashoffset: 1; }
+}
+@keyframes row-flash {
+  0% { background-color: color-mix(in oklab, var(--pix), transparent 62%); }
+  100% { background-color: transparent; }
+}
+@keyframes live-dot {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
 }
 @keyframes blink {
   50% { opacity: 0.25; }

@@ -103,9 +103,18 @@ const accountRoute = createRoute({
   beforeLoad: requireSession,
   component: lazyRouteComponent(() => import("./pages/account")),
 });
+const merchantSearch = z.object({
+  aba: z.optional(z.string()),
+  dias: z.optional(z.number()),
+  loja: z.optional(z.string()),
+  pedido: z.optional(z.string()),
+  novo: z.optional(z.boolean()),
+});
+
 const merchantRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/lojista",
+  validateSearch: merchantSearch,
   beforeLoad: requireSession,
   component: lazyRouteComponent(() => import("./pages/merchant")),
 });
