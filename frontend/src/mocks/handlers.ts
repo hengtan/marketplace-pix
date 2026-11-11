@@ -2,7 +2,7 @@ import { delay, HttpResponse, http } from "msw";
 import type { Product } from "@/api/schemas";
 import { env } from "@/lib/env";
 import { assistantHandlers } from "./assistant";
-import { authHandlers } from "./auth";
+import { authHandlers, bearer, type MockAccount } from "./auth";
 import { buildCategories, PRODUCTS } from "./data";
 import * as db from "./db";
 
@@ -41,10 +41,38 @@ function notFound(detail: string) {
 
 const pendingCharges = new Set<string>();
 
-const publicStock = ({ product_id, available }: { product_id: string; available: number }) => ({
-  product_id,
-  available,
-});
+const forbidden = () => HttpResponse.json({ detail: "forbidden" }, { status: 403 });
+const unauthorized = () => HttpResponse.json({ detail: "not authenticated" }, { status: 401 });
+
+function writeScope(account: MockAccount): { merchantId: string | null } | null {
+  if (account.readOnly) return null;
+  if (account.roles.includes("admin")) return { merchantId: null };
+  if (account.roles.includes("merchant") && account.merchant_id)
+    return { merchantId: account.merchant_id };
+  return null;
+}
+
+function canSeeReserved(account: MockAccount | null, productId: string): boolean {
+  if (!account) return false;
+  if (account.roles.includes("admin")) return true;
+  if (!account.roles.includes("merchant") || !account.merchant_id) return false;
+  return db.canWriteProduct(productId, account.merchant_id);
+}
+
+const stockFor =
+  (account: MockAccount | null) =>
+  ({
+    product_id,
+    available,
+    reserved,
+  }: {
+    product_id: string;
+    available: number;
+    reserved: number;
+  }) =>
+    canSeeReserved(account, product_id)
+      ? { product_id, available, reserved }
+      : { product_id, available };
 
 export const handlers = [
   ...assistantHandlers,
@@ -123,22 +151,130 @@ export const handlers = [
     return HttpResponse.json(buildCategories());
   }),
 
+  http.get(url("/api/inventory/stock/mine"), async ({ request }) => {
+    await delay(LATENCY / 2);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    if (!scope?.merchantId) return forbidden();
+    return HttpResponse.json(db.merchantStock(scope.merchantId));
+  }),
+
   http.get(url("/api/inventory/stock"), async ({ request }) => {
     await delay(LATENCY / 2);
+    const account = bearer(request);
     const ids = (new URL(request.url).searchParams.get("product_ids") ?? "")
       .split(",")
       .filter(Boolean);
-    return HttpResponse.json(ids.map((id) => publicStock(db.getStock(id))));
+    return HttpResponse.json(ids.map((id) => stockFor(account)(db.getStock(id))));
   }),
 
-  http.get(url("/api/inventory/stock/:id"), ({ params }) =>
-    HttpResponse.json(publicStock(db.getStock(String(params.id)))),
+  http.get(url("/api/inventory/stock/:id"), ({ params, request }) =>
+    HttpResponse.json(stockFor(bearer(request))(db.getStock(String(params.id)))),
   ),
 
   http.put(url("/api/inventory/stock/:id"), async ({ params, request }) => {
-    const body = (await request.json()) as { available: number };
-    db.setStock(String(params.id), body.available);
-    return HttpResponse.json(db.getStock(String(params.id)));
+    await delay(LATENCY);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    const id = String(params.id);
+    if (!scope || !db.canWriteProduct(id, scope.merchantId)) return forbidden();
+    const body = (await request.json()) as { available?: unknown };
+    if (!Number.isInteger(body.available) || (body.available as number) < 0)
+      return HttpResponse.json(
+        {
+          detail: [
+            {
+              type: "greater_than_equal",
+              loc: ["body", "available"],
+              msg: "Input should be greater than or equal to 0",
+            },
+          ],
+        },
+        { status: 422 },
+      );
+    db.setStock(id, body.available as number);
+    return HttpResponse.json(db.getStock(id));
+  }),
+
+  http.post(url("/api/catalog/products"), async ({ request }) => {
+    await delay(LATENCY * 2);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    if (!scope) return forbidden();
+    const body = (await request.json()) as Parameters<typeof db.createProduct>[1] & {
+      merchant_id?: string;
+    };
+    const merchantId = scope.merchantId ?? body.merchant_id;
+    if (!merchantId)
+      return HttpResponse.json({ detail: "merchant_id is required" }, { status: 422 });
+    const res = db.createProduct(merchantId, body);
+    return res.ok
+      ? HttpResponse.json(res.value, { status: 201 })
+      : HttpResponse.json({ detail: res.detail }, { status: res.status });
+  }),
+
+  http.patch(url("/api/catalog/products/:id"), async ({ params, request }) => {
+    await delay(LATENCY);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    const id = String(params.id);
+    if (!PRODUCTS.some((p) => p.id === id)) return notFound("product not found");
+    if (!scope || !db.canWriteProduct(id, scope.merchantId)) return forbidden();
+    const res = db.patchProduct(
+      id,
+      (await request.json()) as Parameters<typeof db.patchProduct>[1],
+    );
+    return res.ok
+      ? HttpResponse.json(res.value)
+      : HttpResponse.json({ detail: res.detail }, { status: res.status });
+  }),
+
+  http.delete(url("/api/catalog/products/:id"), async ({ params, request }) => {
+    await delay(LATENCY);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    const id = String(params.id);
+    if (PRODUCTS.some((p) => p.id === id) && (!scope || !db.canWriteProduct(id, scope.merchantId)))
+      return forbidden();
+    db.deactivateProduct(id);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get(url("/api/orders/merchant"), async ({ request }) => {
+    await delay(LATENCY);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const allowed = account.roles.includes("merchant") || account.roles.includes("admin");
+    if (!allowed) return forbidden();
+    if (!account.merchant_id)
+      return HttpResponse.json({ detail: "no merchant bound to this account" }, { status: 403 });
+    const sp = new URL(request.url).searchParams;
+    const pageSize = Number(sp.get("page_size") ?? 20);
+    if (pageSize > 50)
+      return HttpResponse.json(
+        {
+          detail: [
+            {
+              type: "less_than_equal",
+              loc: ["query", "page_size"],
+              msg: "Input should be less than or equal to 50",
+            },
+          ],
+        },
+        { status: 422 },
+      );
+    return HttpResponse.json(
+      paginate(
+        db.merchantOrders(account.merchant_id),
+        Math.max(1, Number(sp.get("page") ?? 1)),
+        pageSize,
+      ),
+    );
   }),
 
   http.post(url("/api/orders"), async ({ request }) => {

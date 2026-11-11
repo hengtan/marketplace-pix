@@ -1,5 +1,6 @@
 import type {
   LedgerEntry,
+  MerchantOrder,
   MerchantSummary,
   Notification,
   Order,
@@ -8,7 +9,7 @@ import type {
 } from "@/api/schemas";
 import { SEED_MERCHANTS } from "@/lib/merchants";
 import { uuid } from "@/lib/uuid";
-import { INITIAL_STOCK, PRODUCTS } from "./data";
+import { CATEGORY_LABELS, INITIAL_STOCK, PRODUCTS } from "./data";
 
 const PIX_TTL_MS = 10 * 60 * 1000;
 const SHORT_TTL_MS = 25 * 1000;
@@ -20,7 +21,38 @@ interface Stock {
   reserved: number;
 }
 
+type CatalogOp =
+  | { op: "create"; product: Product }
+  | { op: "patch"; id: string; patch: Partial<Product> }
+  | { op: "deactivate"; id: string };
+
+const ORIGINAL_PRODUCTS = PRODUCTS.map((p) => ({ ...p, tags: [...p.tags] }));
+const retiredSlugs = new Set<string>();
+
+function resetCatalog() {
+  PRODUCTS.splice(
+    0,
+    PRODUCTS.length,
+    ...ORIGINAL_PRODUCTS.map((p) => ({ ...p, tags: [...p.tags] })),
+  );
+  retiredSlugs.clear();
+}
+
+function applyOp(op: CatalogOp) {
+  if (op.op === "create") {
+    PRODUCTS.unshift(op.product);
+  } else if (op.op === "patch") {
+    const p = PRODUCTS.find((x) => x.id === op.id);
+    if (p) Object.assign(p, op.patch);
+  } else {
+    const i = PRODUCTS.findIndex((x) => x.id === op.id);
+    const removed = i >= 0 ? PRODUCTS.splice(i, 1)[0] : undefined;
+    if (removed) retiredSlugs.add(removed.slug);
+  }
+}
+
 interface DbState {
+  catalogLog: CatalogOp[];
   stock: Map<string, Stock>;
   orders: Map<string, Order>;
   payments: Map<string, Payment>;
@@ -45,8 +77,75 @@ function dayKey(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+const CUSTOMERS = [
+  "Maria Souza",
+  "João Pereira",
+  "Ana Beatriz Lima",
+  "Carlos Eduardo Ramos",
+  "Fernanda Costa",
+  "Rafael Almeida",
+  "Juliana Martins",
+  "Pedro Henrique Dias",
+  "Camila Rocha",
+  "Lucas Barbosa",
+  "Patrícia Nogueira",
+  "Thiago Moreira",
+];
+
+function seedMerchantOrders(
+  state: DbState,
+  merchantId: string,
+  mi: number,
+  daily: { orders: number }[],
+  now: number,
+) {
+  const catalog = PRODUCTS.filter((p) => p.merchant.id === merchantId);
+  if (catalog.length === 0) return;
+  let n = 0;
+  const make = (ms: number, status: Order["status"]) => {
+    n += 1;
+    const first = catalog[Math.floor(seeded(n * 7 + mi) * catalog.length)] as Product;
+    const second = catalog[Math.floor(seeded(n * 13 + mi) * catalog.length)] as Product;
+    const lines = [{ p: first, q: 1 + Math.floor(seeded(n * 3) * 3) }];
+    if (seeded(n * 5 + mi) > 0.7 && second.id !== first.id) lines.push({ p: second, q: 1 });
+    const items = lines.map(({ p, q }) => ({
+      product_id: p.id,
+      merchant_id: p.merchant.id,
+      quantity: q,
+      unit_price_cents: p.price_cents,
+    }));
+    const order: Order = {
+      id: uuid(),
+      customer_id: "seed-customer",
+      customer_name: CUSTOMERS[Math.floor(seeded(n * 11 + mi) * CUSTOMERS.length)] as string,
+      customer_email: "cliente@exemplo.com",
+      status,
+      currency: "BRL",
+      total_cents: items.reduce((t, i) => t + i.quantity * i.unit_price_cents, 0),
+      created_at: new Date(ms).toISOString(),
+      cancel_reason: status === "CANCELLED" ? "payment expired" : null,
+      items,
+    };
+    state.orders.set(order.id, order);
+  };
+  for (let d = 13; d >= 0; d--) {
+    const count = Math.min(6, daily[daily.length - 1 - d]?.orders ?? 0);
+    for (let k = 0; k < count; k++) {
+      const hours = d === 0 ? 1 + k * 0.5 : 8 + seeded(d * 17 + k + mi) * 13;
+      const ms = d === 0 ? now - hours * 3_600_000 : now - d * DAY + (hours - 12) * 3_600_000;
+      make(ms, seeded(d * 29 + k * 7 + mi) > 0.86 ? "CANCELLED" : "PAID");
+    }
+  }
+  if (mi === SEED_MERCHANTS.length - 1) {
+    make(now - 7 * 60_000, "PENDING");
+    make(now - 40_000, "PENDING");
+  }
+}
+
 function createState(): DbState {
+  resetCatalog();
   const state: DbState = {
+    catalogLog: [],
     stock: new Map(),
     orders: new Map(),
     payments: new Map(),
@@ -85,11 +184,12 @@ function createState(): DbState {
     }
     state.seedDaily.set(m.id, daily);
     state.entries.set(m.id, entries.reverse());
+    seedMerchantOrders(state, m.id, mi, daily, now);
   });
   return state;
 }
 
-const STORAGE_KEY = "praca-mock-db-v1";
+const STORAGE_KEY = "praca-mock-db-v2";
 const MAPS = [
   "stock",
   "orders",
@@ -113,6 +213,8 @@ function hydrate(): DbState | null {
       (next as unknown as Record<string, unknown>)[key] = new Map(data[key] as [string, unknown][]);
     }
     next.notifications = data.notifications as Notification[];
+    next.catalogLog = (data.catalogLog as CatalogOp[] | undefined) ?? [];
+    for (const op of next.catalogLog) applyOp(op);
     return next;
   } catch {
     return null;
@@ -122,7 +224,10 @@ function hydrate(): DbState | null {
 function persist() {
   if (typeof localStorage === "undefined" || !persistEnabled) return;
   try {
-    const out: Record<string, unknown> = { notifications: state.notifications };
+    const out: Record<string, unknown> = {
+      notifications: state.notifications,
+      catalogLog: state.catalogLog,
+    };
     for (const key of MAPS) out[key] = [...(state[key] as Map<string, unknown>).entries()];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
   } catch {
@@ -456,4 +561,135 @@ export function reconciliation() {
     transactions_count: [...state.entries.values()].reduce((n, l) => n + l.length, 0) + debits * 0,
     checked_at: nowIso(),
   };
+}
+
+function ownedBy(productId: string, merchantId: string | null): boolean {
+  const p = PRODUCTS.find((x) => x.id === productId);
+  return Boolean(p) && (merchantId === null || p?.merchant.id === merchantId);
+}
+
+export function merchantStock(merchantId: string) {
+  return PRODUCTS.filter((p) => p.merchant.id === merchantId).map((p) => getStock(p.id));
+}
+
+export function merchantOrders(merchantId: string): MerchantOrder[] {
+  const out: MerchantOrder[] = [];
+  for (const order of state.orders.values()) {
+    tick(order);
+    const items = order.items.filter((i) => i.merchant_id === merchantId);
+    if (items.length === 0) continue;
+    out.push({
+      id: order.id,
+      status: order.status,
+      currency: order.currency,
+      created_at: order.created_at,
+      customer_name: order.customer_name,
+      subtotal_cents: items.reduce((n, i) => n + i.quantity * i.unit_price_cents, 0),
+      items,
+    });
+  }
+  return out.sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function canWriteProduct(productId: string, merchantId: string | null): boolean {
+  return ownedBy(productId, merchantId);
+}
+
+function slugify(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export type CatalogResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; status: number; detail: string };
+
+export function createProduct(
+  merchantId: string,
+  input: {
+    name: string;
+    description: string;
+    price_cents: number;
+    category: string;
+    tags?: string[];
+    image_url?: string | null;
+  },
+): CatalogResult<Product> {
+  const merchant = SEED_MERCHANTS.find((m) => m.id === merchantId);
+  if (!merchant) return { ok: false, status: 422, detail: "merchant not found" };
+  if (!(input.name?.trim().length > 0))
+    return {
+      ok: false,
+      status: 422,
+      detail: "invalid body.name: String should have at least 1 character",
+    };
+  if (!Number.isInteger(input.price_cents) || input.price_cents <= 0)
+    return {
+      ok: false,
+      status: 422,
+      detail: "invalid body.price_cents: Input should be greater than 0",
+    };
+  if (!(input.category in CATEGORY_LABELS))
+    return { ok: false, status: 422, detail: "unknown category" };
+  const slug = slugify(input.name);
+  if (PRODUCTS.some((p) => p.slug === slug) || retiredSlugs.has(slug))
+    return { ok: false, status: 409, detail: "slug already in use" };
+  const product: Product = {
+    id: uuid(),
+    slug,
+    name: input.name.trim(),
+    description: input.description,
+    price_cents: input.price_cents,
+    currency: "BRL",
+    category: input.category,
+    image_url: input.image_url ?? null,
+    rating: 0,
+    reviews_count: 0,
+    tags: input.tags ?? [],
+    merchant: { id: merchant.id, slug: merchant.slug, name: merchant.name },
+    created_at: nowIso(),
+  };
+  const op: CatalogOp = { op: "create", product };
+  applyOp(op);
+  state.catalogLog.push(op);
+  state.stock.set(product.id, { available: 0, reserved: 0 });
+  persist();
+  return { ok: true, value: product };
+}
+
+export function patchProduct(
+  id: string,
+  patch: Partial<Pick<Product, "name" | "description" | "price_cents" | "category" | "tags">>,
+): CatalogResult<Product> {
+  const product = PRODUCTS.find((p) => p.id === id);
+  if (!product) return { ok: false, status: 404, detail: "product not found" };
+  const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+  if (Object.keys(clean).length === 0)
+    return { ok: false, status: 422, detail: "no fields to change" };
+  if (
+    "price_cents" in clean &&
+    (!Number.isInteger(clean.price_cents) || (clean.price_cents as number) <= 0)
+  )
+    return {
+      ok: false,
+      status: 422,
+      detail: "invalid body.price_cents: Input should be greater than 0",
+    };
+  const op: CatalogOp = { op: "patch", id, patch: clean };
+  applyOp(op);
+  state.catalogLog.push(op);
+  persist();
+  return { ok: true, value: product };
+}
+
+export function deactivateProduct(id: string) {
+  if (!PRODUCTS.some((p) => p.id === id)) return;
+  const op: CatalogOp = { op: "deactivate", id };
+  applyOp(op);
+  state.catalogLog.push(op);
+  persist();
 }

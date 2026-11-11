@@ -65,6 +65,18 @@ export const orderSchema = z.object({
 export type Order = z.infer<typeof orderSchema>;
 export const orderPageSchema = paged(orderSchema);
 
+export const merchantOrderSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  currency: z.string(),
+  created_at: z.string(),
+  customer_name: z.string(),
+  subtotal_cents: z.int(),
+  items: z.array(orderItemSchema),
+});
+export type MerchantOrder = z.infer<typeof merchantOrderSchema>;
+export const merchantOrderPageSchema = paged(merchantOrderSchema);
+
 export const createOrderResponseSchema = z.object({ id: z.string() });
 
 export const paymentStatusSchema = z.enum(["PENDING", "CONFIRMED", "EXPIRED", "CANCELLED"]);

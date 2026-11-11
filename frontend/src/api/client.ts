@@ -42,7 +42,7 @@ type Query = Record<string, string | number | undefined | null>;
 interface RequestOptions<S extends z.ZodMiniType> {
   schema: S;
   query?: Query;
-  method?: "GET" | "POST" | "PUT";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal;
@@ -68,6 +68,7 @@ export async function toError(res: Response): Promise<ApiError> {
     const body: unknown = await res.json();
     const parsed = errorSchema.safeParse(body);
     if (parsed.success && typeof parsed.data.detail === "string") message = parsed.data.detail;
+    else if (parsed.success && Array.isArray(parsed.data.detail)) message = "Dados inválidos.";
     if (body && typeof body === "object") {
       const extra = body as Record<string, unknown>;
       info = {

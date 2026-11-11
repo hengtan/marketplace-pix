@@ -7,9 +7,18 @@ const url = (path: string) => `${base}${path}`;
 
 interface Account extends User {
   password: string;
+  readOnly?: boolean;
 }
 
-const SEEDED = new Set(["lojista@praca.dev", "cliente@praca.dev"]);
+const SEEDED = new Set([
+  "lojista@praca.dev",
+  "cliente@praca.dev",
+  "admin@praca.dev",
+  "leitura@praca.dev",
+]);
+
+const TRILHA = "435c5a06-d955-566e-9daf-776be4040c6f";
+const AURORA = "1748b018-c69c-53e3-a29d-762cd894d4ff";
 
 const accounts = new Map<string, Account>([
   [
@@ -19,6 +28,30 @@ const accounts = new Map<string, Account>([
       email: "lojista@praca.dev",
       name: "Lívia Prado",
       roles: ["customer", "merchant"],
+      merchant_id: TRILHA,
+      password: "praca1234",
+    },
+  ],
+  [
+    "admin@praca.dev",
+    {
+      id: "6f1d1c36-6b0a-5a39-8f8e-0b8d2a4a1003",
+      email: "admin@praca.dev",
+      name: "Administrador",
+      roles: ["admin"],
+      merchant_id: null,
+      password: "praca1234",
+    },
+  ],
+  [
+    "leitura@praca.dev",
+    {
+      id: "6f1d1c36-6b0a-5a39-8f8e-0b8d2a4a1004",
+      email: "leitura@praca.dev",
+      name: "Rui Leitura",
+      roles: ["merchant"],
+      merchant_id: AURORA,
+      readOnly: true,
       password: "praca1234",
     },
   ],
@@ -66,9 +99,11 @@ function lookup(token: string | undefined): string | undefined {
   return sessions.get(token) ?? new Map(restore<string>(SESSIONS_KEY)).get(token);
 }
 
-function publicUser({ password: _password, ...user }: Account): User {
-  return user;
+function publicUser({ password: _password, readOnly: _readOnly, ...user }: Account): User {
+  return { merchant_id: null, ...user };
 }
+
+export type MockAccount = Account;
 
 function issue(account: Account) {
   const access = `acc.${crypto.randomUUID()}`;
@@ -85,7 +120,7 @@ function issue(account: Account) {
   };
 }
 
-function bearer(request: Request): Account | null {
+export function bearer(request: Request): Account | null {
   const token = request.headers.get("Authorization")?.replace(/^Bearer /, "");
   const email = lookup(token);
   return email ? (accounts.get(email) ?? null) : null;
