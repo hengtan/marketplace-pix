@@ -1,6 +1,6 @@
+import type { MerchantOrder } from "@/api/merchant";
 import type {
   LedgerEntry,
-  MerchantOrder,
   MerchantSummary,
   Notification,
   Order,

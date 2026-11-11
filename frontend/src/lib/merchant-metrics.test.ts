@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LedgerEntry, MerchantOrder } from "@/api/schemas";
+import type { MerchantOrder } from "@/api/merchant";
+import type { LedgerEntry } from "@/api/schemas";
 import {
   bestDay,
   bestWeekday,

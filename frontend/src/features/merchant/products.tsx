@@ -4,7 +4,7 @@ import { AnimatePresence, m } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { ApiError } from "@/api/client";
-import { api } from "@/api/endpoints";
+import { merchantApi } from "@/api/merchant";
 import type { Product } from "@/api/schemas";
 import { ProductImage } from "@/components/product-image";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -73,7 +73,7 @@ function ProductDialog({
         );
         const stock = parseStockInput(values.stock.trim() === "" ? "0" : values.stock);
         if (stock.ok && stock.value > 0) {
-          await api.setStock(created.id, stock.value).catch(() => {
+          await merchantApi.setStock(created.id, stock.value).catch(() => {
             void toast.error("Produto criado, estoque não definido", {
               description: "Defina as unidades na aba Estoque.",
             });

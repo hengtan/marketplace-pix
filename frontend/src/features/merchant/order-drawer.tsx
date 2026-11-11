@@ -1,6 +1,7 @@
 import { Check, Copy, Hourglass, PackageCheck, X } from "lucide-react";
 import { m } from "motion/react";
-import type { MerchantOrder } from "@/api/schemas";
+import type { MerchantOrder } from "@/api/merchant";
+
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useCopy } from "@/hooks/utils";

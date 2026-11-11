@@ -1,4 +1,5 @@
-import type { LedgerEntry, MerchantOrder, MerchantSummary, Stock } from "@/api/schemas";
+import type { MerchantOrder } from "@/api/merchant";
+import type { LedgerEntry, MerchantSummary, Stock } from "@/api/schemas";
 
 export type Daily = MerchantSummary["daily"][number];
 

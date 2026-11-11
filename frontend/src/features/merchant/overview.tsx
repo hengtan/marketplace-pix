@@ -14,7 +14,8 @@ import { Stagger, StaggerItem } from "@/components/motion/reveal";
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/misc";
 import { useMerchantSummary } from "@/hooks/queries";
-import { formatCompactMoney, formatMoney, formatShortDay } from "@/lib/format";
+import { formatMoney, formatShortDay } from "@/lib/format";
+import { formatCompactMoney } from "@/lib/format-merchant";
 import { lazyReload } from "@/lib/lazy-reload";
 import {
   bestDay,

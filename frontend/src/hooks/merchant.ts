@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type NewProductInput, type ProductPatch } from "@/api/endpoints";
+import { api } from "@/api/endpoints";
+import { merchantApi, type NewProductInput, type ProductPatch } from "@/api/merchant";
 import type { Product, Stock } from "@/api/schemas";
 import { writeErrorMessage } from "@/lib/merchant-errors";
 import { toast } from "@/lib/toast";
@@ -17,7 +18,7 @@ export const mk = {
 export function useMerchantOrders(enabled: boolean) {
   return useQuery({
     queryKey: mk.orders,
-    queryFn: api.merchantOrders,
+    queryFn: merchantApi.merchantOrders,
     enabled,
     refetchInterval: ORDERS_POLL_MS,
     staleTime: 5_000,
@@ -27,7 +28,7 @@ export function useMerchantOrders(enabled: boolean) {
 export function useMerchantProducts(merchantId: string) {
   return useQuery({
     queryKey: mk.products(merchantId),
-    queryFn: ({ signal }) => api.merchantProducts(merchantId, signal),
+    queryFn: ({ signal }) => merchantApi.merchantProducts(merchantId, signal),
     staleTime: 15_000,
   });
 }
@@ -41,7 +42,7 @@ export function useMerchantStock(
   const ready = ownsStore || ids.length > 0;
   return useQuery({
     queryKey: mk.stock(merchantId),
-    queryFn: (): Promise<Stock[]> => (ownsStore ? api.myStock() : api.stock(ids)),
+    queryFn: (): Promise<Stock[]> => (ownsStore ? merchantApi.myStock() : api.stock(ids)),
     enabled: ready,
     refetchInterval: 20_000,
     staleTime: 8_000,
@@ -51,7 +52,7 @@ export function useMerchantStock(
 export function useMerchantLedger(merchantId: string) {
   return useQuery({
     queryKey: mk.ledger(merchantId),
-    queryFn: () => api.merchantEntriesAll(merchantId),
+    queryFn: () => merchantApi.merchantEntriesAll(merchantId),
     staleTime: 15_000,
   });
 }
@@ -66,7 +67,7 @@ export function useUpdateStock(merchantId: string) {
   const key = mk.stock(merchantId);
   return useMutation({
     mutationFn: ({ productId, available }: { productId: string; available: number }) =>
-      api.setStock(productId, available),
+      merchantApi.setStock(productId, available),
     onMutate: async ({ productId, available }) => {
       await client.cancelQueries({ queryKey: key });
       const previous = client.getQueryData<Stock[]>(key);
@@ -91,7 +92,7 @@ export function useUpdateStock(merchantId: string) {
 export function useCreateProduct(merchantId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: NewProductInput) => api.createProduct(input),
+    mutationFn: (input: NewProductInput) => merchantApi.createProduct(input),
     onSuccess: (product) => {
       client.setQueryData<Product[]>(mk.products(merchantId), (rows) => [product, ...(rows ?? [])]);
       void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
@@ -106,7 +107,7 @@ export function useUpdateProduct(merchantId: string) {
   const key = mk.products(merchantId);
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: ProductPatch }) =>
-      api.updateProduct(id, patch),
+      merchantApi.updateProduct(id, patch),
     onMutate: async ({ id, patch }) => {
       await client.cancelQueries({ queryKey: key });
       const previous = client.getQueryData<Product[]>(key);
@@ -130,7 +131,7 @@ export function useDeactivateProduct(merchantId: string) {
   const client = useQueryClient();
   const key = mk.products(merchantId);
   return useMutation({
-    mutationFn: (id: string) => api.deactivateProduct(id),
+    mutationFn: (id: string) => merchantApi.deactivateProduct(id),
     onMutate: async (id) => {
       await client.cancelQueries({ queryKey: key });
       const previous = client.getQueryData<Product[]>(key);

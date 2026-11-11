@@ -11,7 +11,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatCompactMoney, formatMoney, formatShortDay } from "@/lib/format";
+import { formatMoney, formatShortDay } from "@/lib/format";
+import { formatCompactMoney } from "@/lib/format-merchant";
 import {
   type Daily,
   formatPct,

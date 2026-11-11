@@ -1,12 +1,14 @@
 import { RefreshCw, Search } from "lucide-react";
 import { m } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-import type { MerchantOrder } from "@/api/schemas";
+import type { MerchantOrder } from "@/api/merchant";
+
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { useMerchantOrders } from "@/hooks/merchant";
-import { formatDateTime, formatMoney, formatRelative, formatTime, shortId } from "@/lib/format";
+import { formatDateTime, formatMoney, shortId } from "@/lib/format";
+import { formatRelative, formatTime } from "@/lib/format-merchant";
 import {
   countByStatus,
   filterOrders,

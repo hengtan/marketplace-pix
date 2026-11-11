@@ -1,5 +1,5 @@
 import * as z from "zod/mini";
-import type { NewProductInput, ProductPatch } from "@/api/endpoints";
+import type { NewProductInput, ProductPatch } from "@/api/merchant";
 import type { Product } from "@/api/schemas";
 import { centsToInput, parseReais, parseStockInput } from "@/lib/merchant-metrics";
 

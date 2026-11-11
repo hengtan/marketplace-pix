@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import type { MerchantOrder } from "@/api/schemas";
+import type { MerchantOrder } from "@/api/merchant";
+
 import { formatMoney, shortId } from "@/lib/format";
 import { detectOrderChanges, snapshotStatuses } from "@/lib/merchant-metrics";
 import { toast } from "@/lib/toast";
