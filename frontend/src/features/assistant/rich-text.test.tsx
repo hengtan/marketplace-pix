@@ -66,4 +66,14 @@ describe("RichText", () => {
     expect(container.querySelector("a")).toBeNull();
     expect(container.querySelector("h1")).toBeNull();
   });
+
+  it("handles half-received markup while streaming", async () => {
+    const { container, rerender } = await renderWithRouter(
+      <RichText text="Veja o **Fone Blue" streaming citations={citations} />,
+    );
+    expect(container.querySelector("strong")?.textContent).toBe("Fone Blue");
+    expect(container.textContent).not.toContain("**");
+    rerender(<RichText text="Veja [1" streaming citations={citations} />);
+    expect(container.textContent).not.toContain("[");
+  });
 });

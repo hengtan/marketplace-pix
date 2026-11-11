@@ -41,7 +41,7 @@ interface InlineProps {
   onNavigate?: () => void;
 }
 
-const INLINE = /\*\*([^*\n]+?)\*\*|\[(\d{1,2})\]/g;
+const INLINE = /\*\*([^*\n]+?)\*\*|\[(\d{1,2})\]|\*\*([^*\n]+)$/g;
 
 function Inline({ text, citations, onNavigate }: InlineProps): ReactNode {
   const out: ReactNode[] = [];
@@ -50,7 +50,13 @@ function Inline({ text, citations, onNavigate }: InlineProps): ReactNode {
   for (const match of text.matchAll(INLINE)) {
     const index = match.index ?? 0;
     if (index > last) out.push(text.slice(last, index));
-    if (match[1] !== undefined) {
+    if (match[3] !== undefined) {
+      out.push(
+        <strong key={key++} className="font-semibold">
+          {match[3]}
+        </strong>,
+      );
+    } else if (match[1] !== undefined) {
       out.push(
         <strong key={key++} className="font-semibold">
           <Inline text={match[1]} citations={citations} onNavigate={onNavigate} />
@@ -99,20 +105,42 @@ export function CitationChip({
   );
 }
 
+function trimPartial(text: string): string {
+  return text.replace(/(?:\[\d{0,2}|\*)$/, "");
+}
+
+function Caret() {
+  return (
+    <span
+      aria-hidden
+      className="ml-0.5 inline-block h-[1.05em] w-0.5 translate-y-0.5 animate-pulse rounded-full bg-primary"
+    />
+  );
+}
+
 interface RichTextProps {
   text: string;
+  streaming?: boolean;
   citations?: Citation[];
   onNavigate?: () => void;
   className?: string;
 }
 
-export function RichText({ text, citations = [], onNavigate, className }: RichTextProps) {
+export function RichText({
+  text,
+  streaming = false,
+  citations = [],
+  onNavigate,
+  className,
+}: RichTextProps) {
   const inline = (value: string) => (
     <Inline text={value} citations={citations} onNavigate={onNavigate} />
   );
+  const blocks = parseBlocks(streaming ? trimPartial(text) : text);
+  const lastBlock = blocks.length - 1;
   return (
     <div className={className}>
-      {parseBlocks(text).map((block, i) => {
+      {blocks.map((block, i) => {
         if (block.type === "p") {
           return (
             <p key={i} className="[&:not(:first-child)]:mt-3">
@@ -120,6 +148,7 @@ export function RichText({ text, citations = [], onNavigate, className }: RichTe
                 <Fragment key={j}>
                   {j > 0 && <br />}
                   {inline(line)}
+                  {streaming && i === lastBlock && j === block.lines.length - 1 && <Caret />}
                 </Fragment>
               ))}
             </p>
@@ -134,6 +163,7 @@ export function RichText({ text, citations = [], onNavigate, className }: RichTe
             {block.items.map((item, j) => (
               <li key={j} className="pl-1">
                 {inline(item)}
+                {streaming && i === lastBlock && j === block.items.length - 1 && <Caret />}
               </li>
             ))}
           </List>

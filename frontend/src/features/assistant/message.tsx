@@ -91,10 +91,7 @@ export function AssistantMessage({
             text={message.content}
             citations={message.citations}
             onNavigate={onNavigate}
-            className={cn(
-              streaming &&
-                "[&>:last-child]:after:ml-0.5 [&>:last-child]:after:inline-block [&>:last-child]:after:h-[1.05em] [&>:last-child]:after:w-0.5 [&>:last-child]:after:translate-y-0.5 [&>:last-child]:after:animate-pulse [&>:last-child]:after:rounded-full [&>:last-child]:after:bg-primary [&>:last-child]:after:content-['']",
-            )}
+            streaming={streaming}
           />
         )}
 
