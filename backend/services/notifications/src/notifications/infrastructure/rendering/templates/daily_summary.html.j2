@@ -1,0 +1,22 @@
+{% extends "base.html.j2" %}
+{% block title %}Resumo de vendas de {{ day | date_br }}{% endblock %}
+{% block preheader %}Pedidos pagos: {{ paid }}. Valor pago: {{ paid_cents | brl }}.{% endblock %}
+{% block eyebrow %}Resumo diário{% endblock %}
+{% block heading %}Vendas de {{ day | date_br }}{% endblock %}
+{% block body %}
+<p style="margin:0 0 16px 0;">Este é o resumo do dia a partir dos pedidos acompanhados pelo serviço de notificações.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:10px;background-color:#f9fafb;">
+  {% for label, value in rows %}
+  <tr>
+    <td style="padding:14px 20px;border-bottom:1px solid #e5e7eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:21px;color:#374151;">{{ label }}</td>
+    <td align="right" style="padding:14px 20px;border-bottom:1px solid #e5e7eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:21px;font-weight:600;color:#111827;white-space:nowrap;">{{ value }}</td>
+  </tr>
+  {% endfor %}
+  <tr>
+    <td style="padding:16px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:21px;color:#374151;">Valor pago no dia</td>
+    <td align="right" style="padding:16px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:20px;line-height:26px;font-weight:700;color:#0f172a;white-space:nowrap;">{{ paid_cents | brl }}</td>
+  </tr>
+</table>
+{% endblock %}
+{% block action %}<tr><td style="padding:0 0 28px 0;"></td></tr>{% endblock %}
+{% block footer %}Resumo gerado automaticamente pelo serviço de notificações do Marketplace PIX.{% endblock %}

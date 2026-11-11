@@ -1,0 +1,5 @@
+Resumo do pedido #{{ order_ref }}
+{% for item in items -%}
+* {{ item.name }}: {{ item.quantity }} x {{ item.unit_price_cents | brl }} = {{ item.line_total_cents | brl }}
+{% endfor -%}
+Total: {{ total_cents | brl }}

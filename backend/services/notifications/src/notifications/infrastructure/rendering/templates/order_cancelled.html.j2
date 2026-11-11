@@ -1,0 +1,9 @@
+{% extends "base.html.j2" %}
+{% block preheader %}O pedido #{{ order_ref }} foi cancelado: {{ reason_text }}.{% endblock %}
+{% block eyebrow %}Pedido cancelado{% endblock %}
+{% block heading %}Seu pedido foi cancelado, {{ customer_name }}{% endblock %}
+{% block body %}
+<p style="margin:0 0 12px 0;">Infelizmente não conseguimos seguir com o pedido <strong style="color:#0f172a;">#{{ order_ref }}</strong>. O motivo foi: <strong style="color:#0f172a;">{{ reason_text }}</strong>.</p>
+<p style="margin:0 0 4px 0;">Nenhuma cobrança ativa permanece para este pedido. Se quiser, é só escolher os produtos de novo na loja e refazer a compra.</p>
+{% include "_order_summary.html.j2" %}
+{% endblock %}

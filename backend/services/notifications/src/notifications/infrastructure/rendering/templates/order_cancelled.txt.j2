@@ -1,0 +1,11 @@
+Seu pedido foi cancelado, {{ customer_name }}
+
+Infelizmente não conseguimos seguir com o pedido #{{ order_ref }}.
+Motivo: {{ reason_text }}.
+
+Nenhuma cobrança ativa permanece para este pedido. Se quiser, é só escolher os produtos de novo na loja e refazer a compra.
+
+{% include "_order_summary.txt.j2" %}
+{{ action_label }}: {{ action_url }}
+
+Você recebeu este e-mail porque fez um pedido no Marketplace PIX.

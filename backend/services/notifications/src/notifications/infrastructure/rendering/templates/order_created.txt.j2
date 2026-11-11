@@ -1,0 +1,9 @@
+Obrigado pela compra, {{ customer_name }}!
+
+Recebemos o seu pedido #{{ order_ref }} e já estamos separando tudo por aqui.
+Em instantes enviaremos um novo e-mail com o código PIX para você concluir o pagamento.
+
+{% include "_order_summary.txt.j2" %}
+{{ action_label }}: {{ action_url }}
+
+Você recebeu este e-mail porque fez um pedido no Marketplace PIX.

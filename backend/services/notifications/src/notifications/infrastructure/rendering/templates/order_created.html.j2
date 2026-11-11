@@ -1,0 +1,9 @@
+{% extends "base.html.j2" %}
+{% block preheader %}Recebemos o seu pedido #{{ order_ref }}. Em instantes você receberá o PIX para pagar.{% endblock %}
+{% block eyebrow %}Pedido recebido{% endblock %}
+{% block heading %}Obrigado pela compra, {{ customer_name }}!{% endblock %}
+{% block body %}
+<p style="margin:0 0 12px 0;">Recebemos o seu pedido <strong style="color:#0f172a;">#{{ order_ref }}</strong> e já estamos separando tudo por aqui.</p>
+<p style="margin:0 0 4px 0;">Em instantes enviaremos um novo e-mail com o código PIX para você concluir o pagamento. Até lá, confira o resumo do que você pediu.</p>
+{% include "_order_summary.html.j2" %}
+{% endblock %}
