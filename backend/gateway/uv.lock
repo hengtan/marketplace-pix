@@ -539,6 +539,7 @@ version = "0.1.0"
 source = { editable = "../libs/marketplace_common" }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation-fastapi" },
@@ -556,6 +557,7 @@ redis = [
 requires-dist = [
     { name = "aiokafka", marker = "extra == 'kafka'", specifier = ">=0.15.0" },
     { name = "fastapi", specifier = ">=0.162.4" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "opentelemetry-api", specifier = ">=1.30.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30.0" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.51b0" },
