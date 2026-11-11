@@ -1,0 +1,9 @@
+{% extends "base.html.j2" %}
+{% block preheader %}Recebemos o pagamento de {{ total_cents | brl }} do pedido #{{ order_ref }}.{% endblock %}
+{% block eyebrow %}Pagamento confirmado{% endblock %}
+{% block heading %}Pagamento aprovado, {{ customer_name }}!{% endblock %}
+{% block body %}
+<p style="margin:0 0 12px 0;">Recebemos o seu PIX de <strong style="color:#0f172a;">{{ total_cents | brl }}</strong> e o pedido <strong style="color:#0f172a;">#{{ order_ref }}</strong> está confirmado.</p>
+<p style="margin:0 0 4px 0;">Agora é com a gente: vamos preparar o seu pedido com todo o cuidado. Guarde este e-mail como comprovante da compra.</p>
+{% include "_order_summary.html.j2" %}
+{% endblock %}

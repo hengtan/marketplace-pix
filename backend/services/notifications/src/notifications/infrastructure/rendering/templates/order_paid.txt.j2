@@ -1,0 +1,9 @@
+Pagamento aprovado, {{ customer_name }}!
+
+Recebemos o seu PIX de {{ total_cents | brl }} e o pedido #{{ order_ref }} está confirmado.
+Agora vamos preparar o seu pedido com todo o cuidado. Guarde este e-mail como comprovante da compra.
+
+{% include "_order_summary.txt.j2" %}
+{{ action_label }}: {{ action_url }}
+
+Você recebeu este e-mail porque fez um pedido no Marketplace PIX.

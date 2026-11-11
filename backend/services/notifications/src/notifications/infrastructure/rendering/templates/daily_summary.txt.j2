@@ -1,0 +1,8 @@
+Vendas de {{ day | date_br }}
+
+{% for label, value in rows -%}
+{{ label }}: {{ value }}
+{% endfor -%}
+Valor pago no dia: {{ paid_cents | brl }}
+
+Resumo gerado automaticamente pelo serviço de notificações do Marketplace PIX.

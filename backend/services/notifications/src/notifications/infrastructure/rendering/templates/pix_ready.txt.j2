@@ -1,0 +1,16 @@
+Seu PIX está pronto, {{ customer_name }}
+
+Falta só o pagamento para confirmarmos o pedido #{{ order_ref }}.
+
+Valor a pagar: {{ pix_amount_cents | brl }}
+{% if pix_expires_at %}Válido até: {{ pix_expires_at | datetime_br }}
+{% endif %}
+PIX Copia e Cola:
+{{ pix_code }}
+
+Abra o app do seu banco, escolha pagar com PIX Copia e Cola, cole o código acima e confirme.
+
+{% include "_order_summary.txt.j2" %}
+{{ action_label }}: {{ action_url }}
+
+Você recebeu este e-mail porque fez um pedido no Marketplace PIX.

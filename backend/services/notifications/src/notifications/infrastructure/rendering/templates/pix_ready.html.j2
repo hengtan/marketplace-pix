@@ -1,0 +1,30 @@
+{% extends "base.html.j2" %}
+{% block preheader %}Pague {{ pix_amount_cents | brl }} com o PIX Copia e Cola{% if pix_expires_at %} até {{ pix_expires_at | datetime_br }}{% endif %}.{% endblock %}
+{% block eyebrow %}Pagamento via PIX{% endblock %}
+{% block heading %}Seu PIX está pronto, {{ customer_name }}{% endblock %}
+{% block body %}
+<p style="margin:0 0 16px 0;">Falta só o pagamento para confirmarmos o pedido <strong style="color:#0f172a;">#{{ order_ref }}</strong>.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #99d5cb;border-radius:10px;background-color:#f0fbf9;">
+  <tr>
+    <td align="center" style="padding:20px 20px 4px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:18px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#0f766e;">Valor a pagar</td>
+  </tr>
+  <tr>
+    <td align="center" class="amount" style="padding:0 20px 12px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:36px;line-height:44px;font-weight:700;letter-spacing:-0.6px;color:#0f172a;">{{ pix_amount_cents | brl }}</td>
+  </tr>
+  <tr>
+    <td style="padding:0 20px 8px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:18px;font-weight:600;color:#374151;">PIX Copia e Cola</td>
+  </tr>
+  <tr>
+    <td style="padding:0 20px 16px 20px;">
+      <div style="padding:12px 14px;border:1px dashed #0f766e;border-radius:8px;background-color:#ffffff;font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;font-size:13px;line-height:19px;color:#0f172a;word-break:break-all;overflow-wrap:anywhere;">{{ pix_code }}</div>
+    </td>
+  </tr>
+  {% if pix_expires_at %}
+  <tr>
+    <td align="center" style="padding:0 20px 20px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;color:#374151;">Válido até <strong>{{ pix_expires_at | datetime_br }}</strong></td>
+  </tr>
+  {% endif %}
+</table>
+<p style="margin:16px 0 0 0;">Abra o app do seu banco, escolha pagar com PIX Copia e Cola, cole o código acima e confirme. A aprovação costuma levar poucos segundos.</p>
+{% include "_order_summary.html.j2" %}
+{% endblock %}
