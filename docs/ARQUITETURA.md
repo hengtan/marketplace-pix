@@ -30,6 +30,9 @@ Chamadas síncronas só na borda (gateway para serviço) e em consultas simples.
 | Idempotência HTTP | POSTs críticos | `Idempotency-Key` guarda a resposta da 1ª chamada |
 | Saga (orquestração) | ordering | cada passo tem compensação; timeout dispara compensação |
 | Fail-closed | webhook de PIX | na dúvida, o pedido continua pendente |
+| Circuit breaker, retry com budget, bulkhead | chamadas entre serviços | cada dependência com o seu; retry só em leitura (ver `docs/RESILIENCIA.md`) |
+| Deadline propagation | gateway e serviços | `X-Request-Deadline` com o tempo restante; cada salto limita o timeout a ele |
+| Rate limit distribuído | gateway | token bucket em Lua no Redis, por cliente e rota, com fallback em memória |
 
 ## Tabelas-chave
 
