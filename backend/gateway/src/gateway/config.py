@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import Annotated
 
 from marketplace_common.resilience import RedisFailureMode
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _find_env_file() -> Path | None:
@@ -33,6 +35,8 @@ class Settings(BaseSettings):
     rate_limit_redis_timeout: float = 0.25
     redis_url: str = ""
 
+    trusted_proxies: Annotated[list[str], NoDecode] = []
+
     request_deadline_seconds: float = 8.0
     max_request_deadline_seconds: float = 30.0
     service_deadlines: dict[str, float] = {"assistant": 25.0}
@@ -58,6 +62,13 @@ class Settings(BaseSettings):
     internal_auth_secret: str = ""
     jwt_issuer: str = "marketplace-identity"
     jwt_audience: str = "marketplace-api"
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def _split_proxies(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
 
     def upstreams(self) -> dict[str, str]:
         return {

@@ -27,6 +27,7 @@ from marketplace_common.security import strip_identity_headers
 from starlette.background import BackgroundTask
 
 from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
+from gateway.client_ip import ClientIpResolver
 from gateway.config import Settings
 from gateway.rate_limit import Limiter, build_limiter, build_redis
 from gateway.routes import resolve
@@ -120,6 +121,7 @@ def create_app(
     limiter: Limiter = rate_limiter or build_limiter(settings, redis)
     _service_deadline = _service_deadline_factory(settings)
     guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng)
+    client_ips = ClientIpResolver(settings.trusted_proxies)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -195,7 +197,11 @@ def create_app(
     @app.api_route("/api/{path:path}", methods=METHODS)
     async def proxy(request: Request) -> Response:
         request_id = _request_id(request)
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = client_ips.resolve(
+            request.client.host if request.client else None,
+            request.headers.get("x-forwarded-for"),
+            request.headers.get("x-real-ip"),
+        )
         target = resolve(request.url.path)
         decision = await limiter.acquire(target.service if target else "unmatched", client_ip)
         rate_headers = decision.headers()
@@ -209,6 +215,8 @@ def create_app(
         auth: GatewayAuth | None = request.app.state.auth
         headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
         headers = strip_identity_headers(headers)
+        headers.pop("x-real-ip", None)
+        headers["x-forwarded-for"] = client_ip
         query = request.url.query
         if auth is not None:
             verdict = await auth.authorize(request, client, request_id)
