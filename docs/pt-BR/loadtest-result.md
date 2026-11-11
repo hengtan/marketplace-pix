@@ -1,3 +1,5 @@
+[English](../LOAD-TEST.md) | **Português (Brasil)**
+
 # Resultado do teste de carga
 
 Gerado por `scripts/loadtest.py` contra o gateway (porta 18000 de uma stack Docker paralela), 20 conexões

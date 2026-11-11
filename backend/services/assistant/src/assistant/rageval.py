@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import os
-import re
 import subprocess
 import sys
 import time
@@ -50,48 +49,46 @@ def variants(production: RetrievalConfig) -> list[Variant]:
     base = RetrievalConfig()
     return [
         Variant("baseline (hybrid + RRF + reranker)", base),
-        Variant("pós-filtro em vez de pré-filtro", replace(base, prefilter=False)),
-        Variant("pré-filtro, ramos de 5 candidatos", replace(base, branch_limit=5)),
+        Variant("post-filter instead of pre-filter", replace(base, prefilter=False)),
+        Variant("pre-filter, 5-candidate branches", replace(base, branch_limit=5)),
         Variant(
-            "pós-filtro, ramos de 5 candidatos", replace(base, branch_limit=5, prefilter=False)
+            "post-filter, 5-candidate branches", replace(base, branch_limit=5, prefilter=False)
         ),
         Variant(
-            "pesos RRF 0.5 vetor / 1.5 texto", replace(base, vector_weight=0.5, text_weight=1.5)
+            "RRF weights 0.5 vector / 1.5 text", replace(base, vector_weight=0.5, text_weight=1.5)
         ),
         Variant(
-            "pesos RRF 1.5 vetor / 0.5 texto", replace(base, vector_weight=1.5, text_weight=0.5)
+            "RRF weights 1.5 vector / 0.5 text", replace(base, vector_weight=1.5, text_weight=0.5)
         ),
-        Variant("+ correção de digitação", replace(base, typo_correction=True)),
-        Variant("+ expansão de sinônimos (sempre)", replace(base, rewrite="always")),
-        Variant("+ expansão de sinônimos (adaptativa)", replace(base, rewrite="adaptive")),
-        Variant("+ HyDE (documento hipotético)", replace(base, hyde=True)),
-        Variant("+ negação", replace(base, negation=True)),
-        Variant("+ decomposição", replace(base, decompose=True)),
+        Variant("+ typo correction", replace(base, typo_correction=True)),
+        Variant("+ synonym expansion (always)", replace(base, rewrite="always")),
+        Variant("+ synonym expansion (adaptive)", replace(base, rewrite="adaptive")),
+        Variant("+ HyDE (hypothetical document)", replace(base, hyde=True)),
+        Variant("+ negation", replace(base, negation=True)),
+        Variant("+ decomposition", replace(base, decompose=True)),
         Variant("+ MMR lambda 0.7", replace(base, mmr=True, mmr_lambda=0.7)),
         Variant("+ MMR lambda 0.4", replace(base, mmr=True, mmr_lambda=0.4)),
-        Variant("+ roteamento de intenção", base, intent_routing=True),
-        Variant("chunks pequenos (150/30)", base, chunk=(150, 30)),
-        Variant("parent-document (chunks 300/60)", replace(base, parent_documents=True)),
+        Variant("+ intent routing", base, intent_routing=True),
+        Variant("small chunks (150/30)", base, chunk=(150, 30)),
+        Variant("parent-document (300/60 chunks)", replace(base, parent_documents=True)),
+        Variant("small chunks + parent-document", replace(base, parent_documents=True), (150, 30)),
         Variant(
-            "chunks pequenos + parent-document", replace(base, parent_documents=True), (150, 30)
-        ),
-        Variant(
-            "combo: adaptativa + digitação + negação + decomposição",
+            "combo: adaptive + typo + negation + decomposition",
             replace(production, rewrite="adaptive", hyde=False, mmr=False, parent_documents=False),
             intent_routing=True,
         ),
         Variant(
-            "combo: sempre + digitação + negação + decomposição",
+            "combo: always + typo + negation + decomposition",
             replace(production, rewrite="always", hyde=False, mmr=False, parent_documents=False),
             intent_routing=True,
         ),
         Variant(
-            "combo anterior + HyDE",
+            "previous combo + HyDE",
             replace(production, rewrite="always", hyde=True, mmr=False, parent_documents=False),
             intent_routing=True,
         ),
         Variant(
-            "combo anterior + MMR 0.7",
+            "previous combo + MMR 0.7",
             replace(
                 production,
                 rewrite="always",
@@ -102,7 +99,7 @@ def variants(production: RetrievalConfig) -> list[Variant]:
             ),
             intent_routing=True,
         ),
-        Variant("produção (configuração padrão do serviço)", production, intent_routing=True),
+        Variant("production (service default configuration)", production, intent_routing=True),
     ]
 
 
@@ -179,9 +176,9 @@ async def evaluate(
         "ndcg@5": mean("ndcg"),
         "ctx_prec": mean("cp"),
         "ctx_rec": mean("cr"),
-        "negação": mean("neg"),
-        "abstenção": mean("abst"),
-        "ctx_preço": mean("price_ctx"),
+        "negation": mean("neg"),
+        "abstention": mean("abst"),
+        "ctx_price": mean("price_ctx"),
         "p50_ms": float(percentile(latencies, 50)),
     }
     by_split = {}
@@ -256,10 +253,10 @@ def render(results: list[VariantResult]) -> str:
     total = int(results[-1].metrics["n"])
     results = results[:-1]
     head = (
-        "| variante | hit@1 | hit@3 | MRR | nDCG@5 | prec. ctx | rev. ctx | negação | "
-        "abstenção | ctx com preço | hit@3 dev | hit@3 holdout | MRR holdout | p50 ms |"
+        "| variant | hit@1 | hit@3 | MRR | nDCG@5 | ctx prec. | ctx recall | negation | "
+        "abstention | ctx with price | hit@3 dev | hit@3 holdout | MRR holdout | p50 ms |"
     )
-    lines = [f"Casos de recuperação avaliados: {total}.", "", head, "|" + "---|" * 14]
+    lines = [f"Retrieval cases evaluated: {total}.", "", head, "|" + "---|" * 14]
     baseline = results[0].metrics
     for r in results:
         m = r.metrics
@@ -271,9 +268,9 @@ def render(results: list[VariantResult]) -> str:
             _cell(m["ndcg@5"], baseline["ndcg@5"]),
             _cell(m["ctx_prec"], baseline["ctx_prec"]),
             _cell(m["ctx_rec"], baseline["ctx_rec"]),
-            _cell(m["negação"], baseline["negação"]),
-            _cell(m["abstenção"], baseline["abstenção"]),
-            _cell(m["ctx_preço"], baseline["ctx_preço"]),
+            _cell(m["negation"], baseline["negation"]),
+            _cell(m["abstention"], baseline["abstention"]),
+            _cell(m["ctx_price"], baseline["ctx_price"]),
             f"{r.by_split['dev']['hit@3']:.3f}",
             f"{r.by_split['holdout']['hit@3']:.3f}",
             f"{r.by_split['holdout']['mrr']:.3f}",
@@ -281,12 +278,12 @@ def render(results: list[VariantResult]) -> str:
         ]
         lines.append("| " + " | ".join(cells) + " |")
     first, last = results[0], results[-1]
-    lines += ["", "hit@3 por categoria, baseline contra produção:", ""]
-    lines.append("| categoria | baseline | produção |")
+    lines += ["", "hit@3 by category, baseline vs. production:", ""]
+    lines.append("| category | baseline | production |")
     lines.append("|---|---|---|")
     for cat, value in first.by_category.items():
         lines.append(f"| {cat} | {value:.3f} | {last.by_category.get(cat, 0.0):.3f} |")
-    return re.sub(r"(?<=\d)\.(?=\d)", ",", "\n".join(lines))
+    return "\n".join(lines)
 
 
 def _cell(value: float, base: float) -> str:
@@ -306,7 +303,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m assistant.rageval")
     parser.add_argument("--fixture", type=Path, default=Path("tests/fixtures/catalog.json"))
     parser.add_argument("--cases", type=Path, default=Path("evals/cases.yaml"))
-    parser.add_argument("--write-docs", type=Path, default=None)
+    parser.add_argument(
+        "--write-docs",
+        type=Path,
+        default=None,
+        help="rewrite the table between the rageval markers, e.g. ../../../docs/RAG-EVALUATION.md",
+    )
     args = parser.parse_args()
     table = render(asyncio.run(run_all(args.fixture, args.cases)))
     print(table)

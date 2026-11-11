@@ -1,8 +1,10 @@
+[English](../RAG-EXPLAINED.md) | **Português (Brasil)**
+
 # RAG e agentes explicados (para quem vem de .NET)
 
 Este guia explica, de ponta a ponta, o pipeline do serviço `assistant` do marketplace: o que cada etapa faz, por que ela existe, o que custa e o que mediu de verdade. Foi escrito para quem tem boa base de back-end (C#, ASP.NET, EF Core, filas) e nunca montou um sistema de RAG.
 
-Os números vêm de `docs/RAG-AVALIACAO.md` (tabela completa e como reproduzir). Tudo roda com **embeddings e LLM simulados** (sem chave de API), e isso limita o que os números provam: veja a seção "O que é simulado" no fim.
+Os números vêm de `docs/pt-BR/RAG-AVALIACAO.md` (tabela completa e como reproduzir). Tudo roda com **embeddings e LLM simulados** (sem chave de API), e isso limita o que os números provam: veja a seção "O que é simulado" no fim.
 
 ## 1. Tradução rápida de conceitos
 
@@ -240,7 +242,7 @@ Timeouts por fase (primeiro token, ocioso, total) e degradação graciosa: os re
 ```bash
 cd backend/services/assistant
 uv run python -m assistant.evals --offline --gate        # métricas ponta a ponta e portão
-uv run python -m assistant.rageval --write-docs ../../../docs/RAG-AVALIACAO.md   # comparação de variantes
+uv run python -m assistant.rageval --write-docs ../../../docs/RAG-EVALUATION.md   # comparação de variantes (gera a versão em inglês)
 uv run python -m assistant.cachebench                    # hit rate e economia do cache
 uv run python -m assistant.worker_main                   # consumidor de catalog.events (invalida cache e reindexa)
 uv run pytest                                            # unitários, integração (pgvector real), red team
