@@ -1,4 +1,8 @@
+[English](../RAG-EVALUATION.md) | **Português (Brasil)**
+
 # Avaliação do RAG: baseline contra cada melhoria
+
+> Nota: este arquivo é um instantâneo estático, traduzido para português. A versão gerada pelo código (`assistant.rageval`) vive em [`docs/RAG-EVALUATION.md`](../RAG-EVALUATION.md); os números aqui são os da última medição antes da internacionalização.
 
 Este documento registra, com números medidos, o que cada técnica do pipeline de recuperação do `assistant` muda na qualidade. Tudo roda com o embedder lexical (`HashingEmbedder`) e o LLM simulado (`MockLlm`), sem chave de API. Por isso os números valem como **comparação relativa entre variantes** e como rede de segurança contra regressão, não como promessa de qualidade com um modelo real (veja as limitações no fim).
 
@@ -6,7 +10,7 @@ Este documento registra, com números medidos, o que cada técnica do pipeline d
 
 ```bash
 cd backend/services/assistant
-uv run python -m assistant.rageval --write-docs ../../../docs/RAG-AVALIACAO.md   # tabela comparativa abaixo
+uv run python -m assistant.rageval --write-docs ../../../docs/RAG-EVALUATION.md   # gera a versão em inglês (a tabela abaixo é um instantâneo)
 uv run python -m assistant.evals --offline                                       # avaliação ponta a ponta (agente, geração, juiz)
 uv run python -m assistant.evals --offline --gate                                # portão de regressão usado no CI
 uv run python -m assistant.cachebench                                            # hit rate e economia do cache semântico
@@ -45,7 +49,6 @@ Nos casos da harness de recuperação entram os que não dependem de histórico 
 
 Cada linha liga uma técnica ao baseline (hybrid + RRF + reranker lexical, o pipeline original). Entre parênteses, a diferença para o baseline. A latência é de recuperação, em máquina compartilhada com outros containers: só serve como ordem de grandeza.
 
-<!-- rageval:start -->
 Casos de recuperação avaliados: 95.
 
 | variante | hit@1 | hit@3 | MRR | nDCG@5 | prec. ctx | rev. ctx | negação | abstenção | ctx com preço | hit@3 dev | hit@3 holdout | MRR holdout | p50 ms |
@@ -89,7 +92,6 @@ hit@3 por categoria, baseline contra produção:
 | rating | 1,000 | 1,000 |
 | sorting | 1,000 | 1,000 |
 | typo | 1,000 | 1,000 |
-<!-- rageval:end -->
 
 ## Leitura dos resultados
 
