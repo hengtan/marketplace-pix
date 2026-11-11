@@ -21,17 +21,29 @@ def build_message(email: OutgoingEmail, sender_address: str) -> EmailMessage:
 
 
 class SmtpEmailSender:
-    def __init__(self, host: str, port: int, sender_address: str, timeout: float = 10.0) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        sender_address: str,
+        timeout: float = 10.0,
+        helo_name: str = "notifications.marketplace-pix.local",
+    ) -> None:
         self._host = host
         self._port = port
         self._sender_address = sender_address
         self._timeout = timeout
+        self._helo_name = helo_name
 
     async def send(self, email: OutgoingEmail) -> None:
         message = build_message(email, self._sender_address)
         try:
             await aiosmtplib.send(
-                message, hostname=self._host, port=self._port, timeout=self._timeout
+                message,
+                hostname=self._host,
+                port=self._port,
+                timeout=self._timeout,
+                local_hostname=self._helo_name,
             )
         except (
             aiosmtplib.SMTPRecipientsRefused,
