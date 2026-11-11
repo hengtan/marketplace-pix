@@ -21,7 +21,6 @@ import { useReconciliation } from "@/hooks/queries";
 import { usePageTitle } from "@/hooks/utils";
 import { formatMoney } from "@/lib/format";
 import {
-  MERCHANT_TABS,
   type MerchantTab,
   orderStatus,
   PERIODS,
@@ -97,7 +96,6 @@ function Panel({ scopeIds }: { scopeIds: string[] }) {
   }, [orders.data, rows]);
 
   const View = TAB_VIEWS[ctx.tab];
-  const label = MERCHANT_TABS.find((t) => t.id === ctx.tab)?.label ?? "";
 
   return (
     <MerchantProvider value={full}>
@@ -140,15 +138,7 @@ function Panel({ scopeIds }: { scopeIds: string[] }) {
             transition={{ duration: 0.22, ease: EASE }}
           >
             <Suspense fallback={<Skeleton className="h-96 rounded-3xl" />}>
-              {View ? (
-                <View />
-              ) : (
-                <EmptyState
-                  art="search"
-                  title={`${label} em construção`}
-                  description="Esta seção chega nos próximos commits."
-                />
-              )}
+              <View />
             </Suspense>
           </m.div>
         </AnimatePresence>
