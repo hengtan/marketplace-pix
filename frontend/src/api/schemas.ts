@@ -140,6 +140,7 @@ export const userSchema = z.object({
   email: z.string(),
   name: z.string(),
   roles: z.array(z.string()),
+  merchant_id: z.nullish(z.string()),
 });
 export type User = z.infer<typeof userSchema>;
 

@@ -10,7 +10,7 @@ import { Badge, Skeleton } from "@/components/ui/misc";
 import { useMerchantEntries, useMerchantSummary, useReconciliation } from "@/hooks/queries";
 import { usePageTitle } from "@/hooks/utils";
 import { formatDateTime, formatMoney } from "@/lib/format";
-import { SEED_MERCHANTS } from "@/lib/merchants";
+import { merchantScope, SEED_MERCHANTS } from "@/lib/merchants";
 import { EASE, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
@@ -318,12 +318,13 @@ function Forbidden() {
 
 export default function MerchantPage() {
   usePageTitle("Painel do lojista");
-  const roles = useAuth((s) => s.user?.roles ?? []);
-  const [merchantId, setMerchantId] = useState(SEED_MERCHANTS[0]?.id ?? "");
+  const user = useAuth((s) => s.user);
+  const scope = merchantScope(user);
+  const [merchantId, setMerchantId] = useState(scope.initial);
   const [days, setDays] = useState<number>(30);
   const summary = useMerchantSummary(merchantId, days);
   const merchant = SEED_MERCHANTS.find((m) => m.id === merchantId);
-  if (!roles.includes("merchant")) return <Forbidden />;
+  if (!scope.allowed) return <Forbidden />;
   const gross = summary.data?.daily.map((d) => d.gross_cents) ?? [];
   const net = summary.data?.daily.map((d) => d.net_cents) ?? [];
   const orders = summary.data?.daily.map((d) => d.orders) ?? [];
@@ -344,14 +345,14 @@ export default function MerchantPage() {
             </h1>
             <p className="mt-2 text-muted">Vendas, taxas e saldo direto do livro-razão.</p>
           </div>
-          <ReconciliationSeal />
+          {scope.canReconcile && <ReconciliationSeal />}
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
           <Segmented
             id="merchant-pill"
             label="Lojista"
-            options={SEED_MERCHANTS.map((m) => m.id)}
+            options={scope.ids}
             value={merchantId}
             onChange={setMerchantId}
             render={(id) => SEED_MERCHANTS.find((m) => m.id === id)?.name ?? id}

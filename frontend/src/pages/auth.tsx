@@ -19,6 +19,7 @@ import {
   registerSchema,
   safeRedirect,
 } from "@/features/auth-schema";
+import { DemoHint } from "@/features/demo-hint";
 import { usePageTitle } from "@/hooks/utils";
 import { EASE, finePointer } from "@/lib/motion";
 import { toast } from "@/lib/toast";
@@ -326,10 +327,7 @@ export function LoginPage() {
             <LogIn /> {mutation.isPending ? "Entrando..." : "Entrar"}
           </Button>
         </Magnetic>
-        <p className="rounded-xl bg-surface-2 px-4 py-3 text-xs text-muted">
-          Conta de demonstração: <span className="font-mono">lojista@praca.dev</span> com a senha{" "}
-          <span className="font-mono">praca1234</span>.
-        </p>
+        <DemoHint />
       </form>
     </AuthFrame>
   );
