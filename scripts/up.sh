@@ -9,16 +9,18 @@ if [ ! -f .env ]; then
   sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 12)/" .env
   sed -i.bak "s/^PSP_WEBHOOK_SECRET=.*/PSP_WEBHOOK_SECRET=$(openssl rand -hex 24)/" .env
   sed -i.bak "s/^INTERNAL_AUTH_SECRET=.*/INTERNAL_AUTH_SECRET=$(openssl rand -hex 32)/" .env
-  sed -i.bak "s/^IDENTITY_SEED_PASSWORD=.*/IDENTITY_SEED_PASSWORD=$(openssl rand -hex 12)/" .env
+  sed -i.bak "s/^IDENTITY_SEED_PASSWORD=.*/IDENTITY_SEED_PASSWORD=praca1234/" .env
   rm -f .env.bak
   echo ".env criado com segredos novos"
 fi
-for var in INTERNAL_AUTH_SECRET IDENTITY_SEED_PASSWORD; do
-  if ! grep -q "^$var=" .env; then
-    echo "$var=$(openssl rand -hex 24)" >> .env
-    echo "$var gerado e adicionado ao .env"
-  fi
-done
+if ! grep -q "^INTERNAL_AUTH_SECRET=" .env; then
+  echo "INTERNAL_AUTH_SECRET=$(openssl rand -hex 24)" >> .env
+  echo "INTERNAL_AUTH_SECRET gerado e adicionado ao .env"
+fi
+if ! grep -q "^IDENTITY_SEED_PASSWORD=" .env; then
+  echo "IDENTITY_SEED_PASSWORD=praca1234" >> .env
+  echo "IDENTITY_SEED_PASSWORD (apenas desenvolvimento) adicionado ao .env"
+fi
 
 FILES=(-f infra/docker-compose.yml)
 if [ "${1:-}" = "--obs" ]; then
