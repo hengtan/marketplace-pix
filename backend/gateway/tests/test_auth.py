@@ -200,6 +200,7 @@ async def test_public_routes_work_without_a_token_and_ignore_a_bad_one(world: Wo
         ("POST", "/api/catalog/products"),
         ("PATCH", "/api/catalog/products/abc"),
         ("DELETE", "/api/catalog/products/abc"),
+        ("POST", "/api/catalog/products/abc/reactivate"),
     ],
 )
 async def test_protected_routes_require_authentication(

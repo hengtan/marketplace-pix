@@ -54,7 +54,7 @@ def build_rules(guest_checkout: bool) -> tuple[Rule, ...]:
         _rule(READ, r"^/api/catalog(/.*)?$", Access.PUBLIC),
         _rule(
             "POST|PATCH|DELETE",
-            r"^/api/catalog/products(/[^/]+)?$",
+            r"^/api/catalog/products(/[^/]+(/reactivate)?)?$",
             Access.REQUIRED,
             Scope.CATALOG_WRITE_OWN,
             Scope.CATALOG_WRITE_ANY,

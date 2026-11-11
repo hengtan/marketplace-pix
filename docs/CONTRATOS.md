@@ -162,6 +162,7 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 | `POST /api/catalog/products` | `POST /products` (lojista no próprio catálogo; `admin` informa `merchant_id`) |
 | `PATCH /api/catalog/products/{id}` | `PATCH /products/{id}` |
 | `DELETE /api/catalog/products/{id}` | `DELETE /products/{id}` (desativa; idempotente, `204`) |
+| `POST /api/catalog/products/{id}/reactivate` | `POST /products/{id}/reactivate` (dono ou `admin`; devolve o produto; reativar um produto ativo é um `200` sem efeito; publica `ProductCreated` de novo para que os consumidores o reindexem e garantam o estoque) |
 
 `GET /products` aceita `q`, `category`, `min_price_cents`, `max_price_cents`, `sort`
 (`relevance|price_asc|price_desc|newest|rating`), `page`, `page_size` (padrão 12, máximo 48).
@@ -402,7 +403,7 @@ Matriz de acesso no gateway (`401` sem token válido, `403` sem o escopo):
 | `GET /api/orders`, `GET /api/orders/{id}`, `GET /api/payments/by-order/{id}` | anônimo ou autenticado; o serviço decide pelo dono |
 | `GET /api/orders/merchant` | `orders:read:merchant` |
 | `PUT /api/inventory/stock/{id}`, `GET /api/inventory/stock/mine` | `stock:write:own` ou `stock:write:any` |
-| `POST /api/catalog/products`, `PATCH\|DELETE /api/catalog/products/{id}` | `catalog:write:own` ou `catalog:write:any` (o serviço confere o dono) |
+| `POST /api/catalog/products`, `PATCH\|DELETE /api/catalog/products/{id}`, `POST /api/catalog/products/{id}/reactivate` | `catalog:write:own` ou `catalog:write:any` (o serviço confere o dono) |
 | `GET /api/ledger/**` | `ledger:read:own` ou `ledger:read:any` (o serviço confere o lojista) |
 | `GET /api/ledger/reconciliation` | `ledger:reconcile` |
 | `GET /api/notifications**` | `notifications:read:own` (o gateway força `customer_id` do token; `admin` pode escolher) |

@@ -47,9 +47,9 @@ async def seed_catalog(session: AsyncSession) -> int:
             "tags": list(product.tags),
             "created_at": CREATED_AT[product.slug],
         }
-        stmt = insert(ProductModel).values(**values)
-        updatable = {key: stmt.excluded[key] for key in values if key not in {"id", "slug"}}
-        await session.execute(stmt.on_conflict_do_update(index_elements=["id"], set_=updatable))
+        await session.execute(
+            insert(ProductModel).values(**values).on_conflict_do_nothing(index_elements=["id"])
+        )
     await session.commit()
     return len(PRODUCTS)
 

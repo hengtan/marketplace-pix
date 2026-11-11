@@ -141,6 +141,13 @@ def build_router() -> APIRouter:
         product = await _manager(request).update(_require(principal), product_id, changes)
         return ProductOut.from_domain(product)
 
+    @router.post("/products/{product_id}/reactivate")
+    async def reactivate_product(
+        product_id: UUID, request: Request, principal: PrincipalDep
+    ) -> ProductOut:
+        product = await _manager(request).reactivate(_require(principal), product_id)
+        return ProductOut.from_domain(product)
+
     @router.delete("/products/{product_id}", status_code=204)
     async def deactivate_product(
         product_id: UUID, request: Request, principal: PrincipalDep

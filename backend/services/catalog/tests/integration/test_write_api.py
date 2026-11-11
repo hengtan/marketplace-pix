@@ -178,3 +178,31 @@ async def test_deactivating_hides_the_product_and_emits_the_event(writer, seeded
     assert row.type == "ProductDeactivated"
     assert (await writer.delete(f"/products/{FONE}", headers=headers)).status_code == 204
     assert len(await outbox(seeded)) == 1
+
+
+async def test_owner_reactivates_a_product_and_it_returns_to_the_shelf(writer, seeded) -> None:
+    headers = as_user(("merchant",), None, AURORA)
+    await writer.delete(f"/products/{FONE}", headers=headers)
+    response = await writer.post(f"/products/{FONE}/reactivate", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["id"] == str(FONE)
+    assert (await writer.get(f"/products/{FONE}")).status_code == 200
+    listing = (await writer.get("/products", params={"page_size": 48})).json()
+    assert listing["total"] == 24
+    types = [row.type for row in await outbox(seeded)]
+    assert types == ["ProductDeactivated", "ProductCreated"]
+
+
+async def test_reactivating_an_active_product_is_a_quiet_no_op(writer, seeded) -> None:
+    headers = as_user(("merchant",), None, AURORA)
+    assert (await writer.post(f"/products/{FONE}/reactivate", headers=headers)).status_code == 200
+    assert await outbox(seeded) == []
+
+
+async def test_another_merchant_cannot_reactivate_and_unknown_ids_are_404(writer) -> None:
+    owner = as_user(("merchant",), None, AURORA)
+    await writer.delete(f"/products/{FONE}", headers=owner)
+    other = as_user(("merchant",), None, CASA)
+    assert (await writer.post(f"/products/{FONE}/reactivate", headers=other)).status_code == 403
+    missing = "00000000-0000-4000-8000-000000000000"
+    assert (await writer.post(f"/products/{missing}/reactivate", headers=owner)).status_code == 404

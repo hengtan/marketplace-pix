@@ -41,3 +41,27 @@ async def test_seed_values_are_plausible(seeded) -> None:
     assert all(row.reviews_count > 0 and row.tags and len(row.description) > 80 for row in rows)
     assert all("—" not in row.description and "–" not in row.description for row in rows)
     assert all(row.image_url is None or row.image_url.startswith("https://") for row in rows)
+
+
+async def test_reseeding_never_overwrites_what_a_merchant_changed(seeded) -> None:
+    fone = product_id("fone-bluetooth-nova")
+    lamp = product_id("luminaria-de-mesa-articulada")
+    async with seeded() as session:
+        product = await session.get(ProductModel, fone)
+        assert product is not None
+        product.price_cents = 12345
+        product.name = "Nome do lojista"
+        other = await session.get(ProductModel, lamp)
+        if other is not None:
+            other.active = False
+        await session.commit()
+
+    await run_seed(seeded)
+
+    async with seeded() as session:
+        product = await session.get(ProductModel, fone)
+        other = await session.get(ProductModel, lamp)
+    assert product is not None
+    assert (product.price_cents, product.name) == (12345, "Nome do lojista")
+    if other is not None:
+        assert other.active is False

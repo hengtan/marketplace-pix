@@ -141,3 +141,30 @@ class ManageProducts:
                 [ProductDeactivated(product_id=product.id, merchant_id=product.merchant.id)]
             )
             await uow.commit()
+
+    async def reactivate(self, principal: Principal, product_id: UUID) -> Product:
+        async with self._uow_factory() as uow:
+            product = await uow.products.get(product_id)
+            if product is None:
+                raise ProductNotFound(str(product_id))
+            if not _may_manage(principal, product.merchant.id):
+                raise NotProductOwner(str(product_id))
+            if product.active:
+                return product
+            reactivated = replace(product, active=True)
+            await uow.products.save(reactivated)
+            await uow.outbox.add(
+                [
+                    ProductCreated(
+                        product_id=product.id,
+                        merchant_id=product.merchant.id,
+                        slug=product.slug,
+                        name=product.name,
+                        category=product.category,
+                        price_cents=product.price_cents,
+                        currency=product.currency,
+                    )
+                ]
+            )
+            await uow.commit()
+        return reactivated
