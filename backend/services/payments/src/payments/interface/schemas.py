@@ -15,6 +15,7 @@ class PaymentOut(BaseModel):
     amount_cents: int
     currency: str
     pix_code: str
+    psp_charge_id: str
     expires_at: datetime
     confirmed_at: datetime | None
 
@@ -27,6 +28,7 @@ class PaymentOut(BaseModel):
             amount_cents=payment.amount.cents,
             currency=payment.amount.currency,
             pix_code=payment.pix_code,
+            psp_charge_id=payment.psp_charge_id,
             expires_at=payment.expires_at,
             confirmed_at=payment.confirmed_at,
         )

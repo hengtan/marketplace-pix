@@ -43,8 +43,10 @@ class SqlAlchemyPaymentRepository:
             )
         )
 
-    async def get_by_order(self, order_id: UUID) -> Payment | None:
+    async def get_by_order(self, order_id: UUID, lock: bool = False) -> Payment | None:
         stmt = select(PaymentModel).where(PaymentModel.order_id == order_id)
+        if lock:
+            stmt = stmt.with_for_update()
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         return None if model is None else _to_domain(model)
 

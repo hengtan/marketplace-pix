@@ -32,7 +32,7 @@ class FakePayments:
     async def add(self, payment: Payment) -> None:
         self._uow.staged_payments[payment.id] = persisted(payment)
 
-    async def get_by_order(self, order_id: UUID) -> Payment | None:
+    async def get_by_order(self, order_id: UUID, lock: bool = False) -> Payment | None:
         return next((p for p in self._all() if p.order_id == order_id), None)
 
     async def get_by_psp_charge_id(self, charge_id: str, lock: bool = False) -> Payment | None:
@@ -98,6 +98,8 @@ class FakePsp:
         self.statuses: dict[str, ChargeStatus] = {}
         self.create_calls = 0
         self.fail_create = False
+        self.refuse_cancel = False
+        self.cancelled: list[str] = []
 
     async def create_charge(self, reference: str, amount: Money, expires_at: datetime) -> PspCharge:
         self.create_calls += 1
@@ -111,6 +113,13 @@ class FakePsp:
 
     async def get_charge_status(self, charge_id: str) -> ChargeStatus:
         return self.statuses[charge_id]
+
+    async def cancel_charge(self, charge_id: str) -> bool:
+        if self.refuse_cancel:
+            return False
+        self.statuses[charge_id] = ChargeStatus.CANCELLED
+        self.cancelled.append(charge_id)
+        return True
 
     @property
     def charges(self) -> int:

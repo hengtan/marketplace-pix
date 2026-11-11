@@ -24,6 +24,7 @@ class ChargeStatus(StrEnum):
     PENDING = "PENDING"
     PAID = "PAID"
     EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,11 +41,13 @@ class PspGateway(Protocol):
 
     async def get_charge_status(self, charge_id: str) -> ChargeStatus: ...
 
+    async def cancel_charge(self, charge_id: str) -> bool: ...
+
 
 class PaymentRepository(Protocol):
     async def add(self, payment: Payment) -> None: ...
 
-    async def get_by_order(self, order_id: UUID) -> Payment | None: ...
+    async def get_by_order(self, order_id: UUID, lock: bool = False) -> Payment | None: ...
 
     async def get_by_psp_charge_id(self, charge_id: str, lock: bool = False) -> Payment | None: ...
 

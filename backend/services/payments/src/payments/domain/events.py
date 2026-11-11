@@ -30,3 +30,8 @@ class PaymentConfirmed(DomainEvent):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PaymentExpired(DomainEvent):
     pass
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PaymentCancelled(DomainEvent):
+    pass

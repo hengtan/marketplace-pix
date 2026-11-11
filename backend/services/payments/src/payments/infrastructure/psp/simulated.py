@@ -71,3 +71,18 @@ class SimulatedPsp:
             )
             await session.commit()
         return bool(result.rowcount)  # type: ignore[attr-defined]
+
+    async def cancel_charge(self, charge_id: str) -> bool:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                update(SimulatedChargeModel)
+                .where(SimulatedChargeModel.id == charge_id)
+                .where(
+                    SimulatedChargeModel.status.in_(
+                        [ChargeStatus.PENDING.value, ChargeStatus.CANCELLED.value]
+                    )
+                )
+                .values(status=ChargeStatus.CANCELLED.value)
+            )
+            await session.commit()
+        return bool(result.rowcount)  # type: ignore[attr-defined]

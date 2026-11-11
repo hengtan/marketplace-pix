@@ -84,3 +84,43 @@ def test_cannot_expire_a_confirmed_payment():
     payment.confirm(NOW)
     with pytest.raises(InvalidStateTransition):
         payment.expire(NOW + timedelta(hours=1))
+
+
+def test_cancel_pending_payment_emits_event():
+    payment = make()
+    payment.pull_events()
+    payment.cancel()
+    (event,) = payment.pull_events()
+    assert payment.status is PaymentStatus.CANCELLED
+    assert type(event).__name__ == "PaymentCancelled"
+
+
+def test_cancel_is_idempotent_and_noop_for_expired():
+    payment = make()
+    payment.cancel()
+    payment.pull_events()
+    payment.cancel()
+    assert payment.pull_events() == []
+
+    expired = make()
+    expired.expire(NOW + timedelta(hours=1))
+    expired.pull_events()
+    expired.cancel()
+    assert expired.status is PaymentStatus.EXPIRED and expired.pull_events() == []
+
+
+def test_cannot_cancel_a_confirmed_payment():
+    payment = make()
+    payment.confirm(NOW)
+    with pytest.raises(InvalidStateTransition):
+        payment.cancel()
+
+
+def test_cannot_confirm_a_cancelled_payment_and_expire_is_a_noop():
+    payment = make()
+    payment.cancel()
+    with pytest.raises(InvalidStateTransition):
+        payment.confirm(NOW)
+    payment.pull_events()
+    payment.expire(NOW + timedelta(hours=1))
+    assert payment.status is PaymentStatus.CANCELLED and payment.pull_events() == []

@@ -114,3 +114,21 @@ async def test_dev_endpoint_is_disabled_by_default(env):
 async def test_health(env):
     client, *_ = env
     assert (await client.get("/health")).json() == {"status": "ok"}
+
+
+async def test_payment_exposes_the_psp_charge_id(env):
+    client, _, _, order_id, charge_id = env
+    data = (await client.get(f"/payments/by-order/{order_id}")).json()
+    assert data["psp_charge_id"] == charge_id
+
+
+async def test_webhook_for_a_cancelled_payment_is_rejected_even_if_signed(env):
+    client, db, psp, _, charge_id = env
+    payment = next(iter(db.payments.values()))
+    payment.cancel()
+    psp.statuses[charge_id] = ChargeStatus.CANCELLED
+    body, headers = webhook(charge_id)
+
+    response = await client.post("/webhooks/psp", content=body, headers=headers)
+
+    assert response.status_code == 409

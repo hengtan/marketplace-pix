@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -105,3 +106,24 @@ async def test_expiry_marks_payment_expired_and_blocks_late_payment(
     assert await outbox_types(session_factory) == ["PaymentCreated", "PaymentExpired"]
     late_psp = SimulatedPsp(session_factory, clock=later)
     assert await late_psp.mark_paid(charge_id) is False
+
+
+async def test_order_cancelled_cancels_the_charge_and_blocks_a_late_payment(
+    client, uow_factory, session_factory, psp
+):
+    from payments.application.handle_order_event import HandleOrderEvent as Handler
+    from payments.application.ports import IncomingEvent
+
+    created = order_created()
+    await Handler(uow_factory, psp).handle(created)
+    charge_id = (await client.get(f"/payments/by-order/{created.key}")).json()["psp_charge_id"]
+
+    cancelled = IncomingEvent(
+        uuid4(), "OrderCancelled", created.key, {"order_id": created.key, "reason": "out of stock"}
+    )
+    assert (await Handler(uow_factory, psp).handle(cancelled)).value == "PROCESSED"
+
+    assert (await client.get(f"/payments/by-order/{created.key}")).json()["status"] == "CANCELLED"
+    assert await outbox_types(session_factory) == ["PaymentCancelled", "PaymentCreated"]
+    late = await client.post(f"/dev/psp/charges/{charge_id}/pay")
+    assert late.status_code == 409

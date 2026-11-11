@@ -6,7 +6,13 @@ from enum import StrEnum
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from payments.domain.errors import InvalidPayment, InvalidStateTransition
-from payments.domain.events import DomainEvent, PaymentConfirmed, PaymentCreated, PaymentExpired
+from payments.domain.events import (
+    DomainEvent,
+    PaymentCancelled,
+    PaymentConfirmed,
+    PaymentCreated,
+    PaymentExpired,
+)
 from payments.domain.money import Money
 
 
@@ -14,6 +20,7 @@ class PaymentStatus(StrEnum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
     EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
 
 
 def payment_id_for(order_id: UUID) -> UUID:
@@ -68,6 +75,8 @@ class Payment:
             return
         if self.status is PaymentStatus.EXPIRED:
             raise InvalidStateTransition("payment already expired")
+        if self.status is PaymentStatus.CANCELLED:
+            raise InvalidStateTransition("payment was cancelled")
         self.status = PaymentStatus.CONFIRMED
         self.confirmed_at = at
         self._events.append(
@@ -80,7 +89,7 @@ class Payment:
         )
 
     def expire(self, now: datetime) -> None:
-        if self.status is PaymentStatus.EXPIRED:
+        if self.status in (PaymentStatus.EXPIRED, PaymentStatus.CANCELLED):
             return
         if self.status is PaymentStatus.CONFIRMED:
             raise InvalidStateTransition("payment already confirmed")
@@ -88,6 +97,14 @@ class Payment:
             raise InvalidStateTransition("payment has not expired yet")
         self.status = PaymentStatus.EXPIRED
         self._events.append(PaymentExpired(order_id=self.order_id, payment_id=self.id))
+
+    def cancel(self) -> None:
+        if self.status in (PaymentStatus.CANCELLED, PaymentStatus.EXPIRED):
+            return
+        if self.status is PaymentStatus.CONFIRMED:
+            raise InvalidStateTransition("payment already confirmed")
+        self.status = PaymentStatus.CANCELLED
+        self._events.append(PaymentCancelled(order_id=self.order_id, payment_id=self.id))
 
     def pull_events(self) -> list[DomainEvent]:
         events, self._events = self._events, []
