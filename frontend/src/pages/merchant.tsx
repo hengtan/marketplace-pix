@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, CircleAlert, ShieldCheck } from "lucide-react";
 import { m, useReducedMotion } from "motion/react";
-import { lazy, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import { Stagger, StaggerItem } from "@/components/motion/reveal";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -10,6 +10,7 @@ import { Badge, Skeleton } from "@/components/ui/misc";
 import { useMerchantEntries, useMerchantSummary, useReconciliation } from "@/hooks/queries";
 import { usePageTitle } from "@/hooks/utils";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { lazyReload } from "@/lib/lazy-reload";
 import { merchantScope, SEED_MERCHANTS } from "@/lib/merchants";
 import { EASE, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,7 @@ import { useAuth } from "@/store/auth";
 
 const RANGES = [7, 14, 30] as const;
 
-const SalesChart = lazy(() =>
+const SalesChart = lazyReload(() =>
   import("@/features/merchant-chart").then((m) => ({ default: m.SalesChart })),
 );
 

@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { restoreSession } from "@/features/session";
 import { env } from "@/lib/env";
+import { clearReloadFlag } from "@/lib/lazy-reload";
 import { afterFirstPaint } from "@/lib/shell";
 import "./index.css";
 
@@ -25,6 +26,7 @@ async function enableMocks() {
 
 Promise.all([enableMocks(), afterFirstPaint()]).then(() => {
   void restoreSession();
+  clearReloadFlag();
   const root = document.getElementById("root");
   if (!root) throw new Error("Root element not found");
   createRoot(root).render(

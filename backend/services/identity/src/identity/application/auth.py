@@ -97,8 +97,12 @@ class AuthService:
         password: str,
         roles: frozenset[str],
         merchant_id: UUID | None = None,
+        *,
+        enforce_password_policy: bool = True,
     ) -> User:
-        user = await self._build_user(email, name, password, roles, merchant_id)
+        user = await self._build_user(
+            email, name, password, roles, merchant_id, enforce_password_policy
+        )
         async with self._uow_factory() as uow:
             if not await uow.users.add(user):
                 raise EmailAlreadyRegistered(user.email)
@@ -114,9 +118,11 @@ class AuthService:
         password: str,
         roles: frozenset[str],
         merchant_id: UUID | None,
+        enforce_password_policy: bool = True,
     ) -> User:
         normalized = normalize_email(email)
-        validate_password(password, normalized)
+        if enforce_password_policy:
+            validate_password(password, normalized)
         return User.create(normalized, name, await self._hasher.hash(password), roles, merchant_id)
 
     async def login(self, email: str, password: str) -> TokenPair:

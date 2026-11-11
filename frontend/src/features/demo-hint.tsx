@@ -14,9 +14,9 @@ export function DemoHint() {
   if (env.devTools) {
     return (
       <p className={box}>
-        Ambiente de desenvolvimento: lojistas criados pelo seed, como{" "}
-        <span className="font-mono">trilha-sports@marketplace-pix.local</span>. A senha está em{" "}
-        <span className="font-mono">IDENTITY_SEED_PASSWORD</span> no arquivo .env.
+        Ambiente de desenvolvimento: lojistas do seed, como{" "}
+        <span className="font-mono">trilha-sports@marketplace-pix.local</span>, com a senha{" "}
+        <span className="font-mono">praca1234</span>.
       </p>
     );
   }

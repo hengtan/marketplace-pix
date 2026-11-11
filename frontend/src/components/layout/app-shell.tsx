@@ -10,10 +10,11 @@ import {
   useScroll,
   useSpring,
 } from "motion/react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Kbd } from "@/components/ui/misc";
 import { AssistantLauncher } from "@/features/assistant/launcher";
 import { CART_BUTTON_ID } from "@/lib/fly";
+import { lazyReload } from "@/lib/lazy-reload";
 import { EASE, SPRING, SPRING_POP } from "@/lib/motion";
 import { endTransition, exitComplete, useRouteTransition } from "@/lib/route-transition";
 import { toast } from "@/lib/toast";
@@ -25,21 +26,21 @@ import { useUi } from "@/store/ui";
 import { UserMenu } from "./user-menu";
 import { Wordmark } from "./wordmark";
 
-const CartDrawer = lazy(() =>
+const CartDrawer = lazyReload(() =>
   import("@/components/cart-drawer").then((m) => ({ default: m.CartDrawer })),
 );
-const CommandPalette = lazy(() =>
+const CommandPalette = lazyReload(() =>
   import("@/components/command-palette").then((m) => ({ default: m.CommandPalette })),
 );
-const AssistantPanel = lazy(() =>
+const AssistantPanel = lazyReload(() =>
   import("@/features/assistant/panel").then((m) => ({ default: m.AssistantPanel })),
 );
 
-const NotificationBell = lazy(() =>
+const NotificationBell = lazyReload(() =>
   import("@/components/notification-bell").then((m) => ({ default: m.NotificationBell })),
 );
-const Cursor = lazy(() => import("./cursor").then((m) => ({ default: m.Cursor })));
-const Toaster = lazy(() => import("./toaster"));
+const Cursor = lazyReload(() => import("./cursor").then((m) => ({ default: m.Cursor })));
+const Toaster = lazyReload(() => import("./toaster"));
 const loadMotionFeatures = () => import("@/lib/motion-features").then((m) => m.default);
 
 const MODIFIERS = new Set(["Control", "Meta", "Shift", "Alt"]);

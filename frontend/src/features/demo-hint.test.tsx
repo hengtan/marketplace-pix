@@ -16,11 +16,11 @@ describe("DemoHint", () => {
     expect(screen.getByText(/lojista@praca.dev/)).toBeInTheDocument();
   });
 
-  it("points to the seeded merchant accounts on a development stack, never the mock password", async () => {
+  it("shows the seeded merchant login on a development stack", async () => {
     await renderWith({ useMocks: false, devTools: true });
     expect(screen.getByText(/trilha-sports@marketplace-pix.local/)).toBeInTheDocument();
-    expect(screen.getByText(/IDENTITY_SEED_PASSWORD/)).toBeInTheDocument();
-    expect(screen.queryByText(/praca1234/)).not.toBeInTheDocument();
+    expect(screen.getByText("praca1234")).toBeInTheDocument();
+    expect(screen.queryByText(/lojista@praca.dev/)).not.toBeInTheDocument();
   });
 
   it("renders nothing in production", async () => {

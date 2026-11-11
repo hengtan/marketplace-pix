@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { LogIn, UserRound } from "lucide-react";
-import { type ComponentProps, lazy, Suspense, useEffect, useState } from "react";
+import { type ComponentProps, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { lazyReload } from "@/lib/lazy-reload";
 import { useAuth } from "@/store/auth";
 
-const UserDropdown = lazy(() => import("./user-dropdown"));
+const UserDropdown = lazyReload(() => import("./user-dropdown"));
 
 function initials(name: string): string {
   return name

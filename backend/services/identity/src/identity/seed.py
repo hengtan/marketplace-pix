@@ -35,7 +35,9 @@ async def seed(auth: AuthService, password: str) -> int:
         )
     for email, name, roles, merchant_id in accounts:
         try:
-            await auth.create_user(email, name, password, roles, merchant_id)
+            await auth.create_user(
+                email, name, password, roles, merchant_id, enforce_password_policy=False
+            )
             created += 1
         except EmailAlreadyRegistered:
             continue

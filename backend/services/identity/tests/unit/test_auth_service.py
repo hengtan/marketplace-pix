@@ -76,6 +76,25 @@ async def test_weak_passwords_are_rejected(auth: AuthService, password: str) -> 
         await auth.register_customer("ana@example.com", "Ana", password)
 
 
+async def test_seed_accounts_may_use_a_short_dev_password_but_the_policy_stays_on_by_default(
+    auth: AuthService,
+) -> None:
+    with pytest.raises(WeakPassword):
+        await auth.create_user(
+            "lojista@example.com", "Lojista", "praca1234", frozenset({"merchant"})
+        )
+    await auth.create_user(
+        "lojista@example.com",
+        "Lojista",
+        "praca1234",
+        frozenset({"merchant"}),
+        uuid4(),
+        enforce_password_policy=False,
+    )
+    tokens = await auth.login("lojista@example.com", "praca1234")
+    assert tokens.access_token
+
+
 async def test_login_succeeds_and_wrong_password_fails(auth: AuthService) -> None:
     await auth.register_customer("ana@example.com", "Ana", PASSWORD)
     assert (await auth.login("ana@example.com", PASSWORD)).user.email == "ana@example.com"
