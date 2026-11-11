@@ -1,20 +1,22 @@
+**English** | [Português (Brasil)](README.pt-BR.md)
+
 # marketplace_common
 
-Biblioteca compartilhada dos microsserviços do marketplace. Reúne o que antes estava copiado em cada serviço
-(consumidor Kafka com DLQ, publicador, outbox relay) e o que é transversal a todos (observabilidade e a
-ferramenta de reprocesso da DLQ).
+Shared library for the marketplace microservices. It gathers what used to be copied into every service
+(Kafka consumer with DLQ, publisher, outbox relay) and what cuts across all of them (observability and the
+DLQ replay tool).
 
 ```
 marketplace_common/
-  messaging/       IncomingEvent, KafkaEventConsumer, KafkaPublisher, OutboxRelay e as portas do outbox
-  observability/   logs JSON, tracing (OpenTelemetry), métricas (Prometheus), middlewares HTTP
+  messaging/       IncomingEvent, KafkaEventConsumer, KafkaPublisher, OutboxRelay, and the outbox ports
+  observability/   JSON logs, tracing (OpenTelemetry), metrics (Prometheus), HTTP middlewares
   dlq/             python -m marketplace_common.dlq list | replay
-  security/        Principal, papéis e escopos, identidade assinada entre gateway e serviços
-  events/          modelos versionados por evento, upcasters, arquivos golden e testes de contrato
-  maintenance/     CleanupJob: retenção em lotes do outbox publicado, do inbox e das chaves de idempotência
+  security/        Principal, roles and scopes, signed identity between gateway and services
+  events/          versioned models per event, upcasters, golden files, and contract tests
+  maintenance/     CleanupJob: batched retention for the published outbox, the inbox, and idempotency keys
 ```
 
-Instalação nos serviços, por caminho e editável (`pyproject.toml` de cada serviço):
+Installation in the services, by path and editable (each service's `pyproject.toml`):
 
 ```toml
 dependencies = ["marketplace-common[kafka,sqlalchemy]"]
@@ -23,77 +25,78 @@ dependencies = ["marketplace-common[kafka,sqlalchemy]"]
 marketplace-common = { path = "../../libs/marketplace_common", editable = true }
 ```
 
-Os extras evitam arrastar dependências que o serviço não usa: o gateway instala só o núcleo
-(sem `aiokafka` nem SQLAlchemy), os demais pedem `kafka` e `sqlalchemy`.
+The extras avoid pulling in dependencies a service does not use: the gateway installs only the core
+(no `aiokafka` and no SQLAlchemy), while the others ask for `kafka` and `sqlalchemy`.
 
-## 1. Observabilidade
+## 1. Observability
 
-Observabilidade é a capacidade de entender o que acontece dentro de um sistema olhando apenas para o que ele
-emite. Monitorar responde "está quebrado?". Observar responde "por que está quebrado e onde?", inclusive para
-perguntas que ninguém previu. Ela se apoia em três sinais, e cada um responde a uma pergunta diferente.
+Observability is the ability to understand what is happening inside a system by looking only at what it
+emits. Monitoring answers "is it broken?". Observability answers "why is it broken and where?", including
+for questions nobody anticipated. It rests on three signals, and each one answers a different question.
 
-| Sinal | O que é | Pergunta que responde | Custo | Neste projeto |
+| Signal | What it is | Question it answers | Cost | In this project |
 |---|---|---|---|---|
-| Logs | Eventos discretos, uma linha por fato | O que aconteceu naquele momento? | Alto em volume | JSON no stdout, com `trace_id`, `span_id` e `request_id` |
-| Métricas | Números agregados ao longo do tempo | Quanto, com que frequência, está piorando? | Baixo e constante | Prometheus e Grafana |
-| Traces | O caminho de uma requisição por vários serviços | Onde o tempo foi gasto e onde falhou? | Médio (amostrável) | OpenTelemetry e Jaeger |
+| Logs | Discrete events, one line per fact | What happened at that moment? | High in volume | JSON on stdout, with `trace_id`, `span_id`, and `request_id` |
+| Metrics | Numbers aggregated over time | How much, how often, is it getting worse? | Low and constant | Prometheus and Grafana |
+| Traces | The path of a request across several services | Where was the time spent and where did it fail? | Medium (can be sampled) | OpenTelemetry and Jaeger |
 
-O valor aparece quando os três se conectam. Um alerta de métrica (erros subiram) leva ao trace de uma
-requisição lenta (o span do banco do payments demorou), e o `trace_id` impresso no log abre as linhas exatas
-daquela execução.
+The value shows up when the three are connected. A metric alert (errors went up) leads to the trace of a slow
+request (the payments database span took a long time), and the `trace_id` printed in the log opens the exact
+lines of that execution.
 
-### Trace e span
+### Trace and span
 
-- **Span** é uma unidade de trabalho com início, fim, nome e atributos: uma requisição HTTP, uma query SQL, o
-  tratamento de um evento. Tem um `span_id` e aponta para o pai (`parent_span_id`).
-- **Trace** é a árvore de spans de uma mesma operação de negócio, ligada por um único `trace_id`. Um pedido
-  criado vira um trace que atravessa ordering, payments, inventory, ledger e notifications.
-- **Contexto** é o par (`trace_id`, `span_id`) que viaja junto da chamada. Em HTTP vai no header `traceparent`
-  (padrão W3C), `00-<trace_id>-<span_id>-01`. No Kafka vai nos headers da mensagem, com o mesmo nome.
+- A **span** is a unit of work with a start, an end, a name, and attributes: an HTTP request, a SQL query, the
+  handling of an event. It has a `span_id` and points to its parent (`parent_span_id`).
+- A **trace** is the tree of spans for a single business operation, tied together by one `trace_id`. A created
+  order becomes a trace that crosses ordering, payments, inventory, ledger, and notifications.
+- **Context** is the (`trace_id`, `span_id`) pair that travels with the call. Over HTTP it goes in the
+  `traceparent` header (W3C standard), `00-<trace_id>-<span_id>-01`. On Kafka it goes in the message headers,
+  under the same name.
 
-### Método RED
+### The RED method
 
-Para qualquer serviço que atende requisições, três números bastam para saber se ele está saudável:
+For any service that handles requests, three numbers are enough to tell whether it is healthy:
 
-- **R**ate: quantas requisições por segundo.
-- **E**rrors: quantas falham (aqui, respostas 5xx sobre o total).
-- **D**uration: quanto demoram, sempre em percentis (p50, p95, p99) e nunca só pela média.
+- **R**ate: how many requests per second.
+- **E**rrors: how many fail (here, 5xx responses over the total).
+- **D**uration: how long they take, always in percentiles (p50, p95, p99) and never by the mean alone.
 
-Cada API expõe `http_requests_total{method,route,status}` e `http_request_duration_seconds{method,route}`.
-O rótulo `route` usa o template (`/orders/{order_id}`), não o caminho real, para não explodir a cardinalidade
-das séries. Caminhos que não casam com nenhuma rota entram como `unmatched`. Para workers, que não atendem
-HTTP, o equivalente é o método **USE** (utilização, saturação, erros), representado aqui pela duração dos
-handlers, pelo outbox pendente e pela DLQ.
+Each API exposes `http_requests_total{method,route,status}` and `http_request_duration_seconds{method,route}`.
+The `route` label uses the template (`/orders/{order_id}`), not the actual path, to avoid a cardinality
+explosion in the series. Paths that match no route are recorded as `unmatched`. For workers, which do not serve
+HTTP, the equivalent is the **USE** method (utilization, saturation, errors), represented here by handler
+duration, the pending outbox, and the DLQ.
 
-### O que a biblioteca entrega
+### What the library provides
 
-| Peça | Para que serve |
+| Piece | What it is for |
 |---|---|
-| `setup_logging(service)` | Troca os handlers do logging por um formatador JSON. Inclui `trace_id` e `span_id` quando há span ativo e `request_id` quando há requisição |
-| `setup_tracing(service)` | Liga o OpenTelemetry pelas variáveis `OTEL_*`. Sem `OTEL_EXPORTER_OTLP_ENDPOINT` não faz nada (no-op seguro) |
-| `install_api_observability(app, service)` | Numa API FastAPI: logs, tracing, `X-Request-Id`, métricas RED e a rota `GET /metrics` |
-| `setup_worker_observability(service)` | Em workers e relays: logs, tracing e um servidor `/metrics` na porta `METRICS_PORT` (padrão 9100) |
-| `instrument_sqlalchemy(engine)` | Cada query vira um span filho |
-| `current_traceparent()` | Contexto atual como texto, usado para gravar no outbox |
+| `setup_logging(service)` | Replaces the logging handlers with a JSON formatter. Includes `trace_id` and `span_id` when a span is active and `request_id` when there is a request |
+| `setup_tracing(service)` | Turns on OpenTelemetry from the `OTEL_*` variables. Without `OTEL_EXPORTER_OTLP_ENDPOINT` it does nothing (a safe no-op) |
+| `install_api_observability(app, service)` | On a FastAPI API: logs, tracing, `X-Request-Id`, RED metrics, and the `GET /metrics` route |
+| `setup_worker_observability(service)` | In workers and relays: logs, tracing, and a `/metrics` server on the `METRICS_PORT` port (default 9100) |
+| `instrument_sqlalchemy(engine)` | Each query becomes a child span |
+| `current_traceparent()` | The current context as text, used to store it in the outbox |
 
-Instrumentação automática: FastAPI (um span por requisição), httpx (chamadas entre serviços, injeta o
-`traceparent`) e SQLAlchemy. As rotas `/health`, `/ready` e `/metrics` ficam de fora dos traces.
+Automatic instrumentation: FastAPI (one span per request), httpx (calls between services, injects the
+`traceparent`), and SQLAlchemy. The `/health`, `/ready`, and `/metrics` routes are left out of the traces.
 
-Variáveis de ambiente (padrão OpenTelemetry):
+Environment variables (OpenTelemetry standard):
 
-| Variável | Efeito |
+| Variable | Effect |
 |---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Liga o tracing. Ex.: `http://jaeger:4318` (OTLP sobre HTTP) |
-| `OTEL_SERVICE_NAME` | Sobrescreve o nome do serviço que o código informa |
-| `OTEL_SDK_DISABLED=true` | Desliga mesmo com endpoint configurado |
-| `METRICS_PORT` | Porta do `/metrics` de workers e relays (padrão 9100, `0` desliga) |
-| `LOG_LEVEL` | Nível dos logs (padrão `INFO`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Turns tracing on. E.g.: `http://jaeger:4318` (OTLP over HTTP) |
+| `OTEL_SERVICE_NAME` | Overrides the service name the code reports |
+| `OTEL_SDK_DISABLED=true` | Turns it off even when an endpoint is configured |
+| `METRICS_PORT` | Port of the `/metrics` server in workers and relays (default 9100, `0` disables it) |
+| `LOG_LEVEL` | Log level (default `INFO`) |
 
-### Métricas de negócio e de mensageria
+### Business and messaging metrics
 
-| Série | Tipo | Quem emite |
+| Series | Type | Emitted by |
 |---|---|---|
-| `http_requests_total`, `http_request_duration_seconds` | counter, histogram | toda API |
+| `http_requests_total`, `http_request_duration_seconds` | counter, histogram | every API |
 | `marketplace_handler_duration_seconds{consumer_group,event_type,result}` | histogram | `KafkaEventConsumer` |
 | `marketplace_dlq_messages_total{source_topic,consumer_group}` | counter | `KafkaEventConsumer` |
 | `marketplace_outbox_published_total{topic,event_type}` | counter | `OutboxRelay` |
@@ -102,94 +105,94 @@ Variáveis de ambiente (padrão OpenTelemetry):
 | `marketplace_orders_created_total` | counter | ordering (API) |
 | `marketplace_payments_confirmed_total` | counter | payments (API) |
 
-### Por que propagar o contexto pelo Kafka
+### Why propagate context through Kafka
 
-Numa chamada HTTP o contexto segue sozinho, no header, e a instrumentação do httpx e do FastAPI cuida disso.
-No Kafka a conversa é assíncrona: quem publica não espera, quem consome roda em outro processo, às vezes
-minutos depois. Sem propagação, cada consumidor abriria um trace novo e o pedido apareceria como cinco
-histórias desconexas, sem como saber qual evento de payments nasceu de qual pedido.
+In an HTTP call the context travels on its own, in the header, and the httpx and FastAPI instrumentation
+takes care of it. Kafka is asynchronous: the publisher does not wait, and the consumer runs in another process,
+sometimes minutes later. Without propagation, each consumer would open a new trace and an order would show up
+as five disconnected stories, with no way to tell which payments event came from which order.
 
-A solução tem duas metades:
+The solution has two halves:
 
-1. O publicador injeta `traceparent` nos headers da mensagem.
-2. O consumidor extrai o `traceparent` e cria o span do handler como filho dele (`SpanKind.CONSUMER`).
+1. The publisher injects `traceparent` into the message headers.
+2. The consumer extracts the `traceparent` and creates the handler span as a child of it (`SpanKind.CONSUMER`).
 
-Há uma armadilha específica de quem usa **outbox**: quem publica no Kafka não é a requisição, é o relay,
-em outro processo e outro momento. Se o relay injetasse o contexto dele, o trace nasceria no relay e a
-requisição original ficaria de fora. Por isso o contexto é **gravado na linha do outbox** (coluna
-`outbox_events.traceparent`) no mesmo momento em que o evento é escrito, dentro do span da requisição ou do
-handler. O relay lê o valor, abre um span `<tópico> publish` como filho dele e é esse span que o publicador
-injeta nos headers.
+There is a pitfall specific to anyone using an **outbox**: what publishes to Kafka is not the request, it is
+the relay, in another process and at another time. If the relay injected its own context, the trace would be
+born in the relay and the original request would be left out. That is why the context is **stored in the
+outbox row** (the `outbox_events.traceparent` column) at the moment the event is written, inside the request or
+handler span. The relay reads the value, opens a `<topic> publish` span as its child, and that is the span the
+publisher injects into the headers.
 
 ```
-POST /orders ──► outbox.add (grava traceparent) ──► [outbox_events]
-                                                         │ relay lê o traceparent
+POST /orders ──► outbox.add (stores traceparent) ──► [outbox_events]
+                                                         │ relay reads the traceparent
                                                          ▼
-                              span "orders.events publish" (filho do POST /orders)
-                                                         │ headers Kafka: traceparent
+                              span "orders.events publish" (child of POST /orders)
+                                                         │ Kafka headers: traceparent
                                                          ▼
-          span "orders.events process" (payments) ──► outbox.add ──► ... e assim por diante
+          span "orders.events process" (payments) ──► outbox.add ──► ... and so on
 ```
 
-O resultado é um trace único com o pedido inteiro. Os testes da biblioteca provam isso de ponta a ponta com
-Kafka real: publica dentro de um span, consome, e confere que o `trace_id` é o mesmo e que a árvore de pais
-está correta.
+The result is a single trace covering the whole order. The library's tests prove this end to end with a real
+Kafka: they publish inside a span, consume, and check that the `trace_id` is the same and that the parent
+tree is correct.
 
 ## 2. DLQ (dead letter queue)
 
-Quando o handler de uma mensagem falha, o consumidor tenta de novo (até `max_attempts`, com
-`error_backoff` entre as tentativas). Passado o limite, a mensagem vai para o tópico `<origem>.dlq` com três
-headers de diagnóstico e o consumo segue. Sem isso, uma "mensagem envenenada" travaria a partição inteira e
-nada depois dela seria processado.
+When a message handler fails, the consumer retries (up to `max_attempts`, with `error_backoff` between
+attempts). Past the limit, the message goes to the `<source>.dlq` topic with three diagnostic headers and
+consumption moves on. Without this, a "poison message" would block the whole partition and nothing after it
+would be processed.
 
-| Header | Conteúdo |
+| Header | Content |
 |---|---|
-| `dlq_reason` | `repr` da exceção (até 500 caracteres) |
-| `dlq_source` | `tópico/partição/offset` de origem |
-| `dlq_group` | grupo consumidor que desistiu |
+| `dlq_reason` | `repr` of the exception (up to 500 characters) |
+| `dlq_source` | source `topic/partition/offset` |
+| `dlq_group` | the consumer group that gave up |
 
-A DLQ é uma fila de **trabalho pendente**, não um lixão. Cada mensagem ali é um evento que o negócio
-precisava processar e não conseguiu. A pergunta é sempre "por que falhou?":
+The DLQ is a queue of **pending work**, not a dumping ground. Every message there is an event the business
+needed to process and could not. The question is always "why did it fail?":
 
-- **Falha transitória ou bug já corrigido** (banco fora do ar, deploy ruim, dependência instável): reprocessar
-  resolve. É o caso comum.
-- **Mensagem inválida de verdade** (payload corrompido, regra de negócio que nunca vai aceitar): reprocessar
-  só devolve o problema. Corrija o dado na origem ou descarte com decisão consciente.
-- **Reprocessar só depois de corrigir a causa.** Reenviar com o bug ainda ativo recria a DLQ.
+- **Transient failure or an already-fixed bug** (database down, bad deploy, flaky dependency): replaying
+  fixes it. This is the common case.
+- **Truly invalid message** (corrupted payload, a business rule that will never accept it): replaying just
+  hands the problem back. Fix the data at the source or discard it as a conscious decision.
+- **Replay only after fixing the cause.** Resending with the bug still active recreates the DLQ.
 
-Reprocessar é seguro porque os consumidores deduplicam por `event_id` (inbox): reentregar um evento que já
-foi tratado não tem efeito colateral.
+Replaying is safe because the consumers deduplicate by `event_id` (inbox): redelivering an event that was
+already handled has no side effect.
 
-### Ferramenta
+### Tool
 
 ```bash
-# resumo: origem, tipo de evento, motivo e contagem
+# summary: source, event type, reason, and count
 uv run python -m marketplace_common.dlq list --topic orders.events.dlq
 
-# simulação (padrão): mostra o que seria reenviado e não envia nada
+# dry run (default): shows what would be resent and sends nothing
 uv run python -m marketplace_common.dlq replay --topic orders.events.dlq --event-type OrderCreated --limit 10
 
-# executa de verdade
+# actually executes
 uv run python -m marketplace_common.dlq replay --topic orders.events.dlq --event-type OrderCreated --limit 10 --yes
 ```
 
-O endereço do Kafka vem de `--bootstrap` ou de `KAFKA_BOOTSTRAP_SERVERS` (padrão `localhost:9094`).
+The Kafka address comes from `--bootstrap` or from `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9094`).
 
-Regras de segurança do `replay`:
+Safety rules of `replay`:
 
-- `--dry-run` é o comportamento padrão. Só `--yes` publica.
-- O tópico de destino é lido do header `dlq_source` de cada mensagem, e a chave original é mantida (a
-  mensagem volta à mesma partição, preservando a ordem por pedido).
-- Os headers `dlq_reason`, `dlq_source` e `dlq_group` são removidos e entram `dlq_replayed` (quando) e
-  `dlq_replayed_from` (de qual posição da DLQ).
-- **Anti-laço:** depois de reenviar, a ferramenta grava um marcador na própria DLQ. Uma mensagem já
-  reprocessada, ou que voltou à DLQ com o header `dlq_replayed`, é recusada, a menos que se passe `--force`.
-  Assim um bug persistente não vira um ciclo infinito de reenvio.
+- `--dry-run` is the default behavior. Only `--yes` publishes.
+- The destination topic is read from each message's `dlq_source` header, and the original key is kept (the
+  message goes back to the same partition, preserving per-order ordering).
+- The `dlq_reason`, `dlq_source`, and `dlq_group` headers are removed and `dlq_replayed` (when) and
+  `dlq_replayed_from` (from which DLQ position) are added.
+- **Anti-loop:** after resending, the tool writes a marker into the DLQ itself. A message that was already
+  replayed, or that came back to the DLQ carrying the `dlq_replayed` header, is refused unless `--force` is
+  passed. This way a persistent bug does not turn into an infinite resend cycle.
 
-### Retenção (TTL) de outbox, inbox e idempotência
+### Retention (TTL) for outbox, inbox, and idempotency
 
-Sem limpeza, `outbox_events`, `inbox_messages` e `idempotency_keys` crescem para sempre. O `CleanupJob`
-apaga o que passou da retenção, em lotes:
+Without cleanup, `outbox_events`, `inbox_messages`, and `idempotency_keys` grow forever. The `CleanupJob`
+deletes whatever is past retention, in batches:
 
 ```sql
 WITH doomed AS (
@@ -200,116 +203,118 @@ WITH doomed AS (
 DELETE FROM outbox_events WHERE ctid = ANY (ARRAY(SELECT ctid FROM doomed))
 ```
 
-Cada lote é uma transação curta (padrão 1000 linhas) e o `SKIP LOCKED` pula o que outra transação segura,
-então nada espera e várias réplicas do job rodam juntas. Um ciclo tem no máximo `CLEANUP_MAX_BATCHES` lotes,
-com pausa entre eles, e o próximo ciclo continua de onde parou. O outbox **não publicado** nunca é apagado
-(a coluna `published_at` nula não entra na comparação). Índices parciais por `published_at`, `processed_at`
-e `created_at` mantêm a busca barata.
+Each batch is a short transaction (1000 rows by default) and `SKIP LOCKED` skips whatever another transaction
+holds, so nothing waits and several replicas of the job can run together. A cycle runs at most
+`CLEANUP_MAX_BATCHES` batches, with a pause between them, and the next cycle picks up where it left off. The
+**unpublished** outbox is never deleted (a null `published_at` column is not part of the comparison). Partial
+indexes on `published_at`, `processed_at`, and `created_at` keep the lookup cheap.
 
-| Variável | Padrão | Efeito |
+| Variable | Default | Effect |
 |---|---|---|
-| `RETENTION_OUTBOX_PUBLISHED_HOURS` | 168 (7 dias) | quanto manter o outbox já publicado |
-| `RETENTION_INBOX_HOURS` | 336 (14 dias) | quanto manter o registro de dedup do inbox |
-| `RETENTION_IDEMPOTENCY_HOURS` | 48 | validade da `Idempotency-Key` |
-| `CLEANUP_INTERVAL_SECONDS` | 300 | intervalo entre ciclos |
-| `CLEANUP_BATCH_SIZE` | 1000 | linhas por lote |
-| `CLEANUP_MAX_BATCHES` | 50 | lotes por ciclo e por tabela |
-| `CLEANUP_PAUSE_SECONDS` | 0.05 | pausa entre lotes |
+| `RETENTION_OUTBOX_PUBLISHED_HOURS` | 168 (7 days) | how long to keep the already-published outbox |
+| `RETENTION_INBOX_HOURS` | 336 (14 days) | how long to keep the inbox dedup record |
+| `RETENTION_IDEMPOTENCY_HOURS` | 48 | validity of the `Idempotency-Key` |
+| `CLEANUP_INTERVAL_SECONDS` | 300 | interval between cycles |
+| `CLEANUP_BATCH_SIZE` | 1000 | rows per batch |
+| `CLEANUP_MAX_BATCHES` | 50 | batches per cycle and per table |
+| `CLEANUP_PAUSE_SECONDS` | 0.05 | pause between batches |
 
-Duas regras de segurança da política: o inbox precisa durar **mais** que a retenção do tópico no Kafka (apagar o
-registro de dedup enquanto a mensagem ainda pode voltar reabre a porta para processar duas vezes), e a chave de
-idempotência precisa durar mais que o maior tempo de retentativa de um cliente (depois de expirar, a mesma chave
-cria um pedido novo, e isso tem teste).
+Two safety rules of the policy: the inbox must last **longer** than the Kafka topic retention (deleting the
+dedup record while the message can still come back reopens the door to processing twice), and the idempotency
+key must outlast a client's longest retry window (after it expires, the same key creates a new order, and
+there is a test for this).
 
-Métricas: `marketplace_cleanup_deleted_total{table}`, `marketplace_cleanup_batches_total{table}`,
-`marketplace_cleanup_runs_total{result}`, `marketplace_cleanup_run_duration_seconds` e
-`marketplace_cleanup_last_success_timestamp_seconds` (alerte se ficar velho). O job roda dentro do
-`worker_main` de ordering, payments, inventory, ledger e notifications, e na API do identity (refresh tokens
-expirados).
+Metrics: `marketplace_cleanup_deleted_total{table}`, `marketplace_cleanup_batches_total{table}`,
+`marketplace_cleanup_runs_total{result}`, `marketplace_cleanup_run_duration_seconds`, and
+`marketplace_cleanup_last_success_timestamp_seconds` (alert if it gets stale). The job runs inside the
+`worker_main` of ordering, payments, inventory, ledger, and notifications, and in the identity API (expired
+refresh tokens).
 
-## 3. Biblioteca compartilhada em microsserviços: acoplamento versus duplicação
+## 3. Shared library in microservices: coupling versus duplication
 
-Compartilhar código entre serviços independentes é uma troca, e ela precisa ser consciente.
+Sharing code between independent services is a trade-off, and it needs to be a conscious one.
 
-| | Copiar em cada serviço | Biblioteca compartilhada |
+| | Copy into each service | Shared library |
 |---|---|---|
-| Autonomia de deploy | Total | Uma mudança na lib exige atualizar cada serviço que a usa |
-| Correção de bug | Corrigir N vezes (e esquecer uma) | Corrigir uma vez |
-| Consistência | As cópias divergem com o tempo | Comportamento único |
-| Acoplamento | Nenhum entre serviços | Versão da lib vira contrato implícito |
-| Risco | Falhas diferentes em cada cópia | Uma falha na lib derruba todos de uma vez |
+| Deploy autonomy | Total | A change in the lib requires updating every service that uses it |
+| Bug fixing | Fix it N times (and forget one) | Fix it once |
+| Consistency | The copies drift apart over time | A single behavior |
+| Coupling | None between services | The lib version becomes an implicit contract |
+| Risk | Different failures in each copy | One failure in the lib takes everyone down at once |
 
-A regra prática usada aqui: compartilhar **infraestrutura transversal e estável** (como falar com o Kafka,
-como emitir logs e métricas, como reprocessar a DLQ) e **nunca regra de negócio nem modelo de domínio**.
-Cada serviço mantém seus casos de uso, suas entidades e seus próprios testes. A lib não conhece `Order`
-nem `Payment`.
+The practical rule used here: share **cross-cutting, stable infrastructure** (how to talk to Kafka, how to
+emit logs and metrics, how to replay the DLQ) and **never business rules or domain models**. Each service
+keeps its own use cases, its own entities, and its own tests. The lib knows nothing about `Order` or
+`Payment`.
 
-Cuidados para a lib não virar um monólito distribuído:
+Precautions so the lib does not become a distributed monolith:
 
-- API pequena e estável, com extras opcionais para não impor dependências.
-- Mudanças compatíveis por padrão (o campo `traceparent` do `OutboxMessage` é opcional, com valor padrão).
-- Testes na própria lib, rodando uma única vez, em vez de repetidos em cinco serviços.
-- Em produção real, publicar a lib com versionamento semântico em um registro de pacotes e fixar a versão em
-  cada serviço, para atualizar um por vez. Aqui ela é referenciada por caminho porque o repositório é um
-  monorepo de estudo.
+- A small, stable API, with optional extras so it does not impose dependencies.
+- Compatible changes by default (the `traceparent` field of `OutboxMessage` is optional, with a default value).
+- Tests in the lib itself, running once, instead of repeated across five services.
+- In real production, publish the lib with semantic versioning to a package registry and pin the version in
+  each service, so they can be upgraded one at a time. Here it is referenced by path because the repository is
+  a study monorepo.
 
-## 4. Subindo a stack de observabilidade
+## 4. Bringing up the observability stack
 
 ```bash
 cd infra
 docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile services up -d --build
 ```
 
-| Ferramenta | Endereço |
+| Tool | Address |
 |---|---|
-| Grafana (dashboard "Marketplace") | http://localhost:3000 (admin / admin, leitura anônima liberada) |
+| Grafana ("Marketplace" dashboard) | http://localhost:3000 (admin / admin, anonymous read access enabled) |
 | Jaeger (traces) | http://localhost:16686 |
 | Prometheus | http://localhost:9090 |
 
-O arquivo `docker-compose.observability.yml` também injeta `OTEL_EXPORTER_OTLP_ENDPOINT` nos serviços. Sem
-ele os serviços funcionam normalmente, só sem traces.
+The `docker-compose.observability.yml` file also injects `OTEL_EXPORTER_OTLP_ENDPOINT` into the services.
+Without it the services work normally, just without traces.
 
-## 5. Perguntas de entrevista
+## 5. Interview questions
 
-**1. Qual a diferença entre monitoramento e observabilidade?**
-Monitoramento verifica condições conhecidas ("a CPU passou de 90%?") e responde se algo está quebrado.
-Observabilidade é poder investigar condições que ninguém previu, a partir de dados ricos (logs, métricas e
-traces correlacionados) emitidos pelo próprio sistema. Em microsserviços ela importa mais porque uma falha
-raramente está no serviço que a mostra.
+**1. What is the difference between monitoring and observability?**
+Monitoring checks known conditions ("did CPU go over 90%?") and tells you whether something is broken.
+Observability is being able to investigate conditions nobody anticipated, from rich data (correlated logs,
+metrics, and traces) emitted by the system itself. In microservices it matters more because a failure is
+rarely in the service that shows it.
 
-**2. Para que serve cada pilar e por que os três juntos?**
-Métricas dizem que há um problema e quanto ele pesa, de forma barata e agregada. Traces mostram onde, no
-caminho entre serviços, o tempo foi gasto ou o erro nasceu. Logs dão o detalhe de cada execução. O elo entre
-eles é o `trace_id` nos logs e a mesma dimensão nos rótulos: do alerta ao trace e do trace às linhas de log.
+**2. What is each pillar for, and why all three together?**
+Metrics tell you there is a problem and how big it is, cheaply and in aggregate. Traces show where, along the
+path between services, the time was spent or the error originated. Logs give the detail of each execution.
+The link between them is the `trace_id` in the logs and the same dimension in the labels: from the alert to
+the trace, and from the trace to the log lines.
 
-**3. O que é o método RED e quando não serve?**
-Rate, Errors e Duration por serviço: o mínimo para saber se quem atende requisições está bem, do ponto de
-vista de quem chama. Não serve para recursos (use USE: utilização, saturação e erros) nem para processos em
-lote ou consumidores, onde pesam vazão do handler, atraso de fila e mensagens na DLQ.
+**3. What is the RED method, and when does it not fit?**
+Rate, Errors, and Duration per service: the minimum to know whether something that serves requests is doing
+well, from the caller's point of view. It does not fit resources (use USE: utilization, saturation, and
+errors) or batch processes and consumers, where handler throughput, queue lag, and messages in the DLQ matter.
 
-**4. Por que usar percentis de latência em vez da média?**
-A média esconde a cauda. Se 1% das requisições leva 5 s, a média quase não muda, mas esses usuários sentem.
-O p95 e o p99 mostram a experiência dos casos ruins. Por isso a duração é um histograma, que permite calcular
-percentis no Prometheus com `histogram_quantile`.
+**4. Why use latency percentiles instead of the mean?**
+The mean hides the tail. If 1% of requests take 5 s, the mean barely moves, but those users feel it. p95 and
+p99 show the experience of the bad cases. That is why duration is a histogram, which lets you compute
+percentiles in Prometheus with `histogram_quantile`.
 
-**5. Como um trace atravessa o Kafka se não há request HTTP?**
-O contexto vai em headers da mensagem (`traceparent`, padrão W3C). O publicador injeta e o consumidor extrai
-e cria o span do handler como filho. Com outbox há um passo a mais: o contexto é gravado na linha do outbox
-no momento da escrita, porque quem publica é o relay, em outro processo. Sem isso o trace quebraria no relay.
+**5. How does a trace cross Kafka if there is no HTTP request?**
+The context goes in message headers (`traceparent`, W3C standard). The publisher injects it and the consumer
+extracts it and creates the handler span as a child. With an outbox there is one extra step: the context is
+stored in the outbox row at write time, because what publishes is the relay, in another process. Without
+that, the trace would break at the relay.
 
-**6. O que é uma DLQ e quando reprocessar?**
-É o destino das mensagens que esgotaram as tentativas, para não travar a partição. Reprocessa-se depois de
-corrigir a causa (bug, dependência fora do ar), de forma controlada: filtrando por tipo, com limite, primeiro
-em simulação, e com proteção contra reenvio em laço. Mensagem realmente inválida não se reprocessa, se
-corrige ou se descarta. A idempotência do consumidor (inbox por `event_id`) é o que torna isso seguro.
+**6. What is a DLQ, and when do you replay?**
+It is the destination for messages that exhausted their retries, so they do not block the partition. You
+replay after fixing the cause (a bug, a dependency that was down), in a controlled way: filtering by type,
+with a limit, in dry run first, and with protection against looping resends. A truly invalid message is not
+replayed; it is fixed or discarded. Consumer idempotency (inbox by `event_id`) is what makes this safe.
 
-**7. Por que o consumidor só confirma o offset depois de tratar a mensagem?**
-Entrega "ao menos uma vez": se o processo cair entre tratar e confirmar, a mensagem é reentregue. O handler
-é idempotente (inbox) e por isso reprocessar é inofensivo. Confirmar antes inverteria o risco para "no
-máximo uma vez", com perda silenciosa de eventos.
+**7. Why does the consumer commit the offset only after handling the message?**
+It is "at least once" delivery: if the process dies between handling and committing, the message is
+redelivered. The handler is idempotent (inbox), so reprocessing is harmless. Committing first would flip the
+risk to "at most once", with silent loss of events.
 
-**8. Biblioteca compartilhada ou código duplicado entre microsserviços?**
-Depende do que se compartilha. Infraestrutura transversal e estável (mensageria, observabilidade) compensa
-a lib: um bug corrigido uma vez e comportamento uniforme. Regra de negócio e modelos de domínio não, porque
-acoplam as equipes e os deploys. Para a lib não virar monólito distribuído: API pequena, mudanças
-compatíveis, versionamento semântico, testes próprios e atualização gradual, serviço a serviço.
+**8. Shared library or duplicated code across microservices?**
+It depends on what is being shared. Stable cross-cutting infrastructure (messaging, observability) is worth a
+lib: a bug fixed once and uniform behavior. Business rules and domain models are not, because they couple the
+teams and the deploys. To keep the lib from becoming a distributed monolith: a small API, compatible changes,
+semantic versioning, its own tests, and gradual upgrades, one service at a time.
