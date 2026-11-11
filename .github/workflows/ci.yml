@@ -17,8 +17,14 @@ jobs:
       fail-fast: false
       matrix:
         service:
+          - backend/libs/marketplace_common
           - backend/services/ordering
           - backend/services/payments
+          - backend/services/inventory
+          - backend/services/ledger
+          - backend/services/notifications
+          - backend/services/catalog
+          - backend/services/assistant
           - backend/gateway
     defaults:
       run:
@@ -29,12 +35,13 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: ${{ matrix.service }}/uv.lock
-      - run: uv sync --frozen
+      - run: uv sync --frozen --all-extras
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src
       - name: Unit tests
-        run: uv run pytest tests/unit -q || uv run pytest -q
+        run: |
+          if [ -d tests/unit ]; then uv run pytest tests/unit -q; else uv run pytest -q; fi
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
@@ -48,25 +55,49 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - ordering
-          - payments
+          - backend/libs/marketplace_common
+          - backend/services/ordering
+          - backend/services/payments
+          - backend/services/inventory
+          - backend/services/ledger
+          - backend/services/notifications
+          - backend/services/catalog
+          - backend/services/assistant
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: backend/services/${{ matrix.service }}/uv.lock
+          cache-dependency-glob: ${{ matrix.service }}/uv.lock
       - name: Environment file
         run: |
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-password/" .env
-      - name: Start Postgres, Redis and Kafka
-        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --wait postgres redis kafka
+      - name: Start Postgres, pgvector, Redis and Kafka
+        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --wait postgres pgvector redis kafka
       - name: Run all tests
-        working-directory: backend/services/${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
         run: |
-          uv sync --frozen
+          uv sync --frozen --all-extras
           uv run pytest -q
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail 200
+
+  frontend:
+    name: Frontend (typecheck, lint, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
