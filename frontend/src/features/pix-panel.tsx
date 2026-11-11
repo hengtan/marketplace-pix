@@ -1,4 +1,5 @@
 import { Check, Clock, Copy, FlaskConical, QrCode } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ interface Props {
 }
 
 const TOTAL_WINDOW_MS = 10 * 60 * 1000;
+const RING = 2 * Math.PI * 44;
 
 export function PixPanel({
   pixCode,
@@ -27,6 +29,7 @@ export function PixPanel({
 }: Props) {
   const { remainingMs, expired } = useCountdown(expiresAt);
   const { copied, copy } = useCopy();
+  const reduce = useReducedMotion();
   const urgent = remainingMs > 0 && remainingMs < 60_000;
   const progress = Math.min(1, remainingMs / TOTAL_WINDOW_MS);
 
@@ -37,7 +40,7 @@ export function PixPanel({
   return (
     <section
       aria-labelledby="pix-title"
-      className="relative overflow-hidden rounded-xl border border-border bg-surface p-6 shadow-lift sm:p-8"
+      className="panel hairline-top relative overflow-hidden rounded-3xl p-6 shadow-lift sm:p-8"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -59,7 +62,7 @@ export function PixPanel({
       <div className="mt-6 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
         <div
           className={cn(
-            "mx-auto rounded-lg bg-white p-4 shadow-soft transition-opacity",
+            "relative mx-auto overflow-hidden rounded-3xl bg-white p-4 shadow-lift ring-1 ring-black/5 transition-opacity",
             expired && "opacity-25 grayscale",
           )}
         >
@@ -74,6 +77,15 @@ export function PixPanel({
             aria-label="QR Code do PIX"
             title="QR Code do PIX"
           />
+          {!expired && !reduce && (
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-3 top-0 h-10 bg-gradient-to-b from-transparent via-[oklch(0.74_0.175_165/0.45)] to-transparent"
+              initial={{ y: -40 }}
+              animate={{ y: [-40, 230, -40] }}
+              transition={{ duration: 3.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+            />
+          )}
         </div>
 
         <div className="grid gap-4">
@@ -103,13 +115,38 @@ export function PixPanel({
             {copied ? "Código PIX copiado para a área de transferência" : ""}
           </span>
 
-          <div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1.5 text-muted">
-                <Clock className="size-4" aria-hidden /> {expired ? "PIX expirado" : "Expira em"}
-              </span>
+          <div className="flex items-center gap-4">
+            <div className="relative grid size-24 shrink-0 place-items-center">
+              <svg
+                viewBox="0 0 100 100"
+                className="absolute inset-0 size-full -rotate-90"
+                aria-hidden
+              >
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="none"
+                  strokeWidth="6"
+                  className="stroke-surface-3"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="none"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeDasharray={RING}
+                  strokeDashoffset={RING * (1 - progress)}
+                  className={cn(
+                    "transition-[stroke-dashoffset] duration-300 ease-linear",
+                    urgent ? "stroke-danger" : "stroke-pix",
+                  )}
+                />
+              </svg>
               <span
-                className={cn("tabular font-mono text-lg font-semibold", urgent && "text-danger")}
+                className={cn("tabular font-mono text-xl font-semibold", urgent && "text-danger")}
                 role="timer"
                 aria-label={
                   expired ? "PIX expirado" : `Tempo restante ${formatCountdown(remainingMs)}`
@@ -119,20 +156,14 @@ export function PixPanel({
                 {formatCountdown(remainingMs)}
               </span>
             </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
-              <div
-                className={cn(
-                  "h-full origin-left rounded-full transition-transform duration-300 ease-linear",
-                  urgent ? "bg-danger" : "bg-pix",
-                )}
-                style={{ transform: `scaleX(${progress})` }}
-              />
-            </div>
+            <p className="flex items-center gap-1.5 text-sm text-muted">
+              <Clock className="size-4" aria-hidden /> {expired ? "PIX expirado" : "Expira em"}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 flex items-center gap-3 rounded-lg bg-primary-soft px-4 py-3 text-sm text-primary">
+      <div className="mt-6 flex items-center gap-3 rounded-2xl bg-primary-soft px-4 py-3 text-sm text-primary">
         <QrCode className="size-4 shrink-0" aria-hidden />
         <span role="status">
           {expired

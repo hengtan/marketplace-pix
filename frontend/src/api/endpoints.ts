@@ -13,6 +13,8 @@ import {
   productSchema,
   reconciliationSchema,
   stockSchema,
+  tokenResponseSchema,
+  userSchema,
 } from "./schemas";
 
 export type ProductSort = "relevance" | "price_asc" | "price_desc" | "newest" | "rating";
@@ -34,7 +36,29 @@ export interface CreateOrderInput {
   items: { product_id: string; quantity: number }[];
 }
 
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export const api = {
+  register: (input: RegisterInput) =>
+    request("/api/auth/register", {
+      schema: tokenResponseSchema,
+      method: "POST",
+      body: input,
+      auth: false,
+    }),
+  login: (input: { email: string; password: string }) =>
+    request("/api/auth/login", {
+      schema: tokenResponseSchema,
+      method: "POST",
+      body: input,
+      auth: false,
+    }),
+  me: () => request("/api/auth/me", { schema: userSchema }),
+
   products: (filters: ProductFilters, signal?: AbortSignal) =>
     request("/api/catalog/products", { schema: productPageSchema, query: { ...filters }, signal }),
   productBySlug: (slug: string) =>

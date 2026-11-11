@@ -1,13 +1,13 @@
-import { ArrowUp, Sparkles, Square, SquarePen, X } from "lucide-react";
+import { ArrowUp, Square, SquarePen, X } from "lucide-react";
 import { Dialog as D } from "radix-ui";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useUi } from "@/store/ui";
 import { MAX_MESSAGE_LENGTH, SUGGESTIONS, toolRunningLabel } from "./copy";
+import { LAUNCHER_ID } from "./launcher";
 import { AssistantMessage, Avatar, HistorySkeleton, UserMessage } from "./message";
+import { Orb } from "./orb";
 import { useAssistantChat } from "./store";
-
-export const LAUNCHER_ID = "assistente-botao";
 
 function announcement(
   last: ReturnType<typeof useAssistantChat.getState>["messages"][number] | undefined,
@@ -68,7 +68,7 @@ function Composer({ autoFocus }: { autoFocus: boolean }) {
       onSubmit={submit}
       className="border-t border-border bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
     >
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-1.5 pl-4 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
+      <div className="flex items-end gap-2 rounded-2xl border border-border-strong/60 bg-background p-1.5 pl-4 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
         <label htmlFor="assistente-mensagem" className="sr-only">
           Sua pergunta para o assistente
         </label>
@@ -119,9 +119,7 @@ function EmptyState() {
   const send = useAssistantChat((s) => s.send);
   return (
     <div className="grid h-full content-center justify-items-center gap-3 px-2 py-8 text-center">
-      <span className="grid size-14 place-items-center rounded-full bg-primary-soft text-primary">
-        <Sparkles className="size-7" aria-hidden />
-      </span>
+      <Orb className="size-20" particles />
       <h3 className="font-display text-2xl font-semibold">Como posso ajudar?</h3>
       <p className="max-w-xs text-muted">
         Pergunto ao catálogo, ao estoque e aos pedidos para responder com dados da loja.
@@ -135,7 +133,7 @@ function EmptyState() {
                 window.dispatchEvent(new Event("assistant:sent"));
                 void send(s);
               }}
-              className="min-h-11 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium shadow-soft transition-[border-color,color,transform] hover:border-primary hover:text-primary active:scale-[0.97]"
+              className="min-h-11 rounded-full border border-border-strong/60 bg-surface px-4 py-2 text-sm font-medium shadow-soft transition-[border-color,color,transform] hover:border-primary hover:text-primary active:scale-[0.97]"
             >
               {s}
             </button>
@@ -150,6 +148,7 @@ export function AssistantPanel() {
   const open = useUi((s) => s.assistantOpen);
   const setOpen = useUi((s) => s.setAssistantOpen);
   const messages = useAssistantChat((s) => s.messages);
+  const streaming = useAssistantChat((s) => s.streaming);
   const loadingHistory = useAssistantChat((s) => s.loadingHistory);
   const hydrate = useAssistantChat((s) => s.hydrate);
   const reset = useAssistantChat((s) => s.reset);
@@ -185,7 +184,7 @@ export function AssistantPanel() {
   return (
     <D.Root open={open} onOpenChange={setOpen}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-[oklch(0.15_0.04_268/0.45)] backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <D.Overlay className="fixed inset-0 z-50 bg-[oklch(0.12_0.04_275/0.45)] backdrop-blur-sm data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <D.Content
           data-testid="assistant-panel"
           onOpenAutoFocus={(e) => {
@@ -195,10 +194,10 @@ export function AssistantPanel() {
             e.preventDefault();
             document.getElementById(LAUNCHER_ID)?.focus();
           }}
-          className="fixed inset-y-0 right-0 z-50 flex h-dvh w-full flex-col bg-surface text-foreground shadow-lift outline-none duration-300 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right sm:max-w-[30rem] sm:rounded-l-xl sm:border-l sm:border-border"
+          className="fixed inset-y-0 right-0 z-50 flex h-dvh w-full flex-col bg-[linear-gradient(180deg,var(--surface),color-mix(in_oklab,var(--surface),var(--primary-soft)_35%))] text-foreground shadow-lift outline-none duration-500 ease-out data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right sm:max-w-[30rem] sm:rounded-l-3xl sm:border-l sm:border-border"
         >
           <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-            <Avatar className="size-10" />
+            <Avatar className="size-10" thinking={streaming} />
             <div className="min-w-0 flex-1">
               <D.Title className="font-display text-lg leading-tight font-semibold whitespace-nowrap">
                 Assistente de compras

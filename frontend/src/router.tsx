@@ -4,11 +4,14 @@ import {
   createRouter,
   Link,
   lazyRouteComponent,
+  redirect,
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/app-shell";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { isSignedIn } from "@/store/auth";
+import HomePage from "./pages/home";
 
 const homeSearch = z.object({
   q: z.string().optional(),
@@ -21,6 +24,7 @@ function NotFound() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <EmptyState
+        art="lost"
         title="Página não encontrada"
         description="O endereço não existe ou foi movido."
         action={
@@ -39,7 +43,7 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   validateSearch: homeSearch,
-  component: lazyRouteComponent(() => import("./pages/home")),
+  component: HomePage,
 });
 const productRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -61,9 +65,34 @@ const ordersRoute = createRoute({
   path: "/pedidos",
   component: lazyRouteComponent(() => import("./pages/orders")),
 });
+const authSearch = z.object({ redirect: z.string().optional() });
+
+function requireSession({ location }: { location: { href: string } }) {
+  if (!isSignedIn()) throw redirect({ to: "/entrar", search: { redirect: location.href } });
+}
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/entrar",
+  validateSearch: authSearch,
+  component: lazyRouteComponent(() => import("./pages/auth"), "LoginPage"),
+});
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cadastro",
+  validateSearch: authSearch,
+  component: lazyRouteComponent(() => import("./pages/auth"), "RegisterPage"),
+});
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/conta",
+  beforeLoad: requireSession,
+  component: lazyRouteComponent(() => import("./pages/account")),
+});
 const merchantRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/lojista",
+  beforeLoad: requireSession,
   component: lazyRouteComponent(() => import("./pages/merchant")),
 });
 
@@ -74,12 +103,16 @@ const routeTree = rootRoute.addChildren([
   orderRoute,
   ordersRoute,
   merchantRoute,
+  loginRoute,
+  registerRoute,
+  accountRoute,
 ]);
 
 export const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   scrollRestoration: true,
+  defaultViewTransition: true,
 });
 
 declare module "@tanstack/react-router" {

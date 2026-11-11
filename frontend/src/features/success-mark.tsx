@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react";
 
-const SPARKS = Array.from({ length: 12 }, (_, i) => i);
+const SPARKS = Array.from({ length: 16 }, (_, i) => i);
 
 export function SuccessMark() {
   const reduce = useReducedMotion();

@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Ban, ClipboardList, Hourglass, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { api } from "@/api/endpoints";
 import type { Order } from "@/api/schemas";
+import { Illustration } from "@/components/illustrations";
+import { Confetti } from "@/components/motion/confetti";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton } from "@/components/ui/misc";
@@ -101,6 +104,13 @@ export default function OrderPage() {
   const client = useQueryClient();
   const { order, payment, isLoading, error } = useOrderStatus(id);
   usePageTitle(order ? `Pedido ${shortId(order.id)}` : "Pedido");
+  const sawPending = useRef(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const status = order?.status;
+  useEffect(() => {
+    if (status === "PENDING") sawPending.current = true;
+    if (status === "PAID" && sawPending.current) setCelebrate(true);
+  }, [status]);
 
   const simulate = useMutation({
     mutationFn: () => {
@@ -118,7 +128,7 @@ export default function OrderPage() {
     return (
       <div className="mx-auto grid max-w-5xl gap-6 px-4 py-10 sm:px-6" aria-busy>
         <Skeleton className="h-12 w-1/2" />
-        <Skeleton className="h-96 w-full rounded-xl" />
+        <Skeleton className="h-96 w-full rounded-3xl" />
       </div>
     );
   }
@@ -147,7 +157,8 @@ export default function OrderPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-4xl font-bold sm:text-5xl">Pedido {shortId(order.id)}</h1>
+        {celebrate && <Confetti />}
+        <h1 className="text-title">Pedido {shortId(order.id)}</h1>
         <OrderStatusBadge status={order.status} />
       </div>
 
@@ -156,11 +167,11 @@ export default function OrderPage() {
           {paid && (
             <section
               aria-live="polite"
-              className="rounded-xl border border-pix/50 bg-pix-soft p-8 text-center"
+              className="relative overflow-hidden rounded-3xl border border-pix/50 bg-pix-soft p-8 text-center shadow-lift"
               data-testid="order-paid"
             >
               <SuccessMark />
-              <h2 className="mt-4 text-3xl font-bold text-pix-ink">Pagamento confirmado</h2>
+              <h2 className="mt-4 text-heading text-pix-ink">Pagamento confirmado</h2>
               <p className="mx-auto mt-2 max-w-[40ch] text-pix-ink/80">
                 Recebemos {formatMoney(order.total_cents)}. Enviamos a confirmação para{" "}
                 {order.customer_email}.
@@ -181,7 +192,7 @@ export default function OrderPage() {
           {cancelled && (
             <section
               role="alert"
-              className="rounded-xl border border-danger/40 bg-danger-soft p-8"
+              className="rounded-3xl border border-danger/40 bg-danger-soft p-8"
               data-testid="order-cancelled"
             >
               <div className="flex items-start gap-4">
@@ -219,22 +230,22 @@ export default function OrderPage() {
               />
             ) : (
               <section
-                className="grid place-items-center gap-3 rounded-xl border border-border bg-surface p-12 text-center"
+                className="panel grid place-items-center gap-3 rounded-3xl p-12 text-center"
                 aria-busy
               >
-                <span className="size-10 animate-spin rounded-full border-4 border-primary-soft border-t-primary" />
+                <Illustration name="pix" className="h-32" />
                 <p className="font-display text-xl font-semibold">Gerando o seu PIX</p>
                 <p className="text-muted">Estamos reservando o estoque. Leva poucos segundos.</p>
               </section>
             ))}
 
-          <section className="rounded-xl border border-border bg-surface p-6">
+          <section className="panel rounded-3xl p-6">
             <OrderItems order={order} />
           </section>
         </div>
 
         <aside
-          className="h-fit rounded-xl border border-border bg-surface p-6 lg:sticky lg:top-24"
+          className="panel hairline-top h-fit rounded-3xl p-6 lg:sticky lg:top-24"
           aria-labelledby="timeline-title"
         >
           <h2 id="timeline-title" className="mb-5 font-display text-xl font-semibold">

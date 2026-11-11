@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { Reveal } from "@/components/motion/reveal";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/misc";
@@ -18,7 +19,9 @@ export default function OrdersPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
-      <h1 className="text-4xl font-bold sm:text-5xl">Meus pedidos</h1>
+      <h1 className="text-title">
+        Meus <span className="serif text-primary">pedidos</span>
+      </h1>
       <p className="mt-2 text-muted">Acompanhe pagamentos e abra o PIX de pedidos pendentes.</p>
 
       <div className="mt-8">
@@ -26,7 +29,7 @@ export default function OrdersPage() {
           <ul className="grid gap-3" aria-busy>
             {[0, 1, 2].map((i) => (
               <li key={i}>
-                <Skeleton className="h-24 w-full rounded-lg" />
+                <Skeleton className="h-24 w-full rounded-3xl" />
               </li>
             ))}
           </ul>
@@ -34,7 +37,7 @@ export default function OrdersPage() {
           <ErrorState message={error.message} onRetry={() => refetch()} />
         ) : data.items.length === 0 ? (
           <EmptyState
-            icon={<ClipboardList className="size-7" />}
+            art="orders"
             title="Você ainda não fez pedidos"
             description="Quando você pagar um PIX, o pedido aparece aqui."
             action={
@@ -49,11 +52,11 @@ export default function OrdersPage() {
               {data.items.map((o) => {
                 const qty = o.items.reduce((n, i) => n + i.quantity, 0);
                 return (
-                  <li key={o.id}>
+                  <Reveal as="li" key={o.id} delay={0.06}>
                     <Link
                       to="/pedido/$id"
                       params={{ id: o.id }}
-                      className="grid gap-2 rounded-lg border border-border bg-surface p-5 transition-[border-color,box-shadow] hover:border-primary hover:shadow-soft sm:grid-cols-[1fr_auto] sm:items-center"
+                      className="panel group grid gap-2 rounded-3xl p-5 transition-[border-color,box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:border-primary hover:shadow-lift sm:grid-cols-[1fr_auto] sm:items-center"
                       data-testid="order-row"
                     >
                       <span>
@@ -71,7 +74,7 @@ export default function OrdersPage() {
                         {formatMoney(o.total_cents)}
                       </span>
                     </Link>
-                  </li>
+                  </Reveal>
                 );
               })}
             </ul>

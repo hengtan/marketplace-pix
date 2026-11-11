@@ -13,14 +13,10 @@ export default defineConfig({
       ? { "/api": { target: process.env.VITE_PROXY_TARGET, changeOrigin: true } }
       : undefined,
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes("recharts") || id.includes("/d3-")) return "charts";
-        },
-      },
-    },
+  preview: {
+    proxy: process.env.VITE_PROXY_TARGET
+      ? { "/api": { target: process.env.VITE_PROXY_TARGET, changeOrigin: true } }
+      : undefined,
   },
   test: {
     environment: "jsdom",

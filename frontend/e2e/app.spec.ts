@@ -82,7 +82,7 @@ test("command palette searches and navigates", async ({ page }) => {
   await page.getByRole("combobox", { name: /Buscar produtos ou ações/ }).fill("lojista");
   await expect(page.getByRole("option", { name: "Painel do lojista" })).toBeVisible();
   await page.getByRole("option", { name: "Painel do lojista" }).click();
-  await expect(page).toHaveURL(/\/lojista/);
+  await expect(page).toHaveURL(/\/entrar\?redirect=%2Flojista/);
 });
 
 test("theme toggle persists", async ({ page }) => {
@@ -93,16 +93,52 @@ test("theme toggle persists", async ({ page }) => {
   await expect(page.locator("html")).toHaveClass(/dark/);
 });
 
+async function signIn(page: Page, redirect = "/") {
+  await page.goto(`/entrar?redirect=${encodeURIComponent(redirect)}`);
+  await page.getByLabel("E-mail").fill("lojista@praca.dev");
+  await page.getByLabel("Senha", { exact: true }).fill("praca1234");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+}
+
+test("protected route redirects guests to login and returns after sign in", async ({ page }) => {
+  await page.goto("/lojista");
+  await expect(page).toHaveURL(/\/entrar\?redirect=/);
+  await page.getByLabel("E-mail").fill("lojista@praca.dev");
+  await page.getByLabel("Senha", { exact: true }).fill("wrong-password");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("E-mail ou senha incorretos");
+  await page.getByLabel("Senha", { exact: true }).fill("praca1234");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL(/\/lojista/);
+  await expect(page.getByText("Saldo a receber")).toBeVisible();
+});
+
+test("guests can browse and register an account", async ({ page }) => {
+  await page.goto("/cadastro");
+  await page.getByRole("button", { name: "Criar conta", exact: true }).click();
+  await expect(page.getByText("Informe seu nome completo")).toBeVisible();
+  await page.getByLabel("Nome completo").fill("Ana Teste");
+  await page.getByLabel("E-mail").fill("ana@exemplo.com");
+  await page.getByLabel("Senha", { exact: true }).fill("senhaforte1");
+  await page.getByRole("button", { name: "Criar conta", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto("/lojista");
+  await expect(page.getByText("Área exclusiva para lojistas")).toBeVisible();
+});
+
 for (const [name, path] of [
   ["home", "/"],
   ["produto", "/produto/fone-bluetooth-nova"],
   ["pedidos", "/pedidos"],
   ["lojista", "/lojista"],
+  ["entrar", "/entrar"],
+  ["cadastro", "/cadastro"],
 ] as const) {
   for (const theme of ["light", "dark"] as const) {
     test(`a11y: ${name} (${theme})`, async ({ page }) => {
       await page.addInitScript((t) => localStorage.setItem("praca-theme", t), theme);
-      await page.goto(path);
+      if (name === "lojista") await signIn(page, path);
+      else await page.goto(path);
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(1200);
       await expectNoA11yViolations(page);

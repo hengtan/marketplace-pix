@@ -1,179 +1,118 @@
+import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, CircleAlert, ShieldCheck } from "lucide-react";
-import { useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import type { MerchantSummary } from "@/api/schemas";
-import { ErrorState } from "@/components/states";
+import { motion, useReducedMotion } from "motion/react";
+import { lazy, Suspense, useState } from "react";
+import { AnimatedNumber } from "@/components/motion/animated-number";
+import { Stagger, StaggerItem } from "@/components/motion/reveal";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { useMerchantEntries, useMerchantSummary, useReconciliation } from "@/hooks/queries";
 import { usePageTitle } from "@/hooks/utils";
-import { formatDateTime, formatMoney, formatShortDay } from "@/lib/format";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { SEED_MERCHANTS } from "@/lib/merchants";
+import { EASE, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/store/auth";
 
 const RANGES = [7, 14, 30] as const;
 
-function compactMoney(cents: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(cents / 100);
+const SalesChart = lazy(() =>
+  import("@/features/merchant-chart").then((m) => ({ default: m.SalesChart })),
+);
+
+function Sparkline({ values, tone }: { values: number[]; tone: "primary" | "pix" | "plain" }) {
+  const reduce = useReducedMotion();
+  if (values.length < 2) return null;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values);
+  const w = 120;
+  const h = 36;
+  const pts: [number, number][] = values.map((v, i) => [
+    (i / (values.length - 1)) * w,
+    h - 4 - ((v - min) / (max - min || 1)) * (h - 8),
+  ]);
+  const d = pts
+    .map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`)
+    .join(" ");
+  const stroke =
+    tone === "primary" ? "stroke-white" : tone === "pix" ? "stroke-pix" : "stroke-primary";
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="mt-3 h-9 w-full"
+      aria-hidden
+      preserveAspectRatio="none"
+    >
+      <motion.path
+        d={d}
+        fill="none"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        className={stroke}
+        initial={reduce ? false : { pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 1.4, ease: EASE, delay: 0.3 }}
+      />
+    </svg>
+  );
 }
 
 function Kpi({
   label,
-  value,
+  cents,
+  count,
   hint,
   tone,
+  series,
 }: {
   label: string;
-  value: string;
+  cents?: number;
+  count?: number;
   hint?: string;
   tone?: "primary";
+  series: number[];
 }) {
+  const value = cents ?? count ?? 0;
   return (
-    <div
+    <StaggerItem
       className={cn(
-        "rounded-lg border p-5",
+        "relative overflow-hidden rounded-3xl p-5",
         tone === "primary"
-          ? "border-transparent bg-primary text-primary-foreground"
-          : "border-border bg-surface",
+          ? "bg-[linear-gradient(140deg,oklch(0.5_0.25_270),oklch(0.4_0.25_285))] text-white shadow-glow before:pointer-events-none before:absolute before:-top-10 before:-right-10 before:size-40 before:rounded-full before:bg-white/15 before:blur-2xl"
+          : "panel hairline-top",
       )}
     >
-      <dt className={cn("text-sm", tone === "primary" ? "opacity-80" : "text-muted")}>{label}</dt>
-      <dd
+      <dt
         className={cn(
-          "tabular mt-2 font-display font-bold tracking-tight whitespace-nowrap",
-          tone === "primary" ? "text-3xl" : "text-2xl",
+          "relative text-sm font-medium",
+          tone === "primary" ? "opacity-85" : "text-muted",
         )}
       >
-        {value}
+        {label}
+      </dt>
+      <dd className="relative mt-2 font-display text-2xl font-bold tracking-tight whitespace-nowrap xl:text-[1.7rem]">
+        <AnimatedNumber
+          value={value}
+          fromZero
+          format={(n) =>
+            cents !== undefined ? formatMoney(Math.round(n)) : Math.round(n).toLocaleString("pt-BR")
+          }
+        />
       </dd>
       {hint && (
-        <dd className={cn("mt-1 text-xs", tone === "primary" ? "opacity-90" : "text-muted")}>
+        <dd
+          className={cn("relative mt-1 text-xs", tone === "primary" ? "opacity-90" : "text-muted")}
+        >
           {hint}
         </dd>
       )}
-    </div>
-  );
-}
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: { value: number; name: string; color: string }[];
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2 text-sm shadow-lift">
-      <p className="mb-1 font-medium">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} className="tabular flex items-center gap-2 text-muted">
-          <span className="size-2 rounded-full" style={{ background: p.color }} />
-          {p.name}: <span className="font-medium text-foreground">{formatMoney(p.value)}</span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-function SalesChart({ summary }: { summary: MerchantSummary }) {
-  const data = summary.daily.map((d) => ({
-    day: formatShortDay(d.date),
-    Bruto: d.gross_cents,
-    Líquido: d.net_cents,
-  }));
-  const last = summary.daily.at(-1);
-  return (
-    <figure
-      className="rounded-lg border border-border bg-surface p-4 sm:p-6"
-      aria-label={`Gráfico de vendas diárias dos últimos ${summary.daily.length} dias`}
-    >
-      <figcaption className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <span className="font-display text-xl font-semibold">Vendas por dia</span>
-        <span className="flex items-center gap-4 text-sm text-muted">
-          <span className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-primary" /> Bruto
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-pix" /> Líquido
-          </span>
-        </span>
-      </figcaption>
-      <div
-        className="h-72 w-full"
-        role="img"
-        aria-label={
-          last
-            ? `Último dia: ${formatMoney(last.gross_cents)} brutos em ${last.orders} pedidos`
-            : "Sem dados"
-        }
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="g-gross" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="g-net" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--pix)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--pix)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 4" />
-            <XAxis
-              dataKey="day"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "var(--muted)", fontSize: 12 }}
-              minTickGap={24}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              width={64}
-              tick={{ fill: "var(--muted)", fontSize: 12 }}
-              tickFormatter={compactMoney}
-            />
-            <Tooltip
-              content={<ChartTooltip />}
-              cursor={{ stroke: "var(--muted)", strokeDasharray: "3 3" }}
-            />
-            <Area
-              type="monotone"
-              dataKey="Bruto"
-              stroke="var(--primary)"
-              strokeWidth={2.5}
-              fill="url(#g-gross)"
-              isAnimationActive={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="Líquido"
-              stroke="var(--pix)"
-              strokeWidth={2.5}
-              fill="url(#g-net)"
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </figure>
+      <dd aria-hidden className="relative">
+        <Sparkline values={series} tone={tone === "primary" ? "primary" : "plain"} />
+      </dd>
+    </StaggerItem>
   );
 }
 
@@ -183,10 +122,7 @@ function Statement({ merchantId }: { merchantId: string }) {
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
-    <section
-      aria-labelledby="extrato"
-      className="rounded-lg border border-border bg-surface p-4 sm:p-6"
-    >
+    <section aria-labelledby="extrato" className="panel hairline-top rounded-3xl p-4 sm:p-6">
       <h2 id="extrato" className="font-display text-xl font-semibold">
         Extrato
       </h2>
@@ -195,7 +131,7 @@ function Statement({ merchantId }: { merchantId: string }) {
       ) : isPending ? (
         <div className="mt-4 grid gap-2" aria-busy>
           {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
+            <Skeleton key={i} className="h-10 w-full rounded-xl" />
           ))}
         </div>
       ) : data.items.length === 0 ? (
@@ -204,7 +140,7 @@ function Statement({ merchantId }: { merchantId: string }) {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[34rem] text-left text-sm">
             <caption className="sr-only">Lançamentos da conta do lojista</caption>
-            <thead className="text-muted">
+            <thead className="text-xs tracking-wide text-muted uppercase">
               <tr className="border-b border-border">
                 <th scope="col" className="py-2 pr-4 font-medium">
                   Data
@@ -221,23 +157,36 @@ function Statement({ merchantId }: { merchantId: string }) {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((e) => (
-                <tr key={e.id} className="border-b border-border/60 last:border-0">
-                  <td className="tabular py-3 pr-4 whitespace-nowrap text-muted">
-                    {formatDateTime(e.created_at)}
-                  </td>
-                  <td className="py-3 pr-4">{e.description}</td>
-                  <td className="py-3 pr-4">
-                    <Badge tone={e.direction === "CREDIT" ? "pix" : "neutral"}>
-                      {e.direction === "CREDIT" ? "Crédito" : "Débito"}
-                    </Badge>
-                  </td>
-                  <td className="tabular py-3 text-right font-medium">
-                    {e.direction === "CREDIT" ? "+" : "-"}
-                    {formatMoney(e.amount_cents)}
-                  </td>
-                </tr>
-              ))}
+              <>
+                {data.items.map((e, i) => (
+                  <motion.tr
+                    key={e.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: i * 0.04, ease: EASE }}
+                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-primary-soft/40"
+                  >
+                    <td className="tabular py-3 pr-4 whitespace-nowrap text-muted">
+                      {formatDateTime(e.created_at)}
+                    </td>
+                    <td className="py-3 pr-4">{e.description}</td>
+                    <td className="py-3 pr-4">
+                      <Badge tone={e.direction === "CREDIT" ? "pix" : "neutral"}>
+                        {e.direction === "CREDIT" ? "Crédito" : "Débito"}
+                      </Badge>
+                    </td>
+                    <td
+                      className={cn(
+                        "tabular py-3 text-right font-semibold",
+                        e.direction === "CREDIT" && "text-pix-ink",
+                      )}
+                    >
+                      {e.direction === "CREDIT" ? "+" : "-"}
+                      {formatMoney(e.amount_cents)}
+                    </td>
+                  </motion.tr>
+                ))}
+              </>
             </tbody>
           </table>
         </div>
@@ -296,110 +245,172 @@ function ReconciliationSeal() {
   );
 }
 
+function Segmented<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+  id,
+  render,
+}: {
+  label: string;
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+  id: string;
+  render: (v: T) => string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="glass flex flex-wrap gap-1 rounded-full p-1"
+    >
+      {options.map((o) => {
+        const active = o === value;
+        return (
+          <button
+            key={String(o)}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(o)}
+            className={cn(
+              "relative h-10 rounded-full px-4 text-sm font-medium transition-colors",
+              active ? "text-background" : "text-muted hover:text-foreground",
+            )}
+          >
+            {active && (
+              <motion.span
+                layoutId={id}
+                className="absolute inset-0 rounded-full bg-foreground"
+                transition={SPRING}
+              />
+            )}
+            <span className="relative">{render(o)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Forbidden() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <EmptyState
+        art="lost"
+        title="Área exclusiva para lojistas"
+        description="Sua conta não tem o perfil de lojista. Entre com uma conta de lojista para ver vendas e saldo."
+        action={
+          <Button asChild>
+            <Link to="/">Voltar para a loja</Link>
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
 export default function MerchantPage() {
   usePageTitle("Painel do lojista");
+  const roles = useAuth((s) => s.user?.roles ?? []);
   const [merchantId, setMerchantId] = useState(SEED_MERCHANTS[0]?.id ?? "");
   const [days, setDays] = useState<number>(30);
   const summary = useMerchantSummary(merchantId, days);
   const merchant = SEED_MERCHANTS.find((m) => m.id === merchantId);
+  if (!roles.includes("merchant")) return <Forbidden />;
+  const gross = summary.data?.daily.map((d) => d.gross_cents) ?? [];
+  const net = summary.data?.daily.map((d) => d.net_cents) ?? [];
+  const orders = summary.data?.daily.map((d) => d.orders) ?? [];
+  const fees = gross.map((g, i) => g - (net[i] ?? 0));
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold sm:text-5xl">Painel do lojista</h1>
-          <p className="mt-2 text-muted">Vendas, taxas e saldo direto do livro-razão.</p>
-        </div>
-        <ReconciliationSeal />
+    <div className="relative isolate overflow-hidden">
+      <div className="aurora opacity-60" aria-hidden>
+        <i />
+        <i />
+        <i />
       </div>
-
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
-        <div role="radiogroup" aria-label="Lojista" className="flex flex-wrap gap-2">
-          {SEED_MERCHANTS.map((m) => {
-            const active = m.id === merchantId;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => setMerchantId(m.id)}
-                className={cn(
-                  "h-11 rounded-full border px-5 text-sm font-medium transition-colors",
-                  active
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-surface hover:border-primary",
-                )}
-              >
-                {m.name}
-              </button>
-            );
-          })}
-        </div>
-        <div
-          role="radiogroup"
-          aria-label="Período"
-          className="flex gap-1 rounded-full bg-surface-2 p-1"
-        >
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              role="radio"
-              aria-checked={days === r}
-              onClick={() => setDays(r)}
-              className={cn(
-                "h-9 rounded-full px-4 text-sm font-medium transition-colors",
-                days === r ? "bg-surface shadow-soft" : "text-muted hover:text-foreground",
-              )}
-            >
-              {r} dias
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-6">
-        {summary.isError ? (
-          <ErrorState
-            onRetry={() => summary.refetch()}
-            message={summary.error.message}
-            title="Não foi possível carregar o resumo"
-          />
-        ) : summary.isPending ? (
-          <div aria-busy className="grid gap-6">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {Array.from({ length: 5 }, (_, i) => (
-                <Skeleton key={i} className="h-28 rounded-lg" />
-              ))}
-            </div>
-            <Skeleton className="h-80 rounded-lg" />
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-title">
+              Painel do <span className="serif text-primary">lojista</span>
+            </h1>
+            <p className="mt-2 text-muted">Vendas, taxas e saldo direto do livro-razão.</p>
           </div>
-        ) : (
-          <>
-            <dl
-              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_repeat(4,1fr)]"
-              aria-label={`Resumo de ${merchant?.name ?? "lojista"}`}
-            >
-              <Kpi
-                tone="primary"
-                label="Saldo a receber"
-                value={formatMoney(summary.data.balance_cents)}
-                hint={`${merchant?.name}, ${days} dias`}
-              />
-              <Kpi label="Vendas brutas" value={formatMoney(summary.data.gross_sales_cents)} />
-              <Kpi
-                label="Taxas da plataforma"
-                value={formatMoney(summary.data.platform_fees_cents)}
-                hint="10% sobre cada venda"
-              />
-              <Kpi label="Líquido" value={formatMoney(summary.data.net_sales_cents)} />
-              <Kpi label="Pedidos" value={summary.data.orders_count.toLocaleString("pt-BR")} />
-            </dl>
-            <SalesChart summary={summary.data} />
-          </>
-        )}
-        <Statement key={merchantId} merchantId={merchantId} />
+          <ReconciliationSeal />
+        </div>
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+          <Segmented
+            id="merchant-pill"
+            label="Lojista"
+            options={SEED_MERCHANTS.map((m) => m.id)}
+            value={merchantId}
+            onChange={setMerchantId}
+            render={(id) => SEED_MERCHANTS.find((m) => m.id === id)?.name ?? id}
+          />
+          <Segmented
+            id="range-pill"
+            label="Período"
+            options={RANGES}
+            value={days as (typeof RANGES)[number]}
+            onChange={setDays}
+            render={(r) => `${r} dias`}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-6">
+          {summary.isError ? (
+            <ErrorState
+              onRetry={() => summary.refetch()}
+              message={summary.error.message}
+              title="Não foi possível carregar o resumo"
+            />
+          ) : summary.isPending ? (
+            <div aria-busy className="grid gap-6">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Skeleton key={i} className="h-36 rounded-3xl" />
+                ))}
+              </div>
+              <Skeleton className="h-80 rounded-3xl" />
+            </div>
+          ) : (
+            <>
+              <Stagger
+                as="dl"
+                inView={false}
+                step={0.07}
+                className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_repeat(4,1fr)]"
+                aria-label={`Resumo de ${merchant?.name ?? "lojista"}`}
+              >
+                <Kpi
+                  tone="primary"
+                  label="Saldo a receber"
+                  cents={summary.data.balance_cents}
+                  hint={`${merchant?.name}, ${days} dias`}
+                  series={net}
+                />
+                <Kpi label="Vendas brutas" cents={summary.data.gross_sales_cents} series={gross} />
+                <Kpi
+                  label="Taxas da plataforma"
+                  cents={summary.data.platform_fees_cents}
+                  hint="10% sobre cada venda"
+                  series={fees}
+                />
+                <Kpi label="Líquido" cents={summary.data.net_sales_cents} series={net} />
+                <Kpi label="Pedidos" count={summary.data.orders_count} series={orders} />
+              </Stagger>
+              <Suspense fallback={<Skeleton className="h-96 rounded-3xl" />}>
+                <SalesChart summary={summary.data} />
+              </Suspense>
+            </>
+          )}
+          <Statement key={merchantId} merchantId={merchantId} />
+        </div>
       </div>
     </div>
   );

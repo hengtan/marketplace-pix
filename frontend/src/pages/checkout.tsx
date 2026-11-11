@@ -1,17 +1,21 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Lock, QrCode, ShoppingBag } from "lucide-react";
+import { Lock, QrCode } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api } from "@/api/endpoints";
 import { CartLines } from "@/components/cart-drawer";
+import { AnimatedNumber } from "@/components/motion/animated-number";
+import { Magnetic } from "@/components/motion/magnetic";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { type ContactForm, contactSchema } from "@/features/checkout-schema";
+import { Stepper } from "@/features/stepper";
 import { usePageTitle } from "@/hooks/utils";
 import { formatMoney } from "@/lib/format";
+import { useAuth } from "@/store/auth";
 import { selectCount, selectSubtotal, useCart } from "@/store/cart";
 import {
   clearIdempotencyKey,
@@ -21,6 +25,12 @@ import {
   saveContact,
   signatureOf,
 } from "@/store/customer";
+
+function authedContact() {
+  const user = useAuth.getState().user;
+  const saved = getContact();
+  return user ? { name: saved.name || user.name, email: saved.email || user.email } : saved;
+}
 
 export default function CheckoutPage() {
   usePageTitle("Pagamento");
@@ -33,7 +43,7 @@ export default function CheckoutPage() {
 
   const form = useForm<ContactForm>({
     resolver: zodResolver(contactSchema),
-    defaultValues: getContact(),
+    defaultValues: authedContact(),
     mode: "onTouched",
   });
   const { register, handleSubmit, formState } = form;
@@ -68,7 +78,7 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <EmptyState
-          icon={<ShoppingBag className="size-7" />}
+          art="cart"
           title="Seu carrinho está vazio"
           description="Adicione produtos para ver o resumo e pagar com PIX."
           action={
@@ -83,7 +93,10 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
-      <h1 className="text-4xl font-bold sm:text-5xl">Finalize com PIX</h1>
+      <Stepper steps={["Carrinho", "Seus dados", "Pagar com PIX"]} current={1} />
+      <h1 className="text-title mt-10">
+        Finalize com <span className="serif text-primary">PIX</span>
+      </h1>
       <p className="mt-2 text-muted">Dois dados e pronto. O QR Code aparece na próxima tela.</p>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_26rem] lg:gap-16">
@@ -122,16 +135,20 @@ export default function CheckoutPage() {
             </Field>
           </fieldset>
 
-          <Button
-            type="submit"
-            variant="pix"
-            size="lg"
-            disabled={mutation.isPending}
-            className="w-full sm:w-auto sm:min-w-72"
-          >
-            <QrCode />
-            {mutation.isPending ? "Gerando seu PIX..." : `Pagar com PIX, ${formatMoney(subtotal)}`}
-          </Button>
+          <Magnetic className="w-full sm:w-auto" strength={0.15}>
+            <Button
+              type="submit"
+              variant="pix"
+              size="lg"
+              disabled={mutation.isPending}
+              className="w-full sm:w-auto sm:min-w-72"
+            >
+              <QrCode />
+              {mutation.isPending
+                ? "Gerando seu PIX..."
+                : `Pagar com PIX, ${formatMoney(subtotal)}`}
+            </Button>
+          </Magnetic>
           <p className="flex items-center gap-2 text-sm text-muted">
             <Lock className="size-4" /> Seus dados ficam só neste navegador e no pedido.
           </p>
@@ -139,7 +156,7 @@ export default function CheckoutPage() {
 
         <aside
           aria-labelledby="resumo"
-          className="h-fit rounded-xl border border-border bg-surface p-6 shadow-soft lg:sticky lg:top-24"
+          className="panel hairline-top h-fit rounded-3xl p-6 lg:sticky lg:top-24"
         >
           <h2 id="resumo" className="font-display text-2xl font-semibold">
             Resumo
@@ -154,8 +171,13 @@ export default function CheckoutPage() {
             </div>
             <div className="flex items-baseline justify-between">
               <dt className="font-medium">Total</dt>
-              <dd className="tabular font-display text-3xl font-bold" data-testid="checkout-total">
-                {formatMoney(subtotal)}
+              <dd className="font-display text-3xl font-bold">
+                <AnimatedNumber
+                  value={subtotal}
+                  format={(n) => formatMoney(Math.round(n))}
+                  testId="checkout-total"
+                  duration={0.5}
+                />
               </dd>
             </div>
           </dl>
