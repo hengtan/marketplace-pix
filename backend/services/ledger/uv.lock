@@ -816,6 +816,7 @@ provides-extras = ["kafka", "sqlalchemy"]
 [package.metadata.requires-dev]
 dev = [
     { name = "aiokafka", specifier = ">=0.15.0" },
+    { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mypy", specifier = ">=2.4.1" },
     { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.51b0" },

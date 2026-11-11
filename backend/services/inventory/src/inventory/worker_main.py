@@ -5,6 +5,12 @@ import logging
 import signal
 from datetime import timedelta
 
+from marketplace_common.maintenance import (
+    CleanupJob,
+    RetentionPolicy,
+    inbox_target,
+    outbox_target,
+)
 from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
@@ -48,6 +54,9 @@ async def main() -> None:
     )
     expirer = ExpireReservations(uow_factory)
 
+    policy = RetentionPolicy.from_env()
+    cleanup = CleanupJob(engine, [outbox_target(policy), inbox_target(policy)], policy)
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -61,6 +70,7 @@ async def main() -> None:
             orders_consumer.run(stop),
             payments_consumer.run(stop),
             expirer.run_forever(stop, interval=settings.expiry_interval_seconds),
+            cleanup.run_forever(stop),
         )
     finally:
         await orders_consumer.stop()

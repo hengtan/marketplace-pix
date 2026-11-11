@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 
+from marketplace_common.maintenance import CleanupJob, RetentionPolicy, inbox_target
 from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
@@ -31,6 +32,9 @@ async def main() -> None:
     )
     consumer = KafkaEventConsumer(settings.kafka_bootstrap_servers, TOPICS, CONSUMER_GROUP, handler)
 
+    policy = RetentionPolicy.from_env()
+    cleanup = CleanupJob(engine, [inbox_target(policy)], policy)
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -39,7 +43,7 @@ async def main() -> None:
     await consumer.start()
     try:
         logging.getLogger(__name__).info("notifications consumer started")
-        await consumer.run(stop)
+        await asyncio.gather(consumer.run(stop), cleanup.run_forever(stop))
     finally:
         await consumer.stop()
         await engine.dispose()

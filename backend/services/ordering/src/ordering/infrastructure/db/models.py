@@ -67,6 +67,11 @@ class OutboxEventModel(Base):
             "created_at",
             postgresql_where=text("published_at IS NULL"),
         ),
+        Index(
+            "ix_outbox_published_at",
+            "published_at",
+            postgresql_where=text("published_at IS NOT NULL"),
+        ),
     )
 
 
@@ -78,6 +83,8 @@ class IdempotencyKeyModel(Base):
     order_id: Mapped[UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (Index("ix_idempotency_created_at", "created_at"),)
+
 
 class InboxMessageModel(Base):
     __tablename__ = "inbox_messages"
@@ -87,3 +94,5 @@ class InboxMessageModel(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    __table_args__ = (Index("ix_inbox_processed_at", "processed_at"),)

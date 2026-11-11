@@ -4,6 +4,13 @@ import asyncio
 import logging
 import signal
 
+from marketplace_common.maintenance import (
+    CleanupJob,
+    RetentionPolicy,
+    idempotency_target,
+    inbox_target,
+    outbox_target,
+)
 from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
@@ -31,6 +38,13 @@ async def main() -> None:
         ),
     ]
 
+    policy = RetentionPolicy.from_env()
+    cleanup = CleanupJob(
+        engine,
+        [outbox_target(policy), inbox_target(policy), idempotency_target(policy)],
+        policy,
+    )
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -40,7 +54,10 @@ async def main() -> None:
         await consumer.start()
     try:
         logging.getLogger(__name__).info("ordering worker started")
-        await asyncio.gather(*(consumer.run(stop) for consumer in consumers))
+        await asyncio.gather(
+            *(consumer.run(stop) for consumer in consumers),
+            cleanup.run_forever(stop),
+        )
     finally:
         for consumer in consumers:
             await consumer.stop()

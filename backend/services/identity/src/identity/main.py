@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from fastapi import FastAPI
+from marketplace_common.maintenance import CleanupJob, CleanupTarget, RetentionPolicy
 from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
 from marketplace_common.security import PrincipalResolver
 from sqlalchemy import text
@@ -66,7 +68,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.jwks = keys.jwks()
     app.state.principal_resolver = PrincipalResolver(settings.internal_auth_secret)
     app.state.ready_check = _db_check(engine)
+    policy = RetentionPolicy(
+        interval_seconds=settings.cleanup_interval_seconds, batch_size=settings.cleanup_batch_size
+    )
+    expired_tokens = CleanupTarget(
+        "refresh_tokens",
+        "refresh_tokens",
+        "expires_at",
+        timedelta(days=settings.refresh_retention_days).total_seconds(),
+    )
+    stop = asyncio.Event()
+    cleanup = asyncio.create_task(CleanupJob(engine, [expired_tokens], policy).run_forever(stop))
     yield
+    stop.set()
+    await cleanup
     await engine.dispose()
 
 

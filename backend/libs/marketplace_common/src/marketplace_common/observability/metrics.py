@@ -38,6 +38,25 @@ OUTBOX_RELAY_ERRORS = Counter(
     "marketplace_outbox_relay_errors_total", "Outbox relay iterations that failed"
 )
 
+CLEANUP_DELETED = Counter(
+    "marketplace_cleanup_deleted_total", "Rows removed by the retention job", ["table"]
+)
+CLEANUP_BATCHES = Counter(
+    "marketplace_cleanup_batches_total", "Delete batches executed by the retention job", ["table"]
+)
+CLEANUP_RUNS = Counter(
+    "marketplace_cleanup_runs_total", "Retention job iterations by result", ["result"]
+)
+CLEANUP_DURATION = Histogram(
+    "marketplace_cleanup_run_duration_seconds",
+    "Duration of one retention job iteration",
+    buckets=(0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 15.0, 60.0, 300.0),
+)
+CLEANUP_LAST_SUCCESS = Gauge(
+    "marketplace_cleanup_last_success_timestamp_seconds",
+    "Unix time of the last successful retention run",
+)
+
 DEFAULT_METRICS_PORT = 9100
 
 

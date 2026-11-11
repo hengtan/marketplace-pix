@@ -9,6 +9,9 @@ marketplace_common/
   messaging/       IncomingEvent, KafkaEventConsumer, KafkaPublisher, OutboxRelay e as portas do outbox
   observability/   logs JSON, tracing (OpenTelemetry), métricas (Prometheus), middlewares HTTP
   dlq/             python -m marketplace_common.dlq list | replay
+  security/        Principal, papéis e escopos, identidade assinada entre gateway e serviços
+  events/          modelos versionados por evento, upcasters, arquivos golden e testes de contrato
+  maintenance/     CleanupJob: retenção em lotes do outbox publicado, do inbox e das chaves de idempotência
 ```
 
 Instalação nos serviços, por caminho e editável (`pyproject.toml` de cada serviço):
@@ -182,6 +185,47 @@ Regras de segurança do `replay`:
 - **Anti-laço:** depois de reenviar, a ferramenta grava um marcador na própria DLQ. Uma mensagem já
   reprocessada, ou que voltou à DLQ com o header `dlq_replayed`, é recusada, a menos que se passe `--force`.
   Assim um bug persistente não vira um ciclo infinito de reenvio.
+
+### Retenção (TTL) de outbox, inbox e idempotência
+
+Sem limpeza, `outbox_events`, `inbox_messages` e `idempotency_keys` crescem para sempre. O `CleanupJob`
+apaga o que passou da retenção, em lotes:
+
+```sql
+WITH doomed AS (
+  SELECT ctid FROM outbox_events
+  WHERE published_at < now() - make_interval(secs => :retention)
+  ORDER BY published_at LIMIT :batch
+  FOR UPDATE SKIP LOCKED)
+DELETE FROM outbox_events WHERE ctid = ANY (ARRAY(SELECT ctid FROM doomed))
+```
+
+Cada lote é uma transação curta (padrão 1000 linhas) e o `SKIP LOCKED` pula o que outra transação segura,
+então nada espera e várias réplicas do job rodam juntas. Um ciclo tem no máximo `CLEANUP_MAX_BATCHES` lotes,
+com pausa entre eles, e o próximo ciclo continua de onde parou. O outbox **não publicado** nunca é apagado
+(a coluna `published_at` nula não entra na comparação). Índices parciais por `published_at`, `processed_at`
+e `created_at` mantêm a busca barata.
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `RETENTION_OUTBOX_PUBLISHED_HOURS` | 168 (7 dias) | quanto manter o outbox já publicado |
+| `RETENTION_INBOX_HOURS` | 336 (14 dias) | quanto manter o registro de dedup do inbox |
+| `RETENTION_IDEMPOTENCY_HOURS` | 48 | validade da `Idempotency-Key` |
+| `CLEANUP_INTERVAL_SECONDS` | 300 | intervalo entre ciclos |
+| `CLEANUP_BATCH_SIZE` | 1000 | linhas por lote |
+| `CLEANUP_MAX_BATCHES` | 50 | lotes por ciclo e por tabela |
+| `CLEANUP_PAUSE_SECONDS` | 0.05 | pausa entre lotes |
+
+Duas regras de segurança da política: o inbox precisa durar **mais** que a retenção do tópico no Kafka (apagar o
+registro de dedup enquanto a mensagem ainda pode voltar reabre a porta para processar duas vezes), e a chave de
+idempotência precisa durar mais que o maior tempo de retentativa de um cliente (depois de expirar, a mesma chave
+cria um pedido novo, e isso tem teste).
+
+Métricas: `marketplace_cleanup_deleted_total{table}`, `marketplace_cleanup_batches_total{table}`,
+`marketplace_cleanup_runs_total{result}`, `marketplace_cleanup_run_duration_seconds` e
+`marketplace_cleanup_last_success_timestamp_seconds` (alerte se ficar velho). O job roda dentro do
+`worker_main` de ordering, payments, inventory, ledger e notifications, e na API do identity (refresh tokens
+expirados).
 
 ## 3. Biblioteca compartilhada em microsserviços: acoplamento versus duplicação
 
