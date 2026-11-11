@@ -27,6 +27,10 @@ export const productSchema = z.object({
 });
 export type Product = z.infer<typeof productSchema>;
 
+export const ownProductSchema = z.extend(productSchema, { active: z.boolean() });
+export type OwnProduct = z.infer<typeof ownProductSchema>;
+export const ownProductListSchema = z.object({ items: z.array(ownProductSchema) });
+
 export const productPageSchema = paged(productSchema);
 export type ProductPage = z.infer<typeof productPageSchema>;
 

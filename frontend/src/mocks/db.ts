@@ -24,10 +24,12 @@ interface Stock {
 type CatalogOp =
   | { op: "create"; product: Product }
   | { op: "patch"; id: string; patch: Partial<Product> }
-  | { op: "deactivate"; id: string };
+  | { op: "deactivate"; id: string }
+  | { op: "reactivate"; id: string };
 
 const ORIGINAL_PRODUCTS = PRODUCTS.map((p) => ({ ...p, tags: [...p.tags] }));
 const retiredSlugs = new Set<string>();
+const retiredProducts = new Map<string, Product>();
 
 function resetCatalog() {
   PRODUCTS.splice(
@@ -36,6 +38,7 @@ function resetCatalog() {
     ...ORIGINAL_PRODUCTS.map((p) => ({ ...p, tags: [...p.tags] })),
   );
   retiredSlugs.clear();
+  retiredProducts.clear();
 }
 
 function applyOp(op: CatalogOp) {
@@ -44,10 +47,20 @@ function applyOp(op: CatalogOp) {
   } else if (op.op === "patch") {
     const p = PRODUCTS.find((x) => x.id === op.id);
     if (p) Object.assign(p, op.patch);
+  } else if (op.op === "reactivate") {
+    const back = retiredProducts.get(op.id);
+    if (back) {
+      retiredProducts.delete(op.id);
+      retiredSlugs.delete(back.slug);
+      PRODUCTS.unshift(back);
+    }
   } else {
     const i = PRODUCTS.findIndex((x) => x.id === op.id);
     const removed = i >= 0 ? PRODUCTS.splice(i, 1)[0] : undefined;
-    if (removed) retiredSlugs.add(removed.slug);
+    if (removed) {
+      retiredSlugs.add(removed.slug);
+      retiredProducts.set(removed.id, removed);
+    }
   }
 }
 
@@ -695,6 +708,36 @@ export function deactivateProduct(id: string) {
   applyOp(op);
   state.catalogLog.push(op);
   persist();
+}
+
+export function reactivateProduct(id: string): CatalogResult<Product> {
+  const back = retiredProducts.get(id);
+  if (!back) {
+    const active = PRODUCTS.find((p) => p.id === id);
+    return active
+      ? { ok: true, value: active }
+      : { ok: false, status: 404, detail: "product not found" };
+  }
+  const op: CatalogOp = { op: "reactivate", id };
+  applyOp(op);
+  state.catalogLog.push(op);
+  persist();
+  return { ok: true, value: back };
+}
+
+export function ownerOfRetired(id: string): string | null {
+  return retiredProducts.get(id)?.merchant.id ?? null;
+}
+
+export function listOwnProducts(merchantId: string): (Product & { active: boolean })[] {
+  const live = PRODUCTS.filter((p) => p.merchant.id === merchantId).map((p) => ({
+    ...p,
+    active: true,
+  }));
+  const retired = [...retiredProducts.values()]
+    .filter((p) => p.merchant.id === merchantId)
+    .map((p) => ({ ...p, active: false }));
+  return [...live, ...retired];
 }
 
 export function hasStockRow(productId: string): boolean {

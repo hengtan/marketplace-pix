@@ -233,6 +233,14 @@ test("products: create with validation, edit the price and deactivate", async ({
   await a11y(page);
   await page.getByRole("dialog").getByRole("button", { name: "Desativar" }).click();
   await expect(page.getByTestId("merchant-product")).toHaveCount(before);
+
+  const inactive = page.getByTestId("inactive-products");
+  await expect(inactive).toContainText("Corda de Aço Pro");
+  await a11y(page);
+  await inactive.getByRole("button", { name: "Reativar Corda de Aço Pro" }).click();
+  await expect(page.getByTestId("merchant-product")).toHaveCount(before + 1);
+  await expect(page.getByTestId("merchant-product").first()).toContainText("R$ 64,90");
+  await expect(page.getByTestId("inactive-products")).toHaveCount(0);
 });
 
 test("products: a duplicated name and a missing permission show clear messages", async ({

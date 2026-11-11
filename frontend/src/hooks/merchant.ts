@@ -1,15 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/endpoints";
 import { merchantApi, type NewProductInput, type ProductPatch } from "@/api/merchant";
-import type { Product, Stock } from "@/api/schemas";
+import type { OwnProduct, Product, Stock } from "@/api/schemas";
 import { writeErrorMessage } from "@/lib/merchant-errors";
-import {
-  applyRecentWrites,
-  forgetRemoved,
-  rememberCreated,
-  rememberPatched,
-  rememberRemoved,
-} from "@/lib/recent-writes";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/store/auth";
 
@@ -41,10 +34,7 @@ export function useMerchantOrders(enabled: boolean) {
 export function useMerchantProducts(merchantId: string) {
   return useQuery({
     queryKey: mk.products(merchantId),
-    queryFn: ({ signal }) =>
-      merchantApi
-        .merchantProducts(merchantId, signal)
-        .then((list) => applyRecentWrites(list, merchantId)),
+    queryFn: ({ signal }) => merchantApi.merchantProducts(merchantId, signal),
     staleTime: 15_000,
   });
 }
@@ -110,8 +100,10 @@ export function useCreateProduct(merchantId: string) {
   return useMutation({
     mutationFn: (input: NewProductInput) => merchantApi.createProduct(input),
     onSuccess: (product) => {
-      rememberCreated(product);
-      client.setQueryData<Product[]>(mk.products(merchantId), (rows) => [product, ...(rows ?? [])]);
+      client.setQueryData<OwnProduct[]>(mk.products(merchantId), (rows) => [
+        { ...product, active: true },
+        ...(rows ?? []),
+      ]);
       settleLater(() => {
         void client.invalidateQueries({ queryKey: mk.products(merchantId) });
         void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
@@ -130,16 +122,15 @@ export function useUpdateProduct(merchantId: string) {
       merchantApi.updateProduct(id, patch),
     onMutate: async ({ id, patch }) => {
       await client.cancelQueries({ queryKey: key });
-      const previous = client.getQueryData<Product[]>(key);
-      client.setQueryData<Product[]>(key, (rows) =>
+      const previous = client.getQueryData<OwnProduct[]>(key);
+      client.setQueryData<OwnProduct[]>(key, (rows) =>
         rows?.map((p) => (p.id === id ? { ...p, ...patch } : p)),
       );
       return { previous };
     },
     onSuccess: (product) => {
-      rememberPatched(product);
-      client.setQueryData<Product[]>(key, (rows) =>
-        rows?.map((p) => (p.id === product.id ? product : p)),
+      client.setQueryData<OwnProduct[]>(key, (rows) =>
+        rows?.map((p) => (p.id === product.id ? { ...product, active: p.active } : p)),
       );
     },
     onError: (_e, _v, ctx) => {
@@ -161,16 +152,45 @@ export function useDeactivateProduct(merchantId: string) {
   return useMutation({
     mutationFn: (id: string) => merchantApi.deactivateProduct(id),
     onMutate: async (id) => {
-      rememberRemoved(id);
       await client.cancelQueries({ queryKey: key });
-      const previous = client.getQueryData<Product[]>(key);
-      client.setQueryData<Product[]>(key, (rows) => rows?.filter((p) => p.id !== id));
+      const previous = client.getQueryData<OwnProduct[]>(key);
+      client.setQueryData<OwnProduct[]>(key, (rows) =>
+        rows?.map((p) => (p.id === id ? { ...p, active: false } : p)),
+      );
       return { previous };
     },
-    onError: (error, id, ctx) => {
-      forgetRemoved(id);
+    onError: (error, _id, ctx) => {
       if (ctx?.previous) client.setQueryData(key, ctx.previous);
       void toast.error("Produto não desativado", {
+        description: writeErrorMessage(error, "catálogo"),
+      });
+    },
+    onSettled: () => {
+      settleLater(() => {
+        void client.invalidateQueries({ queryKey: key });
+        void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
+        void client.invalidateQueries({ queryKey: ["products"] });
+      });
+    },
+  });
+}
+
+export function useReactivateProduct(merchantId: string) {
+  const client = useQueryClient();
+  const key = mk.products(merchantId);
+  return useMutation({
+    mutationFn: (id: string) => merchantApi.reactivateProduct(id),
+    onMutate: async (id) => {
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<OwnProduct[]>(key);
+      client.setQueryData<OwnProduct[]>(key, (rows) =>
+        rows?.map((p) => (p.id === id ? { ...p, active: true } : p)),
+      );
+      return { previous };
+    },
+    onError: (error, _id, ctx) => {
+      if (ctx?.previous) client.setQueryData(key, ctx.previous);
+      void toast.error("Produto não reativado", {
         description: writeErrorMessage(error, "catálogo"),
       });
     },

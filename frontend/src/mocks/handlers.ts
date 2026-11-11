@@ -78,6 +78,25 @@ export const handlers = [
   ...assistantHandlers,
   ...authHandlers,
 
+  http.get(url("/api/catalog/products/mine"), async ({ request }) => {
+    await delay(LATENCY);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    if (!scope) return forbidden();
+    const asked = new URL(request.url).searchParams.get("merchant_id");
+    const merchantId = scope.merchantId ?? asked;
+    if (!merchantId)
+      return HttpResponse.json(
+        { detail: "merchant_id is required for this role" },
+        { status: 422 },
+      );
+    return HttpResponse.json(
+      { items: db.listOwnProducts(merchantId) },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }),
+
   http.get(url("/api/catalog/products/slug/:slug"), async ({ params }) => {
     await delay(LATENCY);
     const p = PRODUCTS.find((x) => x.slug === params.slug);
@@ -229,6 +248,21 @@ export const handlers = [
       id,
       (await request.json()) as Parameters<typeof db.patchProduct>[1],
     );
+    return res.ok
+      ? HttpResponse.json(res.value)
+      : HttpResponse.json({ detail: res.detail }, { status: res.status });
+  }),
+
+  http.post(url("/api/catalog/products/:id/reactivate"), async ({ params, request }) => {
+    await delay(LATENCY);
+    const account = bearer(request);
+    if (!account) return unauthorized();
+    const scope = writeScope(account);
+    const id = String(params.id);
+    const owner = db.ownerOfRetired(id) ?? PRODUCTS.find((p) => p.id === id)?.merchant.id ?? null;
+    if (!owner) return notFound("product not found");
+    if (!scope || (scope.merchantId !== null && scope.merchantId !== owner)) return forbidden();
+    const res = db.reactivateProduct(id);
     return res.ok
       ? HttpResponse.json(res.value)
       : HttpResponse.json({ detail: res.detail }, { status: res.status });

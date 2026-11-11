@@ -1,10 +1,11 @@
 import * as z from "zod/mini";
-import { request } from "./client";
+import { ApiError, request } from "./client";
 import {
   type LedgerEntry,
   ledgerEntryPageSchema,
+  type OwnProduct,
   orderItemSchema,
-  type Product,
+  ownProductListSchema,
   paged,
   productPageSchema,
   productSchema,
@@ -43,20 +44,38 @@ export interface ProductPatch {
 
 const MAX_PAGES = 4;
 
+async function publicProducts(merchantId: string, signal?: AbortSignal): Promise<OwnProduct[]> {
+  const found: OwnProduct[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const res = await request("/api/catalog/products", {
+      schema: productPageSchema,
+      query: { page, page_size: 48, sort: "newest" },
+      signal,
+    });
+    found.push(
+      ...res.items.filter((p) => p.merchant.id === merchantId).map((p) => ({ ...p, active: true })),
+    );
+    if (page * res.page_size >= res.total) break;
+  }
+  return found;
+}
+
 export const merchantApi = {
-  merchantProducts: async (merchantId: string, signal?: AbortSignal) => {
-    const found: Product[] = [];
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const res = await request("/api/catalog/products", {
-        schema: productPageSchema,
-        query: { page, page_size: 48, sort: "newest" },
+  merchantProducts: async (merchantId: string, signal?: AbortSignal): Promise<OwnProduct[]> => {
+    try {
+      const res = await request("/api/catalog/products/mine", {
+        schema: ownProductListSchema,
+        query: { merchant_id: merchantId },
         signal,
       });
-      found.push(...res.items.filter((p) => p.merchant.id === merchantId));
-      if (page * res.page_size >= res.total) break;
+      return res.items;
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 403) throw error;
+      return publicProducts(merchantId, signal);
     }
-    return found;
   },
+  reactivateProduct: (id: string) =>
+    request(`/api/catalog/products/${id}/reactivate`, { schema: productSchema, method: "POST" }),
   createProduct: (input: NewProductInput) =>
     request("/api/catalog/products", {
       schema: productSchema,

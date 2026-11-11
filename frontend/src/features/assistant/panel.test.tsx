@@ -36,7 +36,9 @@ describe("assistant panel", () => {
     await user.click(launcher);
 
     const dialog = await screen.findByRole("dialog", { name: "Assistente de compras" });
-    expect(within(dialog).getByRole("heading", { name: "Como posso ajudar?" })).toBeVisible();
+    await waitFor(() =>
+      expect(within(dialog).getByRole("heading", { name: "Como posso ajudar?" })).toBeVisible(),
+    );
     expect(within(dialog).getAllByRole("listitem")).toHaveLength(3);
     await waitFor(() =>
       expect(screen.getByLabelText("Sua pergunta para o assistente")).toHaveFocus(),
@@ -50,7 +52,7 @@ describe("assistant panel", () => {
   it("toggles with the keyboard shortcut", async () => {
     const user = await setup();
     await user.keyboard("{Control>}/{/Control}");
-    expect(await screen.findByRole("dialog")).toBeVisible();
+    await waitFor(async () => expect(await screen.findByRole("dialog")).toBeVisible());
     await user.keyboard("{Control>}/{/Control}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -95,8 +97,10 @@ describe("assistant panel", () => {
       "simular erro{Enter}",
     );
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/indisponível/);
-    expect(within(alert).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+    await waitFor(() => {
+      expect(alert).toHaveTextContent(/indisponível/);
+      expect(within(alert).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+    });
   });
 
   async function ask(text: string) {
@@ -182,7 +186,9 @@ describe("assistant panel", () => {
     );
     await screen.findByTestId("assistant-message");
     await user.click(screen.getByRole("button", { name: "Nova conversa" }));
-    expect(await screen.findByRole("heading", { name: "Como posso ajudar?" })).toBeVisible();
+    await waitFor(async () =>
+      expect(await screen.findByRole("heading", { name: "Como posso ajudar?" })).toBeVisible(),
+    );
     expect(screen.queryByTestId("assistant-message")).toBeNull();
   });
 
@@ -191,7 +197,9 @@ describe("assistant panel", () => {
     await user.click(screen.getByRole("button", { name: /Assistente/ }));
     expect(await screen.findByRole("button", { name: "Enviar pergunta" })).toBeDisabled();
     useAssistant.setState({ streaming: true });
-    expect(await screen.findByRole("button", { name: "Parar a resposta" })).toBeVisible();
+    await waitFor(async () =>
+      expect(await screen.findByRole("button", { name: "Parar a resposta" })).toBeVisible(),
+    );
     useAssistant.setState({ streaming: false });
   });
 });

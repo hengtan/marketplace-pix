@@ -1,19 +1,25 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { PackagePlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { PackagePlus, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { ApiError } from "@/api/client";
 import { merchantApi } from "@/api/merchant";
-import type { Product } from "@/api/schemas";
+import type { OwnProduct, Product } from "@/api/schemas";
 import { ProductImage } from "@/components/product-image";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Badge, Skeleton } from "@/components/ui/misc";
-import { mk, useCreateProduct, useDeactivateProduct, useUpdateProduct } from "@/hooks/merchant";
+import {
+  mk,
+  useCreateProduct,
+  useDeactivateProduct,
+  useReactivateProduct,
+  useUpdateProduct,
+} from "@/hooks/merchant";
 import { useCategories } from "@/hooks/queries";
 import { formatMoney } from "@/lib/format";
 import { writeErrorMessage } from "@/lib/merchant-errors";
@@ -217,8 +223,8 @@ function DeactivateDialog({ product, onClose }: { product: Product | null; onClo
       >
         <p className="mt-4 text-sm">
           <strong>{product?.name}</strong> some da vitrine, das buscas e do carrinho de quem ainda
-          não pagou. Pedidos já feitos continuam valendo. A API não tem reativação: para vender de
-          novo será preciso cadastrar outro produto.
+          não pagou. Pedidos já feitos continuam valendo. Você pode reativá-lo depois, na seção
+          Desativados desta aba, e o estoque que ele tinha volta junto.
         </p>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>
@@ -244,10 +250,66 @@ function DeactivateDialog({ product, onClose }: { product: Product | null; onClo
   );
 }
 
+function InactiveProducts({ products }: { products: OwnProduct[] }) {
+  const { merchantId } = useMerchant();
+  const reactivate = useReactivateProduct(merchantId);
+  if (products.length === 0) return null;
+  return (
+    <section className="mt-8" aria-labelledby="desativados-titulo" data-testid="inactive-products">
+      <h3 id="desativados-titulo" className="font-display text-lg font-semibold">
+        Desativados <span className="text-muted">({products.length})</span>
+      </h3>
+      <p className="mt-1 text-sm text-muted">
+        Fora da vitrine, sem novos pedidos. Reative para vender de novo, com o mesmo estoque.
+      </p>
+      <ul
+        className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        aria-label="Produtos desativados"
+      >
+        {products.map((p) => (
+          <li
+            key={p.id}
+            className="flex items-center gap-4 rounded-2xl border border-dashed border-border bg-surface-2/60 p-4"
+          >
+            <ProductImage
+              src={p.image_url}
+              alt=""
+              category={p.category}
+              seed={p.slug}
+              size={120}
+              className="size-14 shrink-0 rounded-xl opacity-60 grayscale"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{p.name}</p>
+              <p className="tabular text-sm text-muted">{formatMoney(p.price_cents)}</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={reactivate.isPending}
+              aria-label={`Reativar ${p.name}`}
+              onClick={() =>
+                reactivate.mutate(p.id, {
+                  onSuccess: () =>
+                    void toast.success("Produto reativado", {
+                      description: `${p.name} voltou para a vitrine.`,
+                    }),
+                })
+              }
+            >
+              <RotateCcw aria-hidden /> Reativar
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function Products() {
   const { creatingProduct } = useMerchant();
   const nav = useMerchantNav();
-  const { products, rows } = useStockRows();
+  const { products, activeProducts, inactiveProducts, rows } = useStockRows();
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<Product | null>(null);
   const [removing, setRemoving] = useState<Product | null>(null);
@@ -258,10 +320,10 @@ export function Products() {
   );
   const list = useMemo(() => {
     const q = normalize(text.trim());
-    return (products.data ?? []).filter(
+    return activeProducts.filter(
       (p) => !q || normalize(`${p.name} ${p.tags.join(" ")}`).includes(q),
     );
-  }, [products.data, text]);
+  }, [activeProducts, text]);
 
   return (
     <Card aria-labelledby="produtos-titulo">
@@ -308,7 +370,7 @@ export function Products() {
               <Skeleton key={i} className="h-44 rounded-2xl" />
             ))}
           </div>
-        ) : (products.data ?? []).length === 0 ? (
+        ) : activeProducts.length === 0 && inactiveProducts.length === 0 ? (
           <EmptyState
             art="cart"
             title="Sua vitrine ainda está vazia"
@@ -394,6 +456,8 @@ export function Products() {
           </ul>
         )}
       </div>
+
+      {!products.isPending && !products.isError && <InactiveProducts products={inactiveProducts} />}
 
       <ProductDialog
         key={editing?.id ?? "new"}
