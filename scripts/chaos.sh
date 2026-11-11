@@ -148,9 +148,16 @@ else bad "cobrança do pedido B" "não apareceu em ${RECOVERY_TIMEOUT}s"; fi
 wait_until "payments A" "status_of $G/payments/by-order/$ID_A" "200" 30 \
   && ok "cobrança do pedido A existe" || bad "cobrança do pedido A" "ausente"
 if wait_until "breaker payments" "close_breaker payments payments/by-order/$ID_B" "closed" 30; then ok "breaker de payments fechou de novo após as sondas do half-open"; else bad "breaker de payments" "$(breaker_state payments)"; fi
+login() {
+  curl -s -X POST "$G/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$1\",\"password\":\"$2\"}" | jget "d['access_token']"
+}
+auth() { echo "Authorization: Bearer $1"; }
+ENV_FILE=${ENV_FILE:-.env}
+SEED_PASSWORD=${IDENTITY_SEED_PASSWORD:-$(grep -E '^IDENTITY_SEED_PASSWORD=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)}
+PAY_TOKEN=$(login "trilha-sports@marketplace-pix.local" "$SEED_PASSWORD")
 for ID in "$ID_A" "$ID_B"; do
   CHARGE=$(curl -s -m 5 "$G/payments/by-order/$ID" | jget "d['psp_charge_id']")
-  curl -s -m 10 -X POST "$G/payments/dev/psp/charges/$CHARGE/pay" >/dev/null
+  curl -s -m 10 -X POST "$G/payments/dev/psp/charges/$CHARGE/pay" -H "$(auth "$PAY_TOKEN")" >/dev/null
 done
 wait_until "A paga" "curl -s $G/orders/$ID_A | python3 -c \"import sys,json;print(json.load(sys.stdin)['status'])\"" "PAID" 60 \
   && ok "pedido A chegou a PAID" || bad "pedido A" "não ficou PAID"
