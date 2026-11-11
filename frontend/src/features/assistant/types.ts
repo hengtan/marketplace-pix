@@ -38,7 +38,10 @@ export const chatResponseSchema = z.object({
   latency_ms: z.catch(z.number(), 0),
   cached: z.optional(z.boolean()),
   degraded: z.optional(z.boolean()),
-  warning: z.optional(z.string()),
+  warning: z.pipe(
+    z.nullish(z.string()),
+    z.transform((value) => value ?? undefined),
+  ),
 });
 export type ChatResponse = z.infer<typeof chatResponseSchema>;
 
