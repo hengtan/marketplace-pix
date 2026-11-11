@@ -79,7 +79,16 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Serviço `assistant`: ingestão com chunking e pgvector (HNSW), busca híbrida com RRF, reranker, filtros, agente com ferramentas, memória e guardrails
 - [x] Avaliação com métricas (hit@k, MRR, aderência ao contexto) que falha o build abaixo dos limiares
 - [x] Interface de chat no frontend (streaming, citações com foto e preço, rastro "Como cheguei nessa resposta", memória)
-- [ ] Trocar embeddings e LLM por Ollama (adaptadores prontos, falta rodar e reavaliar)
+- [x] Entendimento de consulta: intenção (catálogo, pedido, estoque, política, fora de escopo), reescrita com sinônimos, correção de digitação, negação e decomposição
+- [x] Cache semântico (pgvector) com TTL e invalidação por eventos do catálogo (`catalog.events`), métricas de hit rate e economia
+- [x] Recuperação avançada: filtros pré-busca, pesos na fusão, MMR, parent-document; variantes comparadas em `docs/RAG-AVALIACAO.md`
+- [x] Avaliação: 111 casos (dev e holdout), hit@k, MRR, nDCG, precisão e revocação de contexto, juiz `JudgeLlm`, portão de regressão no CI
+- [x] Guardrails: injeção direta e indireta, PII em logs e traces, orçamento por sessão e usuário, saída estruturada com reparo, números verificados contra o trecho citado, 41 ataques no red team
+- [x] Observabilidade de LLM: spans por etapa, tokens e custo, painel `assistant` no Grafana
+- [x] Streaming com cancelamento, timeouts e fallback para a busca pura
+- [ ] `catalog` publicar `catalog.events` (o assistant já consome; hoje o índice só atualiza no reindex)
+- [ ] Trocar embeddings e LLM por Ollama (adaptadores prontos e testados contra um servidor HTTP falso, falta rodar com o Ollama real e reavaliar)
+- [ ] Serviço `assistant-worker` no `docker-compose` e job no Prometheus
 
 ## Fase 8: Plataforma
 - [x] OpenTelemetry com traces atravessando o Kafka, métricas Prometheus (RED) e dashboard no Grafana

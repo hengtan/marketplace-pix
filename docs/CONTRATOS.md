@@ -89,6 +89,19 @@ Grupo de consumo = nome do serviço (se houver mais de um consumidor no serviço
 |---|---|
 | `LedgerTransactionPosted` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` |
 
+### catalog.events (produtor: catalog, **ainda não publica**)
+
+Contrato que o `assistant` consome para manter o índice de busca e o cache semântico atualizados. A chave é o
+`product_id` e o payload tem `product_id` (os demais campos são livres). Hoje o `catalog` não publica esses
+eventos: sem eles o índice só atualiza no reindex (`POST /admin/reindex`) e o cache só expira por TTL.
+
+| Evento | Quando |
+|---|---|
+| `ProductCreated` | produto novo (esvazia o cache dependente de filtros e de "não encontrei") |
+| `ProductUpdated` | descrição, nome, categoria ou nota mudou |
+| `ProductPriceChanged` | preço mudou (invalida as respostas que citam o produto) |
+| `ProductDeleted` | produto saiu do catálogo |
+
 ### Quem consome o quê
 
 | Serviço | Consome | Reage |
@@ -98,6 +111,7 @@ Grupo de consumo = nome do serviço (se houver mais de um consumidor no serviço
 | inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `OrderCancelled` | reserva; confirma a venda; libera |
 | ledger | `OrderCreated`, `PaymentConfirmed` | guarda a projeção do pedido; lança a transação |
 | notifications | `OrderCreated`, `PaymentCreated`, `OrderPaid`, `OrderCancelled` | envia e-mails (Celery) |
+| assistant | `ProductCreated`, `ProductUpdated`, `ProductPriceChanged`, `ProductDeleted` (de `catalog.events`) | reindexa só o que mudou e invalida respostas em cache (`python -m assistant.worker_main`, grupo `assistant`) |
 
 ## 5. APIs REST (todas atrás do gateway)
 
@@ -209,14 +223,32 @@ instância com pgvector: `localhost:5434` no host, `pgvector:5432` na rede do Do
 | `GET /api/assistant/sessions/{id}` | `GET /sessions/{id}` |
 | `POST /api/assistant/admin/reindex` | `POST /admin/reindex` |
 | `GET /api/assistant/evals/latest` | `GET /evals/latest` |
+| `GET /api/assistant/cache/stats` | `GET /cache/stats` |
 
-`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Resposta: `session_id`, `answer`,
+`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Cabeçalho opcional `X-User-Id`
+(identifica o usuário para o orçamento diário; sem ele vale o IP). Resposta: `session_id`, `answer`,
 `citations[]` (`product_id`, `slug`, `name`, `score`), `tool_calls[]` (`name`, `arguments`, `result_summary`,
-`duration_ms`), `retrieved[]` (os trechos recuperados com `score`), `latency_ms`. Sem contexto suficiente a
-resposta diz que não encontrou, em vez de inventar. O stream emite eventos SSE `token`, `tool_call` e `done`.
+`duration_ms`), `retrieved[]` (os trechos recuperados com `score`), `latency_ms` e, novos e opcionais,
+`cached` (resposta veio do cache semântico), `degraded` e `warning` (o modelo falhou ou estourou o tempo e a
+resposta traz só os resultados da busca). Sem contexto suficiente a resposta diz que não encontrou, em vez de
+inventar; pergunta fora do escopo recebe "Só consigo ajudar com produtos..." sem chamar ferramenta; tentativa
+de prompt injection recebe "Não posso seguir esse tipo de instrução" sem chamar agente nem modelo.
+
+`POST /chat/stream` emite eventos SSE `tool_call`, `token` e `done` (como antes) e dois novos que clientes antigos
+podem ignorar: `warning` (`detail`, `reason`, logo antes do `done` degradado) e `error` (`detail`; hoje
+`model unavailable` e `budget exceeded` com `scope`). Fechar a conexão cancela a geração e libera o modelo.
+
+Orçamento: estourar o limite de tokens ou de custo da sessão ou do usuário no dia devolve **429** com `detail`
+`budget exceeded`, `scope` (`session` ou `user`), `limit` (`tokens` ou `cost`) e `Retry-After`.
+
+`GET /cache/stats`: `enabled`, `entries`, `persisted_hits`, `persisted_tokens_saved` (do banco), `lookups`, `hits`,
+`misses`, `skips`, `hit_rate`, `tokens_saved`, `cost_saved_usd` (do processo, desde que subiu).
+`POST /admin/reindex` ganhou `flagged` (produtos cujo texto teve frases de injeção removidas).
 
 Ferramentas do agente (chamam os outros serviços por HTTP): `search_products`, `get_stock`
-(inventory) e `get_order_status` (ordering).
+(inventory), `get_order_status` (ordering) e `get_policy` (respostas fixas sobre troca, entrega, pagamento,
+cancelamento e garantia). O pipeline completo, com números medidos, está em `docs/RAG-EXPLICADO.md` e
+`docs/RAG-AVALIACAO.md`.
 
 ### gateway (porta 8000)
 
