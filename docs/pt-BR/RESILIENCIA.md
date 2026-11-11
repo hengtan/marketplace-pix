@@ -1,3 +1,5 @@
+[English](../RESILIENCE.md) | **Português (Brasil)**
+
 # Resiliência
 
 Este documento explica os padrões de resiliência do marketplace: o que cada um resolve, onde está aplicado,
@@ -268,13 +270,13 @@ de 429, bulkhead rejeitando, orçamento de retry esgotado e picos de deadline.
 - **Caos** (`scripts/chaos.sh`): derruba catalog, payments e Redis um de cada vez, com a stack real. Valida
   que o breaker abre, que a resposta é rápida (503 em poucos milissegundos), que o sistema volta sozinho e
   que pedidos criados antes e durante a queda do payments chegam a `PAID`. Resultado na seção 10.
-- **Carga** (`scripts/loadtest.py`): ver `docs/loadtest-result.md`.
+- **Carga** (`scripts/loadtest.py`): ver `docs/pt-BR/loadtest-result.md`.
 - **Alertas:** `promtool test rules` simula séries de erro e confirma que os alertas disparam (e não disparam
   com tráfego saudável).
 
 ## 10. Resultados medidos
 
-Ver `docs/loadtest-result.md` (carga) e a saída de `scripts/chaos.sh`, resumida abaixo.
+Ver `docs/pt-BR/loadtest-result.md` (carga) e a saída de `scripts/chaos.sh`, resumida abaixo.
 
 Última execução de `scripts/chaos.sh` contra uma stack Docker paralela (40 verificações, 40 aprovadas):
 
