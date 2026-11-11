@@ -72,6 +72,11 @@ Grupo de consumo = nome do serviço (se houver mais de um consumidor no serviço
 | `OrderCreated` (v2) | `order_id`, `customer_id`, `customer_name`, `customer_email`, `total_cents`, `currency`, `items[]` com `product_id`, `merchant_id`, `quantity`, `unit_price_cents`, `customer_type` (`guest` ou `registered`, opcional, novo na v2); mais `event_id`, `occurred_at`, `schema_version`. A v1 é igual, sem `customer_type` |
 | `OrderPaid` | `order_id`, `event_id`, `occurred_at` |
 | `OrderCancelled` | `order_id`, `reason`, `event_id`, `occurred_at` |
+| `PaymentRefundRequested` | `order_id`, `payment_id`, `amount_cents`, `currency`, `reason`, `event_id`, `occurred_at`, `schema_version` |
+
+Motivos de `OrderCancelled.reason`: `payment expired`, `out of stock` e `saga timeout` (pedido parado em
+PENDING além do prazo da saga, `SAGA_TIMEOUT_SECONDS`, padrão 2700). `PaymentRefundRequested` sai quando um
+pagamento é confirmado para um pedido que já estava cancelado (pagamento tardio).
 
 ### payments.events (produtor: payments)
 
@@ -81,6 +86,7 @@ Grupo de consumo = nome do serviço (se houver mais de um consumidor no serviço
 | `PaymentConfirmed` | `order_id`, `payment_id`, `amount_cents`, `currency` |
 | `PaymentExpired` | `order_id`, `payment_id` |
 | `PaymentCancelled` | `order_id`, `payment_id` |
+| `PaymentRefunded` | `order_id`, `payment_id`, `amount_cents`, `currency`, `reason` |
 
 ### inventory.events (produtor: inventory)
 
@@ -96,15 +102,16 @@ Grupo de consumo = nome do serviço (se houver mais de um consumidor no serviço
 | Evento | Campos |
 |---|---|
 | `LedgerTransactionPosted` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` |
+| `LedgerTransactionReversed` | `order_id`, `transaction_id`, `total_cents`, `platform_fee_cents` (estorno de um pagamento já lançado) |
 
 ### Quem consome o quê
 
 | Serviço | Consome | Reage |
 |---|---|---|
-| payments | `OrderCreated`, `OrderCancelled` | cria cobrança; cancela cobrança pendente |
-| ordering | `PaymentConfirmed`, `PaymentExpired`, `StockRejected` | marca pago; cancela (`payment expired`); cancela (`out of stock`) |
-| inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `OrderCancelled` | reserva; confirma a venda; libera |
-| ledger | `OrderCreated`, `PaymentConfirmed` | guarda a projeção do pedido; lança a transação |
+| payments | `OrderCreated`, `OrderCancelled`, `PaymentRefundRequested` | cria cobrança; cancela cobrança pendente; reembolsa no PSP um pagamento confirmado |
+| ordering | `PaymentConfirmed`, `PaymentExpired`, `StockRejected` | marca pago; cancela (`payment expired`); cancela (`out of stock`); se o pedido já estava cancelado, audita e pede reembolso |
+| inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `PaymentRefunded`, `OrderCancelled` | reserva; confirma a venda; libera; devolve ao estoque a venda reembolsada |
+| ledger | `OrderCreated`, `PaymentConfirmed`, `PaymentRefunded` | guarda a projeção do pedido; lança a transação; lança o estorno |
 | notifications | `OrderCreated`, `PaymentCreated`, `OrderPaid`, `OrderCancelled` | envia e-mails (Celery) |
 
 ## 5. APIs REST (todas atrás do gateway)
@@ -187,7 +194,7 @@ a identidade do chamador antes; `404` caso contrário).
 | `GET /api/payments/by-order/{order_id}` | `GET /payments/by-order/{order_id}` |
 | `POST /api/payments/dev/psp/charges/{charge_id}/pay` | `POST /dev/psp/charges/{charge_id}/pay` (só desenvolvimento) |
 
-Pagamento: `id`, `order_id`, `status` (`PENDING|CONFIRMED|EXPIRED|CANCELLED`), `amount_cents`, `currency`,
+Pagamento: `id`, `order_id`, `status` (`PENDING|CONFIRMED|EXPIRED|CANCELLED|REFUNDED`), `amount_cents`, `currency`,
 `pix_code`, `psp_charge_id`, `expires_at`, `confirmed_at`.
 
 ### ledger (porta 8005)

@@ -12,6 +12,7 @@ from payments.domain.events import (
     PaymentConfirmed,
     PaymentCreated,
     PaymentExpired,
+    PaymentRefunded,
 )
 from payments.domain.money import Money
 
@@ -21,6 +22,7 @@ class PaymentStatus(StrEnum):
     CONFIRMED = "CONFIRMED"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
+    REFUNDED = "REFUNDED"
 
 
 def payment_id_for(order_id: UUID) -> UUID:
@@ -97,6 +99,22 @@ class Payment:
             raise InvalidStateTransition("payment has not expired yet")
         self.status = PaymentStatus.EXPIRED
         self._events.append(PaymentExpired(order_id=self.order_id, payment_id=self.id))
+
+    def refund(self, reason: str) -> None:
+        if self.status is PaymentStatus.REFUNDED:
+            return
+        if self.status is not PaymentStatus.CONFIRMED:
+            raise InvalidStateTransition(f"cannot refund a payment in {self.status}")
+        self.status = PaymentStatus.REFUNDED
+        self._events.append(
+            PaymentRefunded(
+                order_id=self.order_id,
+                payment_id=self.id,
+                amount_cents=self.amount.cents,
+                currency=self.amount.currency,
+                reason=reason,
+            )
+        )
 
     def cancel(self) -> None:
         if self.status in (PaymentStatus.CANCELLED, PaymentStatus.EXPIRED):

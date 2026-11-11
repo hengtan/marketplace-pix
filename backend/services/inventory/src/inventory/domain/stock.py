@@ -33,6 +33,10 @@ class Stock:
         self.reserved -= quantity
         self.available += quantity
 
+    def restock(self, quantity: int) -> None:
+        _require_positive(quantity)
+        self.available += quantity
+
     def sell(self, quantity: int) -> None:
         _require_positive(quantity)
         self._require_reserved(quantity)

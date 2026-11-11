@@ -47,6 +47,7 @@ def test_format_brl(cents: int, expected: str) -> None:
     [
         ("out of stock", "estoque insuficiente"),
         ("payment expired", "o PIX expirou"),
+        ("saga timeout", "o pagamento não foi confirmado a tempo"),
         ("  Out Of Stock ", "estoque insuficiente"),
         ("something new", DEFAULT_REASON),
         ("", DEFAULT_REASON),

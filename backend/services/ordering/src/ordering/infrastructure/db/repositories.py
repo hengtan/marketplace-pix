@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
@@ -90,6 +91,19 @@ class SqlAlchemyOrderRepository:
         elif scope is OwnerScope.GUEST:
             condition.append(OrderModel.owner_id.is_(None))
         return await self._page(condition, page, page_size)
+
+    async def fetch_stuck_pending(self, created_before: datetime, limit: int) -> list[Order]:
+        stmt = (
+            select(OrderModel)
+            .where(OrderModel.status == OrderStatus.PENDING.value)
+            .where(OrderModel.created_at < created_before)
+            .options(selectinload(OrderModel.items))
+            .order_by(OrderModel.created_at)
+            .limit(limit)
+            .with_for_update(of=OrderModel, skip_locked=True)
+        )
+        models = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(m) for m in models]
 
     async def list_by_merchant(
         self, merchant_id: UUID, page: int, page_size: int

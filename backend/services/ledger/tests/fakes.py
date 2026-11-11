@@ -62,12 +62,17 @@ class FakeLedger:
         db = self._uow.db
         known = [*db.transactions.values(), *self._uow.staged_transactions]
         if any(
-            t.order_id == transaction.order_id or t.payment_id == transaction.payment_id
+            t.kind is transaction.kind
+            and (t.order_id == transaction.order_id or t.payment_id == transaction.payment_id)
             for t in known
         ):
             return False
         self._uow.staged_transactions.append(copy.deepcopy(transaction))
         return True
+
+    async def has_transaction(self, order_id: UUID, kind: str) -> bool:
+        known = [*self._uow.db.transactions.values(), *self._uow.staged_transactions]
+        return any(t.order_id == order_id and t.kind.value == kind for t in known)
 
 
 class FakeQueries:
@@ -86,22 +91,27 @@ class FakeQueries:
         account = merchant_account_id(merchant_id)
         net: dict[date, int] = {}
         fees: dict[date, int] = {}
-        orders: dict[date, set[UUID]] = {}
+        orders: dict[date, list[set[UUID]]] = {}
         for stored in self._db.entries:
             rec = stored.record
             if stored.merchant_id != merchant_id or not start <= rec.created_at < end:
                 continue
             day = rec.created_at.date()
-            if rec.direction != Direction.CREDIT.value:
-                continue
+            sign = 1 if rec.direction == Direction.CREDIT.value else -1
             if rec.account_id == account:
-                net[day] = net.get(day, 0) + rec.amount_cents
-                orders.setdefault(day, set()).add(rec.order_id)
+                net[day] = net.get(day, 0) + sign * rec.amount_cents
+                bucket = orders.setdefault(day, [set(), set()])
+                bucket[0 if sign > 0 else 1].add(rec.order_id)
             elif rec.account_id == PLATFORM_REVENUE_ID:
-                fees[day] = fees.get(day, 0) + rec.amount_cents
+                fees[day] = fees.get(day, 0) + sign * rec.amount_cents
         days = sorted(set(net) | set(fees))
         return [
-            DailyMerchantTotals(d, net.get(d, 0), fees.get(d, 0), len(orders.get(d, set())))
+            DailyMerchantTotals(
+                d,
+                net.get(d, 0),
+                fees.get(d, 0),
+                len(orders.get(d, [set(), set()])[0]) - len(orders.get(d, [set(), set()])[1]),
+            )
             for d in days
         ]
 

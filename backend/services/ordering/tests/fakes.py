@@ -13,6 +13,7 @@ class FakeDatabase:
         self.events: list[DomainEvent] = []
         self.keys: dict[str, IdempotencyRecord] = {}
         self.inbox: set[tuple[UUID, str]] = set()
+        self.audit: dict[tuple[UUID, str, UUID | None], dict] = {}
 
 
 def persisted(order: Order) -> Order:
@@ -43,6 +44,16 @@ class FakeOrders:
         start = (page - 1) * page_size
         return [copy.deepcopy(o) for o in mine[start : start + page_size]], len(mine)
 
+    async def fetch_stuck_pending(self, created_before, limit: int) -> list[Order]:
+        stuck = [
+            o
+            for o in self._uow.db.orders.values()
+            if o.status.value == "PENDING"
+            and o.created_at is not None
+            and o.created_at < created_before
+        ]
+        return [copy.deepcopy(o) for o in stuck[:limit]]
+
     async def list_by_merchant(
         self, merchant_id: UUID, page: int, page_size: int
     ) -> tuple[list[Order], int]:
@@ -54,6 +65,20 @@ class FakeOrders:
     async def get(self, order_id: UUID, lock: bool = False) -> Order | None:
         order = self._uow.staged_orders.get(order_id) or self._uow.db.orders.get(order_id)
         return copy.deepcopy(order) if order is not None else None
+
+
+class FakeAudit:
+    def __init__(self, uow: "FakeUow") -> None:
+        self._uow = uow
+
+    async def record(
+        self, order_id: UUID, kind: str, reference_id: UUID | None, details: dict
+    ) -> bool:
+        key = (order_id, kind, reference_id)
+        if key in self._uow.db.audit or key in self._uow.staged_audit:
+            return False
+        self._uow.staged_audit[key] = details
+        return True
 
 
 class FakeOutbox:
@@ -95,11 +120,13 @@ class FakeUow:
         self.staged_events: list[DomainEvent] = []
         self.staged_keys: dict[str, IdempotencyRecord] = {}
         self.staged_inbox: set[tuple[UUID, str]] = set()
+        self.staged_audit: dict[tuple[UUID, str, UUID | None], dict] = {}
         self.committed = False
         self.orders = FakeOrders(self)
         self.outbox = FakeOutbox(self)
         self.idempotency = FakeIdempotency(self)
         self.inbox = FakeInbox(self)
+        self.audit = FakeAudit(self)
 
     async def __aenter__(self) -> "FakeUow":
         return self
@@ -110,12 +137,14 @@ class FakeUow:
     def _discard(self) -> None:
         self.staged_orders, self.staged_events = {}, []
         self.staged_keys, self.staged_inbox = {}, set()
+        self.staged_audit = {}
 
     async def commit(self) -> None:
         self.db.orders.update(self.staged_orders)
         self.db.events.extend(self.staged_events)
         self.db.keys.update(self.staged_keys)
         self.db.inbox.update(self.staged_inbox)
+        self.db.audit.update(self.staged_audit)
         self._discard()
         self.committed = True
 

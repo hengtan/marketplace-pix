@@ -104,6 +104,14 @@ class Reservation:
         self.status = ReservationStatus.RELEASED
         self._events.append(StockReleased(order_id=self.order_id, reason=reason))
 
+    def restock(self, stocks: Mapping[UUID, Stock], reason: str) -> None:
+        if self.status is not ReservationStatus.COMMITTED:
+            raise InvalidStateTransition(f"reservation {self.status} cannot be restocked")
+        for item in self.items:
+            stocks[item.product_id].restock(item.quantity)
+        self.status = ReservationStatus.RELEASED
+        self._events.append(StockReleased(order_id=self.order_id, reason=reason))
+
     def is_expired(self, now: datetime) -> bool:
         return self.status is ReservationStatus.RESERVED and self.expires_at <= now
 

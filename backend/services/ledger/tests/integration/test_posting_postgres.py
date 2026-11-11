@@ -301,3 +301,50 @@ async def test_two_merchants_are_isolated_against_a_real_database(
     assert (cross.status_code, cross_entries.status_code) == (403, 403)
     assert (platform.status_code, recon.status_code) == (403, 403)
     assert "77700" not in cross.text + cross_entries.text
+
+
+async def test_refund_reversal_against_a_real_database(
+    order_handler, payment_handler, session_factory, uow_factory
+):
+    from ledger.domain.transaction import TransactionKind
+    from tests.builders import payment_refunded
+
+    shop = uuid4()
+    order_id, total = await place_order(order_handler, [(shop, 2, 5000)])
+    payment_id = uuid4()
+    await payment_handler.handle(payment_confirmed(order_id, total, payment_id))
+    assert (await balances(session_factory))[f"merchant:{shop}"] == 9000
+
+    results = await asyncio.gather(
+        *(payment_handler.handle(payment_refunded(order_id, total, payment_id)) for _ in range(4))
+    )
+
+    assert sorted(r.value for r in results).count("PROCESSED") == 1
+    assert set((await balances(session_factory)).values()) == {0}
+    async with session_factory() as session:
+        kinds = (await session.execute(select(TransactionModel.kind))).scalars().all()
+        events = (
+            (
+                await session.execute(
+                    select(OutboxEventModel.type).order_by(OutboxEventModel.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert sorted(kinds) == [TransactionKind.PAYMENT.value, TransactionKind.REVERSAL.value]
+    assert sorted(events) == ["LedgerTransactionPosted", "LedgerTransactionReversed"]
+    report = await reconcile(uow_factory)
+    assert report.balanced and report.accounts_consistent
+    assert report.transactions_count == 2
+
+    app = create_app(uow_factory=uow_factory, internal_secret=SECRET)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t", headers=as_user(("admin",))
+    ) as client:
+        summary = (await client.get(f"/merchants/{shop}/summary", params={"days": 1})).json()
+    assert (summary["gross_sales_cents"], summary["orders_count"], summary["balance_cents"]) == (
+        0,
+        0,
+        0,
+    )

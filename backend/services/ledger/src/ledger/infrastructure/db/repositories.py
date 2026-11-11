@@ -82,6 +82,14 @@ class SqlAlchemyLedgerRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def has_transaction(self, order_id: UUID, kind: str) -> bool:
+        found = await self._session.scalar(
+            select(TransactionModel.id).where(
+                TransactionModel.order_id == order_id, TransactionModel.kind == kind
+            )
+        )
+        return found is not None
+
     async def add_transaction(self, transaction: Transaction) -> bool:
         claimed = await self._session.execute(
             insert(TransactionModel)
@@ -89,6 +97,7 @@ class SqlAlchemyLedgerRepository:
                 id=transaction.id,
                 order_id=transaction.order_id,
                 payment_id=transaction.payment_id,
+                kind=transaction.kind.value,
                 currency=transaction.currency,
                 total_cents=transaction.total_debits.cents,
                 platform_fee_cents=transaction.platform_fee.cents,
@@ -154,18 +163,23 @@ class SqlAlchemyLedgerQueries:
     ) -> list[DailyMerchantTotals]:
         merchant_account = merchant_account_id(merchant_id)
         day = cast(func.timezone("UTC", EntryModel.created_at), Date).label("day")
-        is_net = (EntryModel.account_id == merchant_account) & (
-            EntryModel.direction == Direction.CREDIT.value
-        )
-        is_fee = (EntryModel.account_id == PLATFORM_REVENUE_ID) & (
-            EntryModel.direction == Direction.CREDIT.value
-        )
+        credit = EntryModel.direction == Direction.CREDIT.value
+        is_net = (EntryModel.account_id == merchant_account) & credit
+        is_net_reversal = (EntryModel.account_id == merchant_account) & ~credit
+        is_fee = (EntryModel.account_id == PLATFORM_REVENUE_ID) & credit
+        is_fee_reversal = (EntryModel.account_id == PLATFORM_REVENUE_ID) & ~credit
+        amount = EntryModel.amount_cents
         stmt = (
             select(
                 day,
-                func.coalesce(func.sum(case((is_net, EntryModel.amount_cents), else_=0)), 0),
-                func.coalesce(func.sum(case((is_fee, EntryModel.amount_cents), else_=0)), 0),
-                func.count(distinct(case((is_net, EntryModel.order_id), else_=None))),
+                func.coalesce(
+                    func.sum(case((is_net, amount), (is_net_reversal, -amount), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(case((is_fee, amount), (is_fee_reversal, -amount), else_=0)), 0
+                ),
+                func.count(distinct(case((is_net, EntryModel.order_id), else_=None)))
+                - func.count(distinct(case((is_net_reversal, EntryModel.order_id), else_=None))),
             )
             .where(EntryModel.merchant_id == merchant_id)
             .where(EntryModel.created_at >= start)

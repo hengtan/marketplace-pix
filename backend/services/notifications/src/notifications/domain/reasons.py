@@ -4,6 +4,7 @@ REASON_TRANSLATIONS: dict[str, str] = {
     "out of stock": "estoque insuficiente",
     "payment expired": "o PIX expirou",
     "payment cancelled": "o pagamento foi cancelado",
+    "saga timeout": "o pagamento não foi confirmado a tempo",
 }
 
 DEFAULT_REASON = "um imprevisto no processamento do pedido"

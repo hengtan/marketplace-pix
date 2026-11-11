@@ -25,7 +25,12 @@ def payment_event(order_id: UUID, type_: str = "PaymentConfirmed", event_id=None
         id=event_id or uuid4(),
         type=type_,
         key=str(order_id),
-        payload={"order_id": str(order_id), "payment_id": str(uuid4())},
+        payload={
+            "order_id": str(order_id),
+            "payment_id": str(uuid4()),
+            "amount_cents": 3980,
+            "currency": "BRL",
+        },
     )
 
 

@@ -58,7 +58,7 @@ async def engine():
         await conn.execute(
             text(
                 "truncate orders, order_items, outbox_events, idempotency_keys, "
-                "inbox_messages cascade"
+                "inbox_messages, order_audit cascade"
             )
         )
     await engine.dispose()

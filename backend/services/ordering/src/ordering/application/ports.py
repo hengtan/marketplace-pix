@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Any, Protocol, Self
 from uuid import UUID
 
 from ordering.domain.events import DomainEvent
@@ -26,6 +27,8 @@ class OrderRepository(Protocol):
     async def list_by_customer(
         self, customer_id: UUID, page: int, page_size: int, scope: OwnerScope
     ) -> tuple[list[Order], int]: ...
+
+    async def fetch_stuck_pending(self, created_before: datetime, limit: int) -> list[Order]: ...
 
     async def list_by_merchant(
         self, merchant_id: UUID, page: int, page_size: int
@@ -62,6 +65,12 @@ class IdempotencyStore(Protocol):
     ) -> IdempotencyRecord | None: ...
 
 
+class AuditLog(Protocol):
+    async def record(
+        self, order_id: UUID, kind: str, reference_id: UUID | None, details: dict[str, Any]
+    ) -> bool: ...
+
+
 class OutboxWriter(Protocol):
     async def add(self, events: list[DomainEvent]) -> None: ...
 
@@ -78,6 +87,9 @@ class UnitOfWork(Protocol):
 
     @property
     def inbox(self) -> InboxStore: ...
+
+    @property
+    def audit(self) -> AuditLog: ...
 
     async def __aenter__(self) -> Self: ...
 

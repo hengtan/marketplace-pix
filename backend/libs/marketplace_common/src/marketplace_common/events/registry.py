@@ -7,6 +7,7 @@ from typing import Any
 from marketplace_common.events.models import (
     EventModel,
     LedgerTransactionPostedV1,
+    LedgerTransactionReversedV1,
     OrderCancelledV1,
     OrderCreatedV1,
     OrderCreatedV2,
@@ -15,6 +16,8 @@ from marketplace_common.events.models import (
     PaymentConfirmedV1,
     PaymentCreatedV1,
     PaymentExpiredV1,
+    PaymentRefundedV1,
+    PaymentRefundRequestedV1,
     StockCommittedV1,
     StockRejectedV1,
     StockReleasedV1,
@@ -140,6 +143,9 @@ def build_default_registry() -> EventRegistry:
         StockCommittedV1,
         StockReleasedV1,
         LedgerTransactionPostedV1,
+        LedgerTransactionReversedV1,
+        PaymentRefundRequestedV1,
+        PaymentRefundedV1,
     ):
         registry.register(model)
 

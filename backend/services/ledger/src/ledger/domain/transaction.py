@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from ledger.domain.account import Account, Direction
 from ledger.domain.errors import InvalidTransaction, UnbalancedTransaction
-from ledger.domain.events import DomainEvent, LedgerTransactionPosted
+from ledger.domain.events import DomainEvent, LedgerTransactionPosted, LedgerTransactionReversed
 from ledger.domain.money import Money
+
+
+class TransactionKind(StrEnum):
+    PAYMENT = "PAYMENT"
+    REVERSAL = "REVERSAL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +43,7 @@ class Transaction:
     entries: tuple[Entry, ...]
     created_at: datetime
     platform_fee: Money
+    kind: TransactionKind = TransactionKind.PAYMENT
     _events: list[DomainEvent] = field(default_factory=list, repr=False)
 
     def __post_init__(self) -> None:
@@ -58,6 +65,7 @@ class Transaction:
         entries: list[Entry],
         created_at: datetime,
         platform_fee: Money,
+        kind: TransactionKind = TransactionKind.PAYMENT,
     ) -> Transaction:
         if not entries:
             raise InvalidTransaction("a transaction needs at least two entries")
@@ -69,9 +77,15 @@ class Transaction:
             entries=tuple(entries),
             created_at=created_at,
             platform_fee=platform_fee,
+            kind=kind,
+        )
+        event_type = (
+            LedgerTransactionReversed
+            if kind is TransactionKind.REVERSAL
+            else LedgerTransactionPosted
         )
         transaction._events.append(
-            LedgerTransactionPosted(
+            event_type(
                 order_id=order_id,
                 transaction_id=transaction.id,
                 total_cents=transaction.total_debits.cents,

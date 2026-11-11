@@ -67,6 +67,10 @@ class HandlePaymentEvent:
         delivery = Delivery(event.id, PAYMENTS_CONSUMER)
         if event.type == "PaymentConfirmed":
             return await self._commit.execute(_order_id(event), delivery)
+        if event.type == "PaymentRefunded":
+            return await self._release.execute(
+                _order_id(event), "payment_refunded", delivery, restock_committed=True
+            )
         reason = self.RELEASE_REASONS.get(event.type)
         if reason is not None:
             return await self._release.execute(_order_id(event), reason, delivery)

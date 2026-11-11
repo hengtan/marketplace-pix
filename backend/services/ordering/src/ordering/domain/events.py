@@ -44,3 +44,11 @@ class OrderPaid(DomainEvent):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class OrderCancelled(DomainEvent):
     reason: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PaymentRefundRequested(DomainEvent):
+    payment_id: UUID
+    amount_cents: int
+    currency: str
+    reason: str

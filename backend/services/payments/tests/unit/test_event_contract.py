@@ -12,6 +12,7 @@ from payments.domain.events import (
     PaymentConfirmed,
     PaymentCreated,
     PaymentExpired,
+    PaymentRefunded,
 )
 from payments.infrastructure.db.outbox import serialize_event
 
@@ -45,3 +46,10 @@ def test_payment_expired_matches_its_golden_file() -> None:
 
 def test_payment_cancelled_matches_its_golden_file() -> None:
     assert_producer_contract("PaymentCancelled", serialize_event(PaymentCancelled(**COMMON)))
+
+
+def test_payment_refunded_matches_its_golden_file() -> None:
+    event = PaymentRefunded(
+        **COMMON, amount_cents=3980, currency="BRL", reason="order cancelled before payment"
+    )
+    assert_producer_contract("PaymentRefunded", serialize_event(event))

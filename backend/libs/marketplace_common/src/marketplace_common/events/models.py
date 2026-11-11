@@ -74,6 +74,17 @@ class OrderCancelledV1(EventModel):
     reason: str
 
 
+class PaymentRefundRequestedV1(EventModel):
+    event_type = "PaymentRefundRequested"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    payment_id: UUID
+    amount_cents: int
+    currency: str
+    reason: str
+
+
 class PaymentEventModel(EventModel):
     payment_id: UUID
 
@@ -110,6 +121,16 @@ class PaymentCancelledV1(PaymentEventModel):
     version = 1
 
     schema_version: Literal[1] = 1
+
+
+class PaymentRefundedV1(PaymentEventModel):
+    event_type = "PaymentRefunded"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    amount_cents: int
+    currency: str
+    reason: str
 
 
 class ShortageV1(BaseModel):
@@ -153,6 +174,16 @@ class StockReleasedV1(EventModel):
 
 class LedgerTransactionPostedV1(EventModel):
     event_type = "LedgerTransactionPosted"
+    version = 1
+
+    schema_version: Literal[1] = 1
+    transaction_id: UUID
+    total_cents: int
+    platform_fee_cents: int
+
+
+class LedgerTransactionReversedV1(EventModel):
+    event_type = "LedgerTransactionReversed"
     version = 1
 
     schema_version: Literal[1] = 1

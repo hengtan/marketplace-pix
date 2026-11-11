@@ -17,6 +17,7 @@ class ChargeStatus(StrEnum):
     PAID = "PAID"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
+    REFUNDED = "REFUNDED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,8 @@ class PspGateway(Protocol):
     async def get_charge_status(self, charge_id: str) -> ChargeStatus: ...
 
     async def cancel_charge(self, charge_id: str) -> bool: ...
+
+    async def refund_charge(self, charge_id: str) -> bool: ...
 
 
 class PaymentRepository(Protocol):

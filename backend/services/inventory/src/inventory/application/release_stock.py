@@ -16,19 +16,30 @@ class ReleaseStock:
         self._uow_factory = uow_factory
 
     async def execute(
-        self, order_id: UUID, reason: str, delivery: Delivery | None = None
+        self,
+        order_id: UUID,
+        reason: str,
+        delivery: Delivery | None = None,
+        restock_committed: bool = False,
     ) -> Outcome:
         async with self._uow_factory() as uow:
             if delivery and not await uow.inbox.claim(delivery.event_id, delivery.consumer):
                 return Outcome.DUPLICATE
             reservation = await uow.reservations.get_by_order(order_id, lock=True)
-            if reservation is None or reservation.status is not ReservationStatus.RESERVED:
+            releasable = reservation is not None and (
+                reservation.status is ReservationStatus.RESERVED
+                or (restock_committed and reservation.status is ReservationStatus.COMMITTED)
+            )
+            if reservation is None or not releasable:
                 logger.info("nothing to release for order %s (%s)", order_id, reason)
                 await uow.commit()
                 return Outcome.IGNORED
 
             stocks = await uow.stocks.get_many(reservation.product_ids, lock=True)
-            reservation.release(stocks, reason)
+            if reservation.status is ReservationStatus.COMMITTED:
+                reservation.restock(stocks, reason)
+            else:
+                reservation.release(stocks, reason)
             for product_id in reservation.product_ids:
                 await uow.stocks.save(stocks[product_id])
             await uow.reservations.save(reservation)

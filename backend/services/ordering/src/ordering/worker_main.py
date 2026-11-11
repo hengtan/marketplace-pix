@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+from datetime import timedelta
 
 from marketplace_common.maintenance import (
     CleanupJob,
@@ -15,6 +16,7 @@ from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
 from ordering.application.handle_saga_event import HandleSagaEvent
+from ordering.application.saga_timeout import SagaTimeoutManager
 from ordering.config import load_settings
 from ordering.infrastructure.db.session import build_engine, build_session_factory
 from ordering.infrastructure.db.uow import SqlAlchemyUnitOfWork
@@ -38,6 +40,11 @@ async def main() -> None:
         ),
     ]
 
+    saga = SagaTimeoutManager(
+        lambda: SqlAlchemyUnitOfWork(factory),
+        timedelta(seconds=settings.saga_timeout_seconds),
+        settings.saga_sweep_batch_size,
+    )
     policy = RetentionPolicy.from_env()
     cleanup = CleanupJob(
         engine,
@@ -56,6 +63,7 @@ async def main() -> None:
         logging.getLogger(__name__).info("ordering worker started")
         await asyncio.gather(
             *(consumer.run(stop) for consumer in consumers),
+            saga.run_forever(stop, interval=settings.saga_sweep_interval_seconds),
             cleanup.run_forever(stop),
         )
     finally:

@@ -1,45 +1,20 @@
 #!/usr/bin/env bash
 # Teste de ponta a ponta pelo gateway. Sai com código diferente de zero se algo falhar.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+HERE=$(cd "$(dirname "$0")" && pwd)
+cd "$HERE/.."
 ENV_FILE=${ENV_FILE:-.env}
 G=${GATEWAY:-http://localhost:8000/api}
 M=${MAILPIT:-http://localhost:8025/api/v1}
 PAYMENTS=${PAYMENTS_DIRECT:-http://localhost:8002}
 SEED_PASSWORD=${IDENTITY_SEED_PASSWORD:-$(grep -E '^IDENTITY_SEED_PASSWORD=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)}
-PASS=0; FAIL=0
-CODE_FILE=$(mktemp); trap 'rm -f "$CODE_FILE"' EXIT
-
-ok()   { PASS=$((PASS+1)); printf '  \033[32mOK\033[0m   %s\n' "$1"; }
-bad()  { FAIL=$((FAIL+1)); printf '  \033[31mFALHA\033[0m %s (obtido: %s)\n' "$1" "$2"; }
-check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "$2 | esperado: $3"; fi; }
-jget() { python3 -c "import sys,json
-d=json.load(sys.stdin)
-print($1)" 2>/dev/null; }
-uuid5() { python3 -c "import uuid;print(uuid.uuid5(uuid.NAMESPACE_URL,'marketplace-pix:$1:$2'))"; }
-wait_for() { # descrição, comando, valor esperado, tentativas
-  local n=${4:-30} v=""
-  for _ in $(seq 1 "$n"); do v=$(eval "$2" 2>/dev/null); [ "$v" = "$3" ] && break; sleep 1; done
-  check "$1" "$v" "$3"
-}
-login() { # e-mail, senha -> access token
-  curl -s -X POST "$G/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$1\",\"password\":\"$2\"}" | jget "d['access_token']"
-}
-auth() { echo "Authorization: Bearer $1"; }
-post_order() { # produto, quantidade, cliente, e-mail, chave, [token] -> corpo; código HTTP em $CODE_FILE
-  local out token=${6:-}
-  out=$(curl -s -w '\n%{http_code}' -X POST "$G/orders" -H 'content-type: application/json' -H "Idempotency-Key: $5" \
-    ${token:+-H "$(auth "$token")"} \
-    -d "{\"customer_id\":\"$3\",\"customer_name\":\"Teste E2E\",\"customer_email\":\"$4\",\"items\":[{\"product_id\":\"$1\",\"quantity\":$2,\"unit_price_cents\":1}]}")
-  echo "$out" | tail -n1 > "$CODE_FILE"; echo "$out" | sed '$d'
-}
+source "$HERE/e2e-lib.sh"
 
 RUN=$RANDOM$RANDOM
 EMAIL="e2e.$RUN@example.com"
 PASSWORD="E2e-senha-$RUN-segura"
 CORDA=$(uuid5 product corda-pular-speed); GPS=$(uuid5 product relogio-gps-trail)
 TRILHA=$(uuid5 merchant trilha-sports); AURORA=$(uuid5 merchant aurora-tech)
-status() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 stock() { curl -s "$G/inventory/stock/$1" | jget "'%s/%s' % (d['available'], d['reserved'])"; }
 
 echo "== 1. Saúde"
@@ -141,5 +116,4 @@ echo "== 9. Validações"
 post_order "$(python3 -c 'import uuid;print(uuid.uuid4())')" 1 "$CUST" "$EMAIL" "e2e-unk-$RUN" "$TOKEN" >/dev/null; check "produto inexistente (422)" "$(cat "$CODE_FILE")" "422"
 check "sem Idempotency-Key (400)" "$(status -X POST "$G/orders" -H 'content-type: application/json' -H "$(auth "$TOKEN")" -d "{\"customer_name\":\"Teste E2E\",\"customer_email\":\"$EMAIL\",\"items\":[{\"product_id\":\"$CORDA\",\"quantity\":1}]}")" "400"
 
-echo
-if [ "$FAIL" -eq 0 ]; then printf '\033[32mTUDO OK: %d verificações\033[0m\n' "$PASS"; else printf '\033[31m%d falharam, %d passaram\033[0m\n' "$FAIL" "$PASS"; exit 1; fi
+summary_result

@@ -221,3 +221,25 @@ async def test_expiry_job_running_in_parallel_releases_each_reservation_once(
     assert await stock_levels(session_factory, second) == (50, 0)
     assert (await outbox_types(session_factory)).count("StockReleased") == 10
     assert sum(counts) <= 10
+
+
+async def test_a_refund_restocks_a_committed_sale_exactly_once(
+    reserve, uow_factory, session_factory
+):
+    product, order_id = uuid4(), uuid4()
+    await set_stock(session_factory, product, 10)
+    await reserve.execute(order_id, items((product, 4)))
+    await CommitStock(uow_factory).execute(order_id)
+    assert await stock_levels(session_factory, product) == (6, 0)
+    release = ReleaseStock(uow_factory)
+
+    outcomes = await asyncio.gather(
+        *(release.execute(order_id, "payment_refunded", restock_committed=True) for _ in range(4))
+    )
+
+    assert sorted(o.value for o in outcomes) == ["IGNORED"] * 3 + ["PROCESSED"]
+    assert await stock_levels(session_factory, product) == (10, 0)
+    assert await reservation_status(session_factory, order_id) is ReservationStatus.RELEASED
+    assert (await outbox_types(session_factory)).count("StockReleased") == 1
+    plain = await release.execute(order_id, "order_cancelled")
+    assert plain is Outcome.IGNORED

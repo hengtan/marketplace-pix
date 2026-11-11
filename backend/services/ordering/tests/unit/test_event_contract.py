@@ -8,10 +8,17 @@ from marketplace_common.events.contract import (
     SAMPLE_MERCHANT_ID,
     SAMPLE_OCCURRED_AT,
     SAMPLE_ORDER_ID,
+    SAMPLE_PAYMENT_ID,
     SAMPLE_PRODUCT_ID,
 )
 
-from ordering.domain.events import OrderCancelled, OrderCreated, OrderCreatedItem, OrderPaid
+from ordering.domain.events import (
+    OrderCancelled,
+    OrderCreated,
+    OrderCreatedItem,
+    OrderPaid,
+    PaymentRefundRequested,
+)
 from ordering.domain.money import Money
 from ordering.domain.order import Order, OrderItem
 from ordering.infrastructure.db.outbox import serialize_event
@@ -82,3 +89,14 @@ def test_aggregate_emits_v2_with_the_right_customer_type() -> None:
         "registered",
     )
     assert set(guest_payload) == set(golden_payload("OrderCreated", 2))
+
+
+def test_payment_refund_requested_matches_the_v1_golden_file() -> None:
+    event = PaymentRefundRequested(
+        **COMMON,
+        payment_id=SAMPLE_PAYMENT_ID,
+        amount_cents=3980,
+        currency="BRL",
+        reason="order cancelled before payment",
+    )
+    assert_producer_contract("PaymentRefundRequested", serialize_event(event))

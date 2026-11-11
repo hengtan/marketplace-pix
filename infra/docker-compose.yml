@@ -7,6 +7,8 @@ x-ordering: &ordering
   image: marketplace-pix/ordering:dev
   profiles: ["services"]
   environment:
+    SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-2700}
+    SAGA_SWEEP_INTERVAL_SECONDS: ${SAGA_SWEEP_INTERVAL_SECONDS:-30}
     INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
     POSTGRES_USER: ${POSTGRES_USER}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

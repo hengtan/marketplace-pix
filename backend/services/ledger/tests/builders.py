@@ -53,3 +53,24 @@ def payment_confirmed(
             "currency": currency,
         },
     )
+
+
+def payment_refunded(
+    order_id: UUID,
+    amount_cents: int,
+    payment_id: UUID,
+    event_id: UUID | None = None,
+    currency: str = "BRL",
+) -> IncomingEvent:
+    return IncomingEvent(
+        event_id or uuid4(),
+        "PaymentRefunded",
+        str(order_id),
+        {
+            "order_id": str(order_id),
+            "payment_id": str(payment_id),
+            "amount_cents": amount_cents,
+            "currency": currency,
+            "reason": "order cancelled before payment",
+        },
+    )

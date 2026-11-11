@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "localhost:9094"
     catalog_url: str = "http://localhost:8003"
     internal_auth_secret: str = ""
+    saga_timeout_seconds: float = 2700.0
+    saga_sweep_interval_seconds: float = 30.0
+    saga_sweep_batch_size: int = 100
 
     @property
     def database_url(self) -> str:

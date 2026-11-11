@@ -27,6 +27,14 @@ class OrderModel(Base):
     total_cents: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        Index(
+            "ix_orders_pending_created",
+            "created_at",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+    )
+
     items: Mapped[list[OrderItemModel]] = relationship(
         cascade="all, delete-orphan",
         lazy="raise",
@@ -71,6 +79,28 @@ class OutboxEventModel(Base):
             "ix_outbox_published_at",
             "published_at",
             postgresql_where=text("published_at IS NOT NULL"),
+        ),
+    )
+
+
+class OrderAuditModel(Base):
+    __tablename__ = "order_audit"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    order_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    reference_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "uq_order_audit_kind_reference",
+            "order_id",
+            "kind",
+            "reference_id",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
         ),
     )
 

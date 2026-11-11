@@ -8,7 +8,7 @@ from ledger.domain.errors import PaymentMismatch
 from ledger.domain.money import Money
 from ledger.domain.order_projection import OrderProjection
 from ledger.domain.split import DEFAULT_FEE_BPS, split_order
-from ledger.domain.transaction import Entry, Transaction
+from ledger.domain.transaction import Entry, Transaction, TransactionKind
 
 
 def build_payment_transaction(
@@ -61,4 +61,34 @@ def build_payment_transaction(
         entries=entries,
         created_at=created_at,
         platform_fee=fees,
+    )
+
+
+def build_reversal_transaction(
+    projection: OrderProjection,
+    payment_id: UUID,
+    amount: Money,
+    created_at: datetime,
+    fee_bps: int = DEFAULT_FEE_BPS,
+) -> Transaction:
+    original = build_payment_transaction(projection, payment_id, amount, created_at, fee_bps)
+    short_id = str(projection.order_id)[:8]
+    flipped = {Direction.DEBIT: Direction.CREDIT, Direction.CREDIT: Direction.DEBIT}
+    entries = [
+        Entry(
+            entry.account,
+            flipped[entry.direction],
+            entry.amount,
+            f"Estorno do pedido {short_id}: {entry.description}",
+            merchant_id=entry.merchant_id,
+        )
+        for entry in original.entries
+    ]
+    return Transaction.post(
+        order_id=projection.order_id,
+        payment_id=payment_id,
+        entries=entries,
+        created_at=created_at,
+        platform_fee=original.platform_fee,
+        kind=TransactionKind.REVERSAL,
     )

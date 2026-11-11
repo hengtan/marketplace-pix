@@ -15,6 +15,8 @@ from ordering.domain.events import (
 )
 from ordering.domain.money import Money
 
+SAGA_TIMEOUT_REASON = "saga timeout"
+
 
 class OrderStatus(StrEnum):
     PENDING = "PENDING"
