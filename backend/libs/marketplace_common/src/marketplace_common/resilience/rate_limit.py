@@ -6,7 +6,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from marketplace_common.resilience import metrics
 from marketplace_common.resilience.circuit_breaker import CircuitBreaker
@@ -167,6 +167,11 @@ class RedisTokenBucket:
         )
 
 
+def _discard_result(task: asyncio.Future[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
+
+
 class RedisFailureMode(StrEnum):
     FALLBACK = "fallback"
     FAIL_OPEN = "fail_open"
@@ -231,8 +236,18 @@ class RouteRateLimiter:
         primary = self._primary
 
         async def operation() -> RateDecision:
-            async with asyncio.timeout(self._timeout):
-                return await primary.take(key, policy, cost)
+            task = asyncio.ensure_future(primary.take(key, policy, cost))
+            try:
+                done, _ = await asyncio.wait({task}, timeout=self._timeout)
+            except BaseException:
+                task.cancel()
+                task.add_done_callback(_discard_result)
+                raise
+            if not done:
+                task.cancel()
+                task.add_done_callback(_discard_result)
+                raise TimeoutError("rate limit backend timed out")
+            return task.result()
 
         if self._breaker is None:
             return await operation()

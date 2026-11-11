@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 600
     rate_limit_routes: dict[str, int] = {"ordering": 120, "assistant": 60}
     rate_limit_failure_mode: RedisFailureMode = RedisFailureMode.FALLBACK
-    rate_limit_redis_timeout: float = 0.1
+    rate_limit_redis_timeout: float = 0.25
     redis_url: str = ""
 
     request_deadline_seconds: float = 8.0

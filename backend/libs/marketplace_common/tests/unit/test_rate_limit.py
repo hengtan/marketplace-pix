@@ -196,3 +196,27 @@ async def test_decisions_metric_counts_allowed_and_limited() -> None:
         return REGISTRY.get_sample_value("resilience_rate_limit_decisions_total", labels) or 0.0
 
     assert count("allowed") == 2 and count("limited") == 1
+
+
+async def test_slow_cancellation_cleanup_does_not_delay_the_answer() -> None:
+    import asyncio
+    import time
+
+    class StuckBackend:
+        async def take(self, key: str, policy: RatePolicy, cost: int = 1) -> RateDecision:
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.3)
+                raise
+            raise AssertionError
+
+    rl = RouteRateLimiter(
+        RatePolicy(1, 0.001),
+        primary=StuckBackend(),
+        on_failure=RedisFailureMode.FAIL_OPEN,
+        operation_timeout=0.02,
+    )
+    started = time.perf_counter()
+    decision = await rl.acquire("catalog", "c")
+    assert decision.backend == "fail_open" and time.perf_counter() - started < 0.25

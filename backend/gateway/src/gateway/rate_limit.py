@@ -13,6 +13,8 @@ from marketplace_common.resilience import (
 )
 from marketplace_common.resilience.clock import Clock, monotonic
 from redis.asyncio import Redis
+from redis.asyncio.retry import Retry
+from redis.backoff import NoBackoff
 
 from gateway.config import Settings
 
@@ -46,6 +48,7 @@ def build_redis(settings: Settings) -> Redis | None:
         socket_timeout=timeout,
         socket_connect_timeout=timeout,
         max_connections=200,
+        retry=Retry(NoBackoff(), 0),
     )
 
 
@@ -56,7 +59,9 @@ def build_limiter(settings: Settings, redis: Redis | None) -> RouteRateLimiter:
         primary = RedisTokenBucket(redis, prefix="gw:rl")
         breaker = CircuitBreaker(
             "rate-limit-redis",
-            BreakerConfig(minimum_calls=5, window_size=10, open_seconds=5.0, half_open_max_calls=2),
+            BreakerConfig(
+                minimum_calls=10, window_size=30, open_seconds=5.0, half_open_max_calls=3
+            ),
         )
     return RouteRateLimiter(
         RatePolicy.per_minute(settings.rate_limit_per_minute),
