@@ -1,3 +1,4 @@
+from marketplace_common.security.client_ip import ClientIpResolver
 from marketplace_common.security.internal import (
     IDENTITY_HEADERS,
     PrincipalResolver,
@@ -14,6 +15,7 @@ from marketplace_common.security.principal import (
 )
 
 __all__ = [
+    "ClientIpResolver",
     "IDENTITY_HEADERS",
     "ROLE_SCOPES",
     "Principal",

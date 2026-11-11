@@ -23,13 +23,12 @@ from marketplace_common.resilience import (
     install_deadline,
 )
 from marketplace_common.resilience.clock import Sleeper, sleep
-from marketplace_common.security import strip_identity_headers
+from marketplace_common.security import ClientIpResolver, strip_identity_headers
 from marketplace_common.security.revocation import RevocationChecker
 from starlette.background import BackgroundTask
 
 from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
 from gateway.auth.guard import Revocations
-from gateway.client_ip import ClientIpResolver
 from gateway.config import Settings
 from gateway.hardening import BodyLimitMiddleware, SecurityHeadersMiddleware, security_headers
 from gateway.rate_limit import Limiter, build_limiter, build_redis

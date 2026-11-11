@@ -8,3 +8,8 @@ ACCESS_REVOCATIONS = Counter(
     "Access tokens put on the revocation list",
     ["result"],
 )
+ABUSE_BLOCKS = Counter(
+    "identity_abuse_blocks_total",
+    "Register and login attempts refused by the abuse guard",
+    ["action", "reason"],
+)

@@ -354,7 +354,14 @@ Resposta de `register`, `login` e `refresh`: `access_token` (JWT), `refresh_toke
 (`Bearer`), `expires_in` (segundos, 600) e `user` (`id`, `email`, `name`, `roles[]`, `merchant_id`). Erros:
 `401 invalid credentials` (mesma resposta para e-mail inexistente, senha errada, conta bloqueada ou
 desativada), `401 invalid refresh token`, `409 email already registered`, `422` (e-mail ou senha fora da
-política: mínimo de 10 caracteres). Respostas de token vêm com `Cache-Control: no-store`.
+política: mínimo de 10 caracteres), `429` (limite de tentativas, abaixo). Respostas de token vêm com `Cache-Control: no-store`.
+
+Proteção contra cadastro em massa e adivinhação de senha (`register` e `login`): limite distribuído (token bucket no Redis,
+compartilhado entre as instâncias) por **IP + e-mail** (padrão: 10 logins por minuto, 5 cadastros por hora) e por **IP** (60 logins por
+minuto, 30 cadastros por hora, para quem troca o e-mail a cada tentativa), mais uma espera progressiva por IP + e-mail: cada falha
+seguida (senha errada, e-mail já cadastrado, senha fora da política) dobra o bloqueio (2 s, 4 s, 8 s... até 15 min) e um login
+bem-sucedido zera. Quem excede recebe `429` com `Retry-After` e corpo `{ "detail": "too many attempts", "retry_after_seconds": N }`.
+O IP é o que o gateway repassa em `X-Forwarded-For`, aceito só de proxy listado em `TRUSTED_PROXIES`; o e-mail só entra nas chaves como hash.
 
 Revogação do access token: o logout, a detecção de reuso do refresh e a conta desativada colocam o `jti` dos access tokens
 ainda vivos da sessão em uma lista no Redis (TTL = vida restante do token, mais 10 s de folga). O gateway consulta a lista
