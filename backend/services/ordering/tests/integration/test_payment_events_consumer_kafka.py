@@ -6,7 +6,7 @@ import pytest
 from aiokafka import AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
-from ordering.application.handle_payment_event import HandlePaymentEvent
+from ordering.application.handle_saga_event import HandleSagaEvent
 from ordering.config import load_settings
 from ordering.infrastructure.db.models import InboxMessageModel
 from ordering.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
@@ -62,7 +62,7 @@ async def test_duplicated_payment_confirmed_event_marks_order_paid_once(
     await send(topic, order_id, event_id, "PaymentConfirmed")
     await send(topic, order_id, event_id, "PaymentConfirmed")
     consumer = KafkaEventConsumer(
-        BOOTSTRAP, topic, f"test-{uuid4().hex[:8]}", HandlePaymentEvent(uow_factory)
+        BOOTSTRAP, topic, f"test-{uuid4().hex[:8]}", HandleSagaEvent(uow_factory)
     )
 
     async def paid() -> bool:
@@ -79,7 +79,7 @@ async def test_payment_expired_event_cancels_the_order(uow_factory, session_fact
     order_id = await make_order(uow_factory)
     await send(topic, order_id, uuid4(), "PaymentExpired")
     consumer = KafkaEventConsumer(
-        BOOTSTRAP, topic, f"test-{uuid4().hex[:8]}", HandlePaymentEvent(uow_factory)
+        BOOTSTRAP, topic, f"test-{uuid4().hex[:8]}", HandleSagaEvent(uow_factory)
     )
 
     async def cancelled() -> bool:

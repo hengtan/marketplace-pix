@@ -11,7 +11,8 @@ from ordering.domain.errors import InvalidStateTransition
 logger = logging.getLogger(__name__)
 
 CONSUMER_NAME = "ordering"
-HANDLED_TYPES = {"PaymentConfirmed", "PaymentExpired"}
+HANDLED_TYPES = {"PaymentConfirmed", "PaymentExpired", "StockRejected"}
+CANCEL_REASONS = {"PaymentExpired": "payment expired", "StockRejected": "out of stock"}
 
 
 class HandleResult(StrEnum):
@@ -21,7 +22,7 @@ class HandleResult(StrEnum):
     CONFLICT = "CONFLICT"
 
 
-class HandlePaymentEvent:
+class HandleSagaEvent:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
         self._uow_factory = uow_factory
 
@@ -42,7 +43,7 @@ class HandlePaymentEvent:
                 if event.type == "PaymentConfirmed":
                     order.mark_paid()
                 else:
-                    order.cancel("payment expired")
+                    order.cancel(CANCEL_REASONS[event.type])
             except InvalidStateTransition:
                 logger.error(
                     "conflict: %s for order %s in status %s (needs manual review or refund)",

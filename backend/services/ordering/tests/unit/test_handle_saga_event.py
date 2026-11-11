@@ -2,7 +2,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from ordering.application.handle_payment_event import HandlePaymentEvent, HandleResult
+from ordering.application.handle_saga_event import HandleResult, HandleSagaEvent
 from ordering.application.ports import IncomingEvent
 from ordering.domain.events import OrderCancelled, OrderCreated, OrderPaid
 from ordering.domain.money import Money
@@ -36,7 +36,7 @@ def order(db):
 
 @pytest.fixture
 def handler(db):
-    return HandlePaymentEvent(lambda: FakeUow(db))
+    return HandleSagaEvent(lambda: FakeUow(db))
 
 
 async def test_payment_confirmed_marks_order_paid_and_emits_event(handler, db, order):
@@ -108,3 +108,22 @@ async def test_other_event_types_are_ignored(handler, db, order):
 
 def test_fake_events_are_the_domain_ones():
     assert OrderCreated.__name__ == "OrderCreated"
+
+
+async def test_stock_rejected_cancels_the_order_as_out_of_stock(handler, db, order):
+    result = await handler.handle(payment_event(order.id, "StockRejected"))
+
+    assert result is HandleResult.PROCESSED
+    assert db.orders[order.id].status is OrderStatus.CANCELLED
+    assert db.orders[order.id].cancel_reason == "out of stock"
+    (event,) = db.events
+    assert isinstance(event, OrderCancelled) and event.reason == "out of stock"
+
+
+async def test_stock_rejected_for_an_already_paid_order_is_a_conflict(handler, db, order):
+    await handler.handle(payment_event(order.id, "PaymentConfirmed"))
+
+    result = await handler.handle(payment_event(order.id, "StockRejected"))
+
+    assert result is HandleResult.CONFLICT
+    assert db.orders[order.id].status is OrderStatus.PAID
