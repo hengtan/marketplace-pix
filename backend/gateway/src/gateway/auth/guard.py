@@ -32,6 +32,7 @@ class Denied:
 class Allowed:
     principal: Principal | None
     query: str
+    order_confirmed: bool = False
 
 
 class GatewayAuth:
@@ -72,11 +73,13 @@ class GatewayAuth:
             if isinstance(outcome, Denied):
                 return outcome
             query = outcome
+        confirmed = False
         if rule is not None and rule.object_guard:
             denied = await self._check_order_access(request, client, principal, request_id)
             if denied is not None:
                 return denied
-        return Allowed(principal, query)
+            confirmed = True
+        return Allowed(principal, query, confirmed)
 
     def upstream_headers(
         self, incoming: dict[str, str], principal: Principal | None, request_id: str

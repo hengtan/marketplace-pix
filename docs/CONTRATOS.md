@@ -222,6 +222,11 @@ Pedido: `id`, `customer_id`, `customer_name`, `customer_email`, `status` (`PENDI
 `GET /api/payments/by-order/{id}` só responde para quem pode ver o pedido (o gateway consulta o ordering com
 a identidade do chamador antes; `404` caso contrário).
 
+Logo depois de criar o pedido a cobrança ainda não existe (ela nasce do evento `OrderCreated`). Enquanto o pedido existe e é do
+chamador e a cobrança ainda não foi criada, `GET /api/payments/by-order/{id}` responde `202` com `Retry-After: 1` e corpo
+`{ "detail": "payment is being created", "retry_after_seconds": 1 }` (sem os campos do pagamento: quem recebe `202` deve tentar de
+novo). `404` só quando o pedido não existe ou não é do chamador.
+
 | Gateway | Serviço |
 |---|---|
 | `GET /api/payments/by-order/{order_id}` | `GET /payments/by-order/{order_id}` |

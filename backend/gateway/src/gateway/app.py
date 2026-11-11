@@ -48,6 +48,7 @@ HOP_BY_HOP = {
     "content-length",
 }
 RESPONSE_DROP = HOP_BY_HOP | {"content-encoding"}
+PAYMENT_PENDING_RETRY_SECONDS = 1
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 
 
@@ -230,12 +231,14 @@ def create_app(
         headers.pop("x-real-ip", None)
         headers["x-forwarded-for"] = client_ip
         query = request.url.query
+        order_confirmed = False
         if auth is not None:
             verdict = await auth.authorize(request, client, request_id)
             if isinstance(verdict, Denied):
                 challenge = {"WWW-Authenticate": "Bearer"} if verdict.challenge else None
                 return _json(verdict.status, verdict.detail, request_id, challenge)
             query = verdict.query
+            order_confirmed = verdict.order_confirmed
             headers = auth.upstream_headers(headers, verdict.principal, request_id)
         headers["x-request-id"] = request_id
         upstream_request = client.build_request(
@@ -277,6 +280,15 @@ def create_app(
             for key, value in rate_headers.items():
                 streaming.headers[key] = value
             return streaming
+
+        if order_confirmed and upstream.status_code == 404:
+            return _json(
+                202,
+                "payment is being created",
+                request_id,
+                {**rate_headers, "Retry-After": str(PAYMENT_PENDING_RETRY_SECONDS)},
+                {"retry_after_seconds": PAYMENT_PENDING_RETRY_SECONDS},
+            )
 
         response = Response(content=upstream.content, status_code=upstream.status_code)
         for key, value in upstream.headers.multi_items():
