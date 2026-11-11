@@ -272,8 +272,12 @@ instância com pgvector: `localhost:5434` no host, `pgvector:5432` na rede do Do
 | `GET /api/assistant/evals/latest` | `GET /evals/latest` |
 | `GET /api/assistant/cache/stats` | `GET /cache/stats` |
 
-`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Cabeçalho opcional `X-User-Id`
-(identifica o usuário para o orçamento diário; sem ele vale o IP). Resposta: `session_id`, `answer`,
+`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Com token, o gateway repassa a
+identidade assinada (a mesma dos demais serviços, verificada com `INTERNAL_AUTH_SECRET`): o orçamento diário vale
+por usuário e `get_order_status` consulta o ordering **como esse usuário**, então a conta só vê os próprios pedidos
+(pedido alheio responde "não encontrei", igual ao inexistente). Sem token (convidado) o pedido é consultado só por id,
+como no ordering. Cabeçalhos de identidade sem assinatura válida valem como anônimo. O cabeçalho legado `X-User-Id`
+sem assinatura ainda identifica o orçamento (sem ele vale o IP) mas não dá acesso a nenhum pedido. Resposta: `session_id`, `answer`,
 `citations[]` (`product_id`, `slug`, `name`, `score`), `tool_calls[]` (`name`, `arguments`, `result_summary`,
 `duration_ms`), `retrieved[]` (os trechos recuperados com `score`), `latency_ms` e, novos e opcionais,
 `cached` (resposta veio do cache semântico), `degraded` e `warning` (o modelo falhou ou estourou o tempo e a

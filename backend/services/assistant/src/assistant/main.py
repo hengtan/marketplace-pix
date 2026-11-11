@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
+from marketplace_common.security import PrincipalResolver
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     instrument_sqlalchemy(engine)
     container = build_container(settings, engine)
     app.state.container = container
+    app.state.principal_resolver = PrincipalResolver(settings.internal_auth_secret)
     app.state.ready_check = _db_check(engine)
     yield
     await container.aclose()

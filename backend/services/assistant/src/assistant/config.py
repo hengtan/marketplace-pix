@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     inventory_url: str = "http://localhost:8004"
     ordering_url: str = "http://localhost:8001"
     http_timeout_seconds: float = 3.0
+    internal_auth_secret: str = ""
 
     embedder: Literal["hashing", "ollama"] = "hashing"
     llm: Literal["mock", "ollama"] = "mock"
