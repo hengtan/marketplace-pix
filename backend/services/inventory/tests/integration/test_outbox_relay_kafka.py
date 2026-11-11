@@ -5,13 +5,12 @@ from uuid import uuid4
 import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaPublisher, OutboxRelay
 from sqlalchemy import select, update
 
-from inventory.application.outbox_relay import OutboxRelay
 from inventory.application.reserve_stock import ReserveStock
 from inventory.config import load_settings
 from inventory.infrastructure.db.models import OutboxEventModel
-from inventory.infrastructure.messaging.kafka_publisher import KafkaPublisher
 from tests.integration.helpers import items, set_stock
 
 BOOTSTRAP = load_settings().kafka_bootstrap_servers

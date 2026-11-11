@@ -7,13 +7,11 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from marketplace_common.messaging import IncomingEvent
+
 from notifications.application.clock import Clock, utcnow
 from notifications.application.errors import OrderContextMissing
-from notifications.application.ports import (
-    IncomingEvent,
-    NotificationQueue,
-    UnitOfWork,
-)
+from notifications.application.ports import NotificationQueue, UnitOfWork
 from notifications.domain.contact import Contact
 from notifications.domain.errors import DomainError
 from notifications.domain.factory import build_notification

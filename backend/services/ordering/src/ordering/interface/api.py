@@ -19,6 +19,7 @@ from ordering.application.get_order import GetOrder
 from ordering.application.list_orders import ListOrders
 from ordering.application.ports import CatalogGateway, UnitOfWork
 from ordering.domain.errors import DomainError
+from ordering.interface.metrics import ORDERS_CREATED
 from ordering.interface.schemas import CreateOrderIn, CreateOrderOut, OrderOut, OrderPageOut
 
 UowFactory = Callable[[], UnitOfWork]
@@ -64,6 +65,8 @@ def build_router() -> APIRouter:
         result = await CreateOrder(uow_factory, catalog).execute(command, idempotency_key)
         if result.replayed:
             response.headers["Idempotent-Replayed"] = "true"
+        else:
+            ORDERS_CREATED.inc()
         return CreateOrderOut(id=result.order_id)
 
     @router.get("/orders", response_model=OrderPageOut)

@@ -4,12 +4,14 @@ import asyncio
 import logging
 import signal
 
+from marketplace_common.messaging import KafkaEventConsumer
+from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
+
 from ledger.application.handle_order_event import HandleOrderEvent
 from ledger.application.handle_payment_event import HandlePaymentEvent
 from ledger.config import load_settings
 from ledger.infrastructure.db.session import build_engine, build_session_factory
 from ledger.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from ledger.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 
 ORDERS_TOPIC = "orders.events"
 ORDERS_GROUP = "ledger-orders"
@@ -18,9 +20,10 @@ PAYMENTS_GROUP = "ledger-payments"
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_worker_observability("ledger-worker")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     factory = build_session_factory(engine)
     uow_factory = lambda: SqlAlchemyUnitOfWork(factory)  # noqa: E731
 

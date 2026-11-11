@@ -6,8 +6,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from marketplace_common.messaging import IncomingEvent
+
 from ledger.application.clock import Clock, utcnow
-from ledger.application.ports import IncomingEvent, UnitOfWork
+from ledger.application.ports import UnitOfWork
 from ledger.application.results import HandleResult
 from ledger.domain.errors import DomainError
 from ledger.domain.money import Money

@@ -5,6 +5,7 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Any
 
+from marketplace_common.observability import current_traceparent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ledger.domain.events import DomainEvent
@@ -29,6 +30,7 @@ class SqlAlchemyOutbox:
         self._session = session
 
     async def add(self, events: list[DomainEvent]) -> None:
+        traceparent = current_traceparent()
         self._session.add_all(
             OutboxEventModel(
                 id=event.event_id,
@@ -38,6 +40,7 @@ class SqlAlchemyOutbox:
                 type=type(event).__name__,
                 payload=serialize_event(event),
                 occurred_at=event.occurred_at,
+                traceparent=traceparent,
             )
             for event in events
         )

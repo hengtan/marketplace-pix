@@ -11,14 +11,6 @@ from notifications.domain.order_projection import OrderProjection
 
 
 @dataclass(frozen=True, slots=True)
-class IncomingEvent:
-    id: UUID
-    type: str
-    key: str
-    payload: dict[str, Any]
-
-
-@dataclass(frozen=True, slots=True)
 class DailyStats:
     created: int
     paid: int

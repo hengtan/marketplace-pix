@@ -5,9 +5,9 @@ from uuid import UUID, uuid4
 import pytest
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaEventConsumer, KafkaPublisher, OutboxRelay
 from sqlalchemy import select, update
 
-from ledger.application.outbox_relay import OutboxRelay
 from ledger.config import load_settings
 from ledger.infrastructure.db.models import (
     InboxMessageModel,
@@ -15,8 +15,6 @@ from ledger.infrastructure.db.models import (
     OutboxEventModel,
     TransactionModel,
 )
-from ledger.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
-from ledger.infrastructure.messaging.kafka_publisher import KafkaPublisher
 from tests.builders import order_created, payment_confirmed
 from tests.integration.helpers import balances, count
 

@@ -2,9 +2,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from marketplace_common.messaging import IncomingEvent
 
 from payments.application.handle_order_event import HandleOrderEvent, HandleResult
-from payments.application.ports import IncomingEvent
 from payments.domain.events import PaymentCreated
 from tests.fakes import FakeDatabase, FakePsp, FakeUow
 

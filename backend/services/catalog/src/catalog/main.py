@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -29,6 +30,7 @@ def _db_check(engine: AsyncEngine) -> ReadyCheck:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     app.state.reader_factory = build_reader_factory(build_session_factory(engine))
     app.state.cache_max_age = settings.cache_max_age_seconds
     app.state.ready_check = _db_check(engine)
@@ -37,3 +39,4 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = create_app(lifespan=lifespan)
+install_api_observability(app, "catalog-api")

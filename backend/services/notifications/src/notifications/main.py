@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -30,6 +31,7 @@ def _db_check(engine: AsyncEngine) -> ReadyCheck:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     factory = build_session_factory(engine)
     app.state.uow_factory = lambda: SqlAlchemyUnitOfWork(factory)
     app.state.renderer = JinjaEmailRenderer(settings.timezone)
@@ -39,3 +41,4 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = create_app(lifespan=lifespan)
+install_api_observability(app, "notifications-api")

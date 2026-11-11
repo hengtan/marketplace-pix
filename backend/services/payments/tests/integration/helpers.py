@@ -1,8 +1,7 @@
 from uuid import uuid4
 
+from marketplace_common.messaging import IncomingEvent
 from sqlalchemy import func, select
-
-from payments.application.ports import IncomingEvent
 
 
 def order_created(order_id=None, event_id=None, total=4480) -> IncomingEvent:

@@ -5,10 +5,12 @@ from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
+from marketplace_common.messaging import IncomingEvent
+
 from inventory.application.clock import Clock, utcnow
 from inventory.application.commit_stock import CommitStock
 from inventory.application.common import Delivery, Outcome
-from inventory.application.ports import IncomingEvent, UnitOfWork
+from inventory.application.ports import UnitOfWork
 from inventory.application.release_stock import ReleaseStock
 from inventory.application.reserve_stock import ReserveStock
 from inventory.domain.reservation import ReservationItem

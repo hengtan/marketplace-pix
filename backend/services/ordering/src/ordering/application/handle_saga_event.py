@@ -5,7 +5,9 @@ from collections.abc import Callable
 from enum import StrEnum
 from uuid import UUID
 
-from ordering.application.ports import IncomingEvent, UnitOfWork
+from marketplace_common.messaging import IncomingEvent
+
+from ordering.application.ports import UnitOfWork
 from ordering.domain.errors import InvalidStateTransition
 
 logger = logging.getLogger(__name__)

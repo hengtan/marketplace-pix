@@ -2,11 +2,11 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from marketplace_common.messaging import IncomingEvent
 
 from ledger.application.errors import OrderProjectionNotFound
 from ledger.application.handle_order_event import HandleOrderEvent
 from ledger.application.handle_payment_event import HandlePaymentEvent
-from ledger.application.ports import IncomingEvent
 from ledger.application.queries import Reconcile
 from ledger.application.results import HandleResult
 from tests.builders import order_created, payment_confirmed

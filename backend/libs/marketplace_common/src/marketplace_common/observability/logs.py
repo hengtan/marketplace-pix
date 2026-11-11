@@ -15,6 +15,7 @@ _STANDARD_ATTRIBUTES = set(logging.LogRecord("", 0, "", 0, "", None, None).__dic
     "message",
     "asctime",
     "taskName",
+    "color_message",
 }
 
 

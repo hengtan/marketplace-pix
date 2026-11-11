@@ -4,20 +4,23 @@ import asyncio
 import logging
 import signal
 
+from marketplace_common.messaging import KafkaEventConsumer
+from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
+
 from ordering.application.handle_saga_event import HandleSagaEvent
 from ordering.config import load_settings
 from ordering.infrastructure.db.session import build_engine, build_session_factory
 from ordering.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from ordering.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 
 PAYMENTS_TOPIC = "payments.events"
 INVENTORY_TOPIC = "inventory.events"
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_worker_observability("ordering-worker")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     factory = build_session_factory(engine)
 
     handler = HandleSagaEvent(lambda: SqlAlchemyUnitOfWork(factory))

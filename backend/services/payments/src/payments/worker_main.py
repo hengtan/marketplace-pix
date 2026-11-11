@@ -5,12 +5,14 @@ import logging
 import signal
 from datetime import timedelta
 
+from marketplace_common.messaging import KafkaEventConsumer
+from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
+
 from payments.application.expire_payments import ExpirePayments
 from payments.application.handle_order_event import HandleOrderEvent
 from payments.config import load_settings
 from payments.infrastructure.db.session import build_engine, build_session_factory
 from payments.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from payments.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from payments.infrastructure.psp.simulated import SimulatedPsp
 
 ORDERS_TOPIC = "orders.events"
@@ -18,9 +20,10 @@ CONSUMER_GROUP = "payments"
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_worker_observability("payments-worker")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     factory = build_session_factory(engine)
     uow_factory = lambda: SqlAlchemyUnitOfWork(factory)  # noqa: E731
 

@@ -111,8 +111,9 @@ async def test_expiry_marks_payment_expired_and_blocks_late_payment(
 async def test_order_cancelled_cancels_the_charge_and_blocks_a_late_payment(
     client, uow_factory, session_factory, psp
 ):
+    from marketplace_common.messaging import IncomingEvent
+
     from payments.application.handle_order_event import HandleOrderEvent as Handler
-    from payments.application.ports import IncomingEvent
 
     created = order_created()
     await Handler(uow_factory, psp).handle(created)

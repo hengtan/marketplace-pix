@@ -1,6 +1,8 @@
 import asyncio
 
 import pytest
+from marketplace_common.observability import setup_tracing
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -33,6 +35,11 @@ async def _reset_schema() -> None:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     await engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def tracing() -> None:
+    setup_tracing("tests", span_exporter=InMemorySpanExporter())
 
 
 @pytest.fixture(scope="session", autouse=True)
