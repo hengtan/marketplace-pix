@@ -225,8 +225,8 @@
   }
   .aurora {
     position: absolute;
-    inset: -20% -10% auto -10%;
-    height: 120%;
+    inset: -6rem -10% auto -10%;
+    height: min(120vh, 1100px);
     pointer-events: none;
     z-index: -1;
     overflow: hidden;

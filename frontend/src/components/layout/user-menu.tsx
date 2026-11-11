@@ -49,9 +49,11 @@ export function UserMenu() {
           aria-label={`Conta de ${user.name}`}
           className="grid size-11 place-items-center rounded-full"
         >
-          <span className="grid size-9 place-items-center rounded-full bg-[linear-gradient(135deg,var(--primary),oklch(0.62_0.22_320))] text-xs font-bold text-primary-foreground shadow-soft">
-            {initials(user.name)}
-          </span>
+          <span
+            aria-hidden
+            data-initials={initials(user.name)}
+            className="grid size-9 place-items-center rounded-full bg-[linear-gradient(135deg,var(--primary),oklch(0.62_0.22_320))] text-xs font-bold text-primary-foreground shadow-soft after:content-[attr(data-initials)]"
+          />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

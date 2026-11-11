@@ -246,9 +246,9 @@ export function Hero({
           </h1>
           <motion.p
             className="mt-7 max-w-[36ch] text-lg text-muted sm:text-xl"
-            initial={reduce ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.55, ease: EASE }}
+            initial={reduce ? false : { y: 16 }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: EASE }}
           >
             Produtos de lojistas independentes, estoque conferido em tempo real e pagamento por PIX
             que confirma na hora.

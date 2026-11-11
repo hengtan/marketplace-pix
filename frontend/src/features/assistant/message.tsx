@@ -1,24 +1,17 @@
-import { AlertCircle, Check, Loader2, RotateCcw, Sparkles } from "lucide-react";
+import { AlertCircle, Check, Loader2, RotateCcw } from "lucide-react";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
+import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { CitedProducts } from "./cited-products";
 import { toolDoneLabel, toolRunningLabel } from "./copy";
+import { Orb } from "./orb";
 import { RichText } from "./rich-text";
 import type { ChatMessage } from "./store";
 import { Trace } from "./trace";
 
-export function Avatar({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary",
-        className,
-      )}
-    >
-      <Sparkles className="size-4" />
-    </span>
-  );
+export function Avatar({ className, thinking }: { className?: string; thinking?: boolean }) {
+  return <Orb className={className} thinking={thinking} />;
 }
 
 export function TypingDots({ label }: { label: string }) {
@@ -40,11 +33,17 @@ export function TypingDots({ label }: { label: string }) {
 
 export function UserMessage({ message }: { message: ChatMessage }) {
   return (
-    <div className="flex justify-end" data-testid="user-message">
-      <p className="max-w-[85%] rounded-lg rounded-br-sm bg-primary px-4 py-2.5 text-[0.95rem] leading-relaxed break-words whitespace-pre-wrap text-primary-foreground shadow-soft">
+    <motion.div
+      className="flex justify-end"
+      data-testid="user-message"
+      initial={{ opacity: 0, y: 14, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.45, ease: EASE }}
+    >
+      <p className="max-w-[85%] rounded-2xl rounded-br-md bg-[linear-gradient(160deg,color-mix(in_oklab,var(--primary),white_12%),var(--primary))] px-4 py-2.5 text-[0.95rem] leading-relaxed break-words whitespace-pre-wrap text-primary-foreground shadow-soft">
         {message.content}
       </p>
-    </div>
+    </motion.div>
   );
 }
 
@@ -65,8 +64,15 @@ export function AssistantMessage({
   const showSteps = message.toolCalls.length > 0 && (hasText || !streaming);
 
   return (
-    <div className="flex gap-3" data-testid="assistant-message" data-status={message.status}>
-      <Avatar className="mt-0.5" />
+    <motion.div
+      className="flex gap-3"
+      data-testid="assistant-message"
+      data-status={message.status}
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: EASE }}
+    >
+      <Avatar className="mt-0.5" thinking={streaming && !hasText} />
       <div className="min-w-0 flex-1 text-[0.95rem] leading-relaxed">
         {streaming && !hasText && (
           <TypingDots label={lastTool ? toolRunningLabel(lastTool.name) : "Pensando..."} />
@@ -133,7 +139,7 @@ export function AssistantMessage({
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

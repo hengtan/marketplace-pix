@@ -97,7 +97,7 @@ scripts/reset.sh   # apaga containers e volumes para recomeçar do zero
 O botão do assistente fica no canto da loja (ou `Ctrl /`). A resposta chega em streaming, cita produtos e mostra o
 rastro: ferramentas chamadas, trechos recuperados com a pontuação e o tempo.
 
-![Assistente com o rastro da resposta](frontend/docs/screenshots/assistente/desktop-claro-03-como-cheguei.png)
+![Assistente com o rastro da resposta](frontend/docs/screenshots/07-assistente-escuro.png)
 
 ### Observabilidade (opcional)
 

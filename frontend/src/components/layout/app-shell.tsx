@@ -11,8 +11,6 @@ import {
 } from "motion/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
-import { CartDrawer } from "@/components/cart-drawer";
-import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { Kbd } from "@/components/ui/misc";
 import { AssistantLauncher } from "@/features/assistant/launcher";
@@ -26,6 +24,12 @@ import { Cursor } from "./cursor";
 import { UserMenu } from "./user-menu";
 import { Wordmark } from "./wordmark";
 
+const CartDrawer = lazy(() =>
+  import("@/components/cart-drawer").then((m) => ({ default: m.CartDrawer })),
+);
+const CommandPalette = lazy(() =>
+  import("@/components/command-palette").then((m) => ({ default: m.CommandPalette })),
+);
 const AssistantPanel = lazy(() =>
   import("@/features/assistant/panel").then((m) => ({ default: m.AssistantPanel })),
 );
@@ -265,16 +269,38 @@ export function AppShell() {
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   const assistantOpen = useUi((s) => s.assistantOpen);
+  const cartOpen = useUi((s) => s.cartOpen);
+  const paletteOpen = useUi((s) => s.paletteOpen);
   const [assistantReady, setAssistantReady] = useState(false);
+  const [cartReady, setCartReady] = useState(false);
+  const [paletteReady, setPaletteReady] = useState(false);
 
   useEffect(() => {
     if (assistantOpen) setAssistantReady(true);
-  }, [assistantOpen]);
+    if (cartOpen) setCartReady(true);
+    if (paletteOpen) setPaletteReady(true);
+  }, [assistantOpen, cartOpen, paletteOpen]);
+
+  const paletteLoaded = useRef(false);
+  paletteLoaded.current = paletteReady;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && !paletteLoaded.current) {
+        e.preventDefault();
+        setPaletteReady(true);
+        useUi.getState().setPaletteOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   useEffect(() => {
-    const idle = (window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 2500)))(() =>
-      setAssistantReady(true),
-    );
+    const idle = (window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 2500)))(() => {
+      setAssistantReady(true);
+      setCartReady(true);
+      setPaletteReady(true);
+    });
     return () => {
       if (typeof idle === "number" && window.cancelIdleCallback) window.cancelIdleCallback(idle);
     };
@@ -314,8 +340,10 @@ export function AppShell() {
         </motion.div>
       </main>
       <Footer />
-      <CartDrawer />
-      <CommandPalette />
+      <Suspense fallback={null}>
+        {cartReady && <CartDrawer />}
+        {paletteReady && <CommandPalette />}
+      </Suspense>
       <AssistantLauncher />
       {assistantReady && (
         <Suspense fallback={null}>

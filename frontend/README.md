@@ -72,7 +72,19 @@ atalho `Ctrl /` (`⌘ /` no Mac) abrem o chat. Esc fecha e o foco volta ao botã
 - Contra o backend real em outra porta: `VITE_PROXY_TARGET=http://localhost:8000 VITE_API_URL= pnpm exec vite --port 5174`.
 - No nginx, `/api/assistant/chat/stream` tem `proxy_buffering off` para o texto chegar token a token.
 
-Capturas em `docs/screenshots/assistente/`.
+Captura em `docs/screenshots/07-assistente-escuro.png`.
+
+## Conta e rotas protegidas
+
+`/entrar` e `/cadastro` falam com `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh` e
+`GET /api/auth/me` (mock MSW com as contas `lojista@praca.dev` e `cliente@praca.dev`, senha `praca1234`). `/lojista` e `/conta`
+exigem sessão; a loja segue aberta para convidados. O cliente HTTP renova o token uma vez em 401.
+
+## Desempenho
+
+Build de produção servido por `vite preview` contra o backend real, Lighthouse 13 na home: desktop 98 de desempenho
+(LCP 1,1 s, TBT 0 ms, CLS 0); celular com a simulação padrão (4G lento, CPU 4x) de 84 a 88 (LCP 3,9 s, CLS 0).
+Recharts (~111 kB gzip) só carrega no painel; o assistente, o carrinho e a paleta carregam sob demanda.
 
 ## Docker
 

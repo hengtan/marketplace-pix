@@ -23,12 +23,9 @@ export function useAddToCart() {
         toast.message("Você já tem o máximo disponível no carrinho", { description: product.name });
         return false;
       }
-      const commit = () => {
-        add(product, quantity, cap);
-        bumpCart();
-      };
-      if (source) flyToCart(source, commit);
-      else commit();
+      add(product, quantity, cap);
+      if (source) flyToCart(source, bumpCart);
+      else bumpCart();
       toast.success("Adicionado ao carrinho", {
         description: product.name,
         action: { label: "Ver carrinho", onClick: () => setCartOpen(true) },

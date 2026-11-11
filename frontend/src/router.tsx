@@ -11,6 +11,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { isSignedIn } from "@/store/auth";
+import HomePage from "./pages/home";
 
 const homeSearch = z.object({
   q: z.string().optional(),
@@ -42,7 +43,7 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   validateSearch: homeSearch,
-  component: lazyRouteComponent(() => import("./pages/home")),
+  component: HomePage,
 });
 const productRoute = createRoute({
   getParentRoute: () => rootRoute,

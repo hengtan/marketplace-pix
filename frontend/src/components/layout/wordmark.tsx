@@ -43,7 +43,9 @@ export function Wordmark({ className }: { className?: string }) {
       aria-label="Praça, página inicial"
     >
       <Mark className="transition-transform duration-500 group-hover:rotate-[-8deg] group-hover:scale-105" />
-      <span className="font-display text-[1.65rem] font-bold tracking-[-0.04em]">Praça</span>
+      <span className="font-display text-[1.65rem] font-bold tracking-[-0.04em] max-[420px]:hidden">
+        Praça
+      </span>
     </Link>
   );
 }

@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 
 const loginRoute = getRouteApi("/entrar");
+const registerRoute = getRouteApi("/cadastro");
 
 const SHOWCASE = [
   {
@@ -336,7 +337,7 @@ export function LoginPage() {
 
 export function RegisterPage() {
   usePageTitle("Criar conta");
-  const search = loginRoute.useSearch();
+  const search = registerRoute.useSearch();
   const navigate = useNavigate();
   const setSession = useAuth((s) => s.setSession);
   const { register, handleSubmit, formState, watch } = useForm<RegisterForm>({
