@@ -1,0 +1,14 @@
+{
+  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
+  "files": { "includes": ["src/**", "e2e/**", "*.ts", "!src/index.css"] },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "linter": {
+    "rules": {
+      "recommended": true,
+      "suspicious": { "noExplicitAny": "error", "noArrayIndexKey": "off" },
+      "a11y": { "useSemanticElements": "off" },
+      "correctness": { "noComponentHookFactories": "off" }
+    }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}
