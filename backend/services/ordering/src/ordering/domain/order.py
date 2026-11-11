@@ -86,6 +86,7 @@ class Order:
                 customer_email=order.customer_email,
                 total_cents=total.cents,
                 currency=total.currency,
+                customer_type="guest" if owner_id is None else "registered",
                 items=tuple(
                     OrderCreatedItem(
                         product_id=i.product_id,

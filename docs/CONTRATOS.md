@@ -54,15 +54,22 @@ SQLAlchemy 2 async, Alembic, Pydantic v2, aiokafka, pytest + pytest-asyncio, `ru
 
 ## 4. Eventos (Kafka)
 
-Mensagem: chave = `order_id` (texto), valor = JSON, headers `event_id` (uuid) e `event_type`.
+Mensagem: chave = `order_id` (texto), valor = JSON, headers `event_id` (uuid), `event_type` e `schema_version`.
+O mesmo `schema_version` (inteiro) também vai dentro do JSON. Mensagem sem a versão vale como `1`.
 Consumidores deduplicam por `event_id` (inbox) e ignoram tipos que não tratam. Datas em ISO 8601 UTC.
+
+Versionamento (detalhes em `docs/EVOLUCAO-DE-EVENTOS.md`): cada tipo tem um modelo pydantic por versão em
+`marketplace_common.events`, com upcasters entre versões vizinhas. Regras: mudança compatível (campo novo
+**opcional**) sobe a versão, e consumidores ignoram campos que não conhecem; mudança incompatível (remover,
+renomear, mudar tipo ou semântica) vira um tipo novo. Cada produtor tem um teste de contrato contra os arquivos
+golden da lib (`marketplace_common/events/golden/`), que falha se o payload sair do combinado.
 Grupo de consumo = nome do serviço (se houver mais de um consumidor no serviço, sufixo: `ledger-orders`).
 
 ### orders.events (produtor: ordering)
 
 | Evento | Campos |
 |---|---|
-| `OrderCreated` | `order_id`, `customer_id`, `customer_name`, `customer_email`, `total_cents`, `currency`, `items[]` com `product_id`, `merchant_id`, `quantity`, `unit_price_cents`; mais `event_id`, `occurred_at` |
+| `OrderCreated` (v2) | `order_id`, `customer_id`, `customer_name`, `customer_email`, `total_cents`, `currency`, `items[]` com `product_id`, `merchant_id`, `quantity`, `unit_price_cents`, `customer_type` (`guest` ou `registered`, opcional, novo na v2); mais `event_id`, `occurred_at`, `schema_version`. A v1 é igual, sem `customer_type` |
 | `OrderPaid` | `order_id`, `event_id`, `occurred_at` |
 | `OrderCancelled` | `order_id`, `reason`, `event_id`, `occurred_at` |
 
