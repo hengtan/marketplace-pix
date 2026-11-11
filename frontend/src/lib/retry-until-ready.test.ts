@@ -48,4 +48,17 @@ describe("retryUntilReady", () => {
     }).catch(() => undefined);
     expect(delays).toEqual([100, 200, 400]);
   });
+
+  it("can wait before the very first attempt so a slow event does not cause a failed request", async () => {
+    const delays: number[] = [];
+    const run = vi.fn().mockResolvedValue("ok");
+    await retryUntilReady(run, {
+      initialMs: 500,
+      wait: async (ms) => {
+        delays.push(ms);
+      },
+    });
+    expect(delays).toEqual([500]);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
 });

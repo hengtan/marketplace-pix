@@ -77,7 +77,9 @@ function ProductDialog({
         const stock = parseStockInput(values.stock.trim() === "" ? "0" : values.stock);
         let stockSaved = true;
         if (stock.ok && stock.value > 0) {
-          stockSaved = await retryUntilReady(() => merchantApi.setStock(created.id, stock.value))
+          stockSaved = await retryUntilReady(() => merchantApi.setStock(created.id, stock.value), {
+            initialMs: 600,
+          })
             .then(() => {
               void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
               return true;

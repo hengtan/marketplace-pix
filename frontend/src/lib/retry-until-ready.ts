@@ -3,6 +3,7 @@ import { ApiError } from "@/api/client";
 interface Options {
   attempts?: number;
   baseMs?: number;
+  initialMs?: number;
   wait?: (ms: number) => Promise<void>;
 }
 
@@ -14,8 +15,9 @@ function notReadyYet(error: unknown): boolean {
 
 export async function retryUntilReady<T>(
   run: () => Promise<T>,
-  { attempts = 6, baseMs = 250, wait = sleep }: Options = {},
+  { attempts = 6, baseMs = 250, initialMs = 0, wait = sleep }: Options = {},
 ): Promise<T> {
+  if (initialMs > 0) await wait(initialMs);
   let delay = baseMs;
   for (let attempt = 1; ; attempt++) {
     try {
