@@ -15,6 +15,8 @@ from ordering.domain.events import (
 )
 from ordering.domain.money import Money
 
+SAGA_TIMEOUT_REASON = "saga timeout"
+
 
 class OrderStatus(StrEnum):
     PENDING = "PENDING"
@@ -48,6 +50,7 @@ class Order:
     status: OrderStatus = OrderStatus.PENDING
     cancel_reason: str | None = None
     created_at: datetime | None = None
+    owner_id: UUID | None = None
     _events: list[DomainEvent] = field(default_factory=list, repr=False)
 
     @classmethod
@@ -57,6 +60,7 @@ class Order:
         items: list[OrderItem],
         customer_name: str,
         customer_email: str,
+        owner_id: UUID | None = None,
     ) -> Order:
         if not items:
             raise InvalidOrder("order needs at least one item")
@@ -73,6 +77,7 @@ class Order:
             customer_name=customer_name.strip(),
             customer_email=customer_email.strip(),
             items=tuple(items),
+            owner_id=owner_id,
         )
         total = order.total
         order._events.append(
@@ -83,6 +88,7 @@ class Order:
                 customer_email=order.customer_email,
                 total_cents=total.cents,
                 currency=total.currency,
+                customer_type="guest" if owner_id is None else "registered",
                 items=tuple(
                     OrderCreatedItem(
                         product_id=i.product_id,
@@ -124,3 +130,13 @@ class Order:
     def pull_events(self) -> list[DomainEvent]:
         events, self._events = self._events, []
         return events
+
+    def is_owned_by(self, user_id: UUID) -> bool:
+        return self.owner_id is not None and self.owner_id == user_id
+
+    @property
+    def is_guest(self) -> bool:
+        return self.owner_id is None
+
+    def items_of(self, merchant_id: UUID) -> tuple[OrderItem, ...]:
+        return tuple(i for i in self.items if i.merchant_id == merchant_id)

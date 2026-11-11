@@ -4,7 +4,12 @@ import pytest
 from marketplace_common.messaging import IncomingEvent
 
 from ordering.application.handle_saga_event import HandleResult, HandleSagaEvent
-from ordering.domain.events import OrderCancelled, OrderCreated, OrderPaid
+from ordering.domain.events import (
+    OrderCancelled,
+    OrderCreated,
+    OrderPaid,
+    PaymentRefundRequested,
+)
 from ordering.domain.money import Money
 from ordering.domain.order import Order, OrderItem, OrderStatus
 from tests.fakes import FakeDatabase, FakeUow
@@ -15,7 +20,12 @@ def payment_event(order_id: UUID, type_: str = "PaymentConfirmed", event_id=None
         id=event_id or uuid4(),
         type=type_,
         key=str(order_id),
-        payload={"order_id": str(order_id), "payment_id": str(uuid4())},
+        payload={
+            "order_id": str(order_id),
+            "payment_id": str(uuid4()),
+            "amount_cents": 3980,
+            "currency": "BRL",
+        },
     )
 
 
@@ -73,16 +83,36 @@ async def test_a_second_distinct_confirmation_is_harmless(handler, db, order):
     assert [type(e) for e in db.events] == [OrderPaid]
 
 
-async def test_confirmation_for_a_cancelled_order_is_a_conflict_and_changes_nothing(
+async def test_confirmation_for_a_cancelled_order_keeps_it_cancelled_and_requests_a_refund(
     handler, db, order
 ):
     await handler.handle(payment_event(order.id, "PaymentExpired"))
+    late = payment_event(order.id, "PaymentConfirmed")
 
-    result = await handler.handle(payment_event(order.id, "PaymentConfirmed"))
+    result = await handler.handle(late)
 
-    assert result is HandleResult.CONFLICT
+    assert result is HandleResult.REFUND_REQUESTED
     assert db.orders[order.id].status is OrderStatus.CANCELLED
-    assert [type(e) for e in db.events] == [OrderCancelled]
+    assert [type(e) for e in db.events] == [OrderCancelled, PaymentRefundRequested]
+    refund = db.events[-1]
+    assert refund.payment_id == UUID(late.payload["payment_id"])
+    assert (refund.amount_cents, refund.currency) == (3980, "BRL")
+    ((_, kind, payment_id),) = db.audit
+    assert kind == "LATE_PAYMENT" and payment_id == refund.payment_id
+
+
+async def test_the_same_late_payment_delivered_twice_requests_one_refund(handler, db, order):
+    await handler.handle(payment_event(order.id, "PaymentExpired"))
+    late = payment_event(order.id, "PaymentConfirmed")
+    redelivery = IncomingEvent(uuid4(), late.type, late.key, late.payload)
+
+    await handler.handle(late)
+    await handler.handle(late)
+    second = await handler.handle(redelivery)
+
+    assert second is HandleResult.REFUND_REQUESTED
+    assert [type(e) for e in db.events].count(PaymentRefundRequested) == 1
+    assert len(db.audit) == 1
 
 
 async def test_expiry_for_a_paid_order_is_a_conflict_and_changes_nothing(handler, db, order):

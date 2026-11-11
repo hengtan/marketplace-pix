@@ -17,3 +17,9 @@ class DomainEvent:
 class LedgerTransactionPosted(DomainEvent):
     total_cents: int
     platform_fee_cents: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LedgerTransactionReversed(DomainEvent):
+    total_cents: int
+    platform_fee_cents: int

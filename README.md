@@ -88,7 +88,8 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 
 ```bash
 scripts/up.sh      # cria o .env se faltar, sobe tudo (com build) e espera ficar saudável
-scripts/e2e.sh     # teste de ponta a ponta pelo gateway (23 verificações), repetível
+scripts/e2e.sh     # teste de ponta a ponta pelo gateway (autenticação, isolamento e saga feliz), repetível
+scripts/e2e-saga.sh  # pagamento que nunca chega e pagamento tardio (suba com SAGA_TIMEOUT_SECONDS=12)
 scripts/reset.sh   # apaga containers e volumes para recomeçar do zero
 scripts/chaos.sh   # teste de caos: derruba catalog, payments e Redis e valida breaker, fail fast e recuperação
 python3 scripts/loadtest.py --duration 30 --concurrency 20   # teste de carga (p50/p95/p99, 429 e erros)
@@ -100,6 +101,14 @@ O botão do assistente fica no canto da loja (ou `Ctrl /`). A resposta chega em 
 rastro: ferramentas chamadas, trechos recuperados com a pontuação e o tempo.
 
 ![Assistente com o rastro da resposta](frontend/docs/screenshots/07-assistente-escuro.png)
+
+### Segurança
+
+Login com JWT de 10 minutos e refresh rotativo, papéis `customer`, `merchant` e `admin`, autorização por objeto e
+isolamento entre lojistas. Contas de desenvolvimento: `admin@marketplace-pix.local` e um lojista por loja
+(`aurora-tech@`, `casa-lume@`, `trilha-sports@marketplace-pix.local`), todos com o valor de `IDENTITY_SEED_PASSWORD` do
+`.env`. Detalhes em `docs/SEGURANCA.md`, `docs/CONTRATOS.md` e `docs/adr/0001-identidade-como-servico.md`. Evolução de
+eventos em `docs/EVOLUCAO-DE-EVENTOS.md`.
 
 ### Observabilidade (opcional)
 
@@ -125,6 +134,7 @@ docker compose -f infra/docker-compose.yml --env-file .env --profile services up
 | ordering-relay | publica o outbox no Kafka | (sem porta) |
 | ordering-worker | consome `payments.events` (com inbox): marca pago ou cancela o pedido | (sem porta) |
 | assistant-api | assistente de compras (RAG + agente, modelos simulados) | http://localhost:8007/docs |
+| identity-api | cadastro, login, JWT EdDSA, refresh rotativo e JWKS (`/api/auth/*`) | http://localhost:8008/docs |
 | frontend | loja "Praça" (React), com proxy `/api` para o gateway | http://localhost:5173 |
 | gateway | ponto de entrada único da API (`/api/...`), CORS, limite de requisições | http://localhost:8000/docs |
 | catalog-api | produtos, busca, categorias | http://localhost:8003/docs |

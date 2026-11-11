@@ -18,6 +18,7 @@ class OrderModel(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     customer_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    owner_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     customer_name: Mapped[str] = mapped_column(String(120))
     customer_email: Mapped[str] = mapped_column(String(254))
     status: Mapped[str] = mapped_column(String(20))
@@ -25,6 +26,14 @@ class OrderModel(Base):
     currency: Mapped[str] = mapped_column(String(3))
     total_cents: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_orders_pending_created",
+            "created_at",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+    )
 
     items: Mapped[list[OrderItemModel]] = relationship(
         cascade="all, delete-orphan",
@@ -41,7 +50,7 @@ class OrderItemModel(Base):
     )
     position: Mapped[int] = mapped_column(Integer, primary_key=True)
     product_id: Mapped[UUID] = mapped_column(Uuid)
-    merchant_id: Mapped[UUID] = mapped_column(Uuid)
+    merchant_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price_cents: Mapped[int] = mapped_column(BigInteger)
 
@@ -66,6 +75,33 @@ class OutboxEventModel(Base):
             "created_at",
             postgresql_where=text("published_at IS NULL"),
         ),
+        Index(
+            "ix_outbox_published_at",
+            "published_at",
+            postgresql_where=text("published_at IS NOT NULL"),
+        ),
+    )
+
+
+class OrderAuditModel(Base):
+    __tablename__ = "order_audit"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    order_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    reference_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "uq_order_audit_kind_reference",
+            "order_id",
+            "kind",
+            "reference_id",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
+        ),
     )
 
 
@@ -77,6 +113,8 @@ class IdempotencyKeyModel(Base):
     order_id: Mapped[UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (Index("ix_idempotency_created_at", "created_at"),)
+
 
 class InboxMessageModel(Base):
     __tablename__ = "inbox_messages"
@@ -86,3 +124,5 @@ class InboxMessageModel(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    __table_args__ = (Index("ix_inbox_processed_at", "processed_at"),)

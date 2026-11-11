@@ -19,6 +19,7 @@ class StockModel(Base):
     product_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     available: Mapped[int] = mapped_column(Integer)
     reserved: Mapped[int] = mapped_column(Integer, server_default="0")
+    merchant_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -59,6 +60,8 @@ class InboxMessageModel(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
+    __table_args__ = (Index("ix_inbox_processed_at", "processed_at"),)
+
 
 class OutboxEventModel(Base):
     __tablename__ = "outbox_events"
@@ -79,5 +82,10 @@ class OutboxEventModel(Base):
             "ix_outbox_unpublished",
             "created_at",
             postgresql_where=text("published_at IS NULL"),
+        ),
+        Index(
+            "ix_outbox_published_at",
+            "published_at",
+            postgresql_where=text("published_at IS NOT NULL"),
         ),
     )

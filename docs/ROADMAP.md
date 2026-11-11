@@ -21,7 +21,7 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Testes: unit do domínio, integração com Postgres e Kafka reais
 - [ ] Teste que roda as migrações Alembic do zero
 - [ ] Preço vindo do catálogo (hoje o cliente envia `unit_price_cents`)
-- [ ] Limpeza (TTL) das `idempotency_keys` e das linhas publicadas do outbox
+- [x] Limpeza (TTL) das `idempotency_keys` e das linhas publicadas do outbox (job em lotes em `marketplace_common.maintenance`)
 
 ## Fase 2: `payments` (FEITA)
 - [x] Domínio `Payment` (PENDING, CONFIRMED, EXPIRED), id determinístico por pedido, regras de confirmar/expirar
@@ -31,17 +31,19 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Job de expiração (`ExpirePayments`) e eventos `PaymentCreated`, `PaymentConfirmed`, `PaymentExpired` via outbox/relay
 - [x] 53 testes (unit + integração com Postgres e Kafka reais), Dockerfile e 4 serviços no compose
 - [ ] Mensagem que falha sempre (poison): retry limitado e `orders.events.dlq`
-- [ ] Limpeza (TTL) do inbox e do outbox publicado
-- [ ] Cancelar a cobrança no PSP quando expira; reembolso de pagamento tardio
+- [x] Limpeza (TTL) do inbox e do outbox publicado
+- [x] Reembolso de pagamento tardio (`PaymentRefundRequested`, `PaymentRefunded`, estorno no ledger e estoque devolvido)
+- [ ] Cancelar a cobrança no PSP quando expira
 - [ ] Extrair outbox, relay e inbox para `backend/libs` (hoje copiados do ordering)
 
 ## Fase 3: Saga completa (ordering + payments) (FEITA)
 - [x] `ordering` consome `payments.events` com inbox: `PaymentConfirmed` marca o pedido como pago, `PaymentExpired` cancela
 - [x] Pedido bloqueado com `FOR UPDATE`: confirmação e expiração concorrentes têm um vencedor só (o outro vira CONFLICT)
 - [x] Teste ponta a ponta nos containers: pedido pago e pedido com PIX expirado
-- [ ] Conflito (pagamento confirmado para pedido já cancelado) hoje só é registrado em log: falta reembolso
-- [ ] Orquestrador explícito (hoje a saga é coreografada por eventos) e timeout no próprio pedido
-- [ ] Teste automatizado ponta a ponta entre os dois serviços (hoje só manual)
+- [x] Conflito (pagamento confirmado para pedido já cancelado) vira auditoria em `order_audit` e pedido de reembolso
+- [x] Timeout global da saga (`SagaTimeoutManager` no ordering cancela pedido parado em PENDING com `saga timeout`)
+- [ ] Orquestrador explícito (a saga continua coreografada por eventos, com o process manager só para o prazo)
+- [x] Teste automatizado ponta a ponta entre os serviços (`scripts/e2e.sh` e `scripts/e2e-saga.sh`)
 
 ## Fase 4: `ledger` (FEITA)
 - [x] Dupla entrada (débitos iguais a créditos, transação desbalanceada é rejeitada)
@@ -94,3 +96,13 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] CI no GitHub Actions
 - [x] `assistant` na observabilidade e no CI (CI cobre todos os serviços, a biblioteca, o assistente e o frontend)
 - [ ] Azure (Terraform) e Kubernetes (Helm/k3d): adiados
+
+## Plataforma: segurança, contratos e saga (FEITA)
+- [x] Serviço `identity` (argon2id, JWT EdDSA, JWKS, refresh rotativo com detecção de reuso), papéis e escopos
+- [x] Gateway valida o token, remove cabeçalhos de identidade do cliente e assina a identidade para os serviços
+- [x] Autorização por objeto (pedido do dono) e multi-tenant (ledger, estoque e pedidos do lojista), com testes de BOLA e de isolamento
+- [x] Versionamento de eventos: `schema_version`, modelos por versão, upcasters, golden files e testes de contrato; `OrderCreated` v2
+- [x] Retenção em lotes de outbox, inbox, idempotência e refresh tokens
+- [x] Timeout global da saga e pagamento tardio reembolsado de forma idempotente e auditável
+- [x] `docs/SEGURANCA.md` e `docs/EVOLUCAO-DE-EVENTOS.md`
+- [ ] MFA, cookie `HttpOnly` por BFF, revogação imediata do access token, cadastro em massa (ver limitações em `docs/SEGURANCA.md`)

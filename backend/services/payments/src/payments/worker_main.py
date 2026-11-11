@@ -5,6 +5,12 @@ import logging
 import signal
 from datetime import timedelta
 
+from marketplace_common.maintenance import (
+    CleanupJob,
+    RetentionPolicy,
+    inbox_target,
+    outbox_target,
+)
 from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
@@ -39,6 +45,9 @@ async def main() -> None:
     )
     expirer = ExpirePayments(uow_factory)
 
+    policy = RetentionPolicy.from_env()
+    cleanup = CleanupJob(engine, [outbox_target(policy), inbox_target(policy)], policy)
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -47,7 +56,9 @@ async def main() -> None:
     await consumer.start()
     try:
         logging.getLogger(__name__).info("payments worker started")
-        await asyncio.gather(consumer.run(stop), expirer.run_forever(stop))
+        await asyncio.gather(
+            consumer.run(stop), expirer.run_forever(stop), cleanup.run_forever(stop)
+        )
     finally:
         await consumer.stop()
         await engine.dispose()

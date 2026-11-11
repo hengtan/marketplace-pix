@@ -11,6 +11,7 @@ class Stock:
     product_id: UUID
     available: int = 0
     reserved: int = 0
+    merchant_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.available < 0 or self.reserved < 0:
@@ -30,6 +31,10 @@ class Stock:
         _require_positive(quantity)
         self._require_reserved(quantity)
         self.reserved -= quantity
+        self.available += quantity
+
+    def restock(self, quantity: int) -> None:
+        _require_positive(quantity)
         self.available += quantity
 
     def sell(self, quantity: int) -> None:

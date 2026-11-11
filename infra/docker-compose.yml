@@ -7,6 +7,9 @@ x-ordering: &ordering
   image: marketplace-pix/ordering:dev
   profiles: ["services"]
   environment:
+    SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-2700}
+    SAGA_SWEEP_INTERVAL_SECONDS: ${SAGA_SWEEP_INTERVAL_SECONDS:-30}
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
     POSTGRES_USER: ${POSTGRES_USER}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     POSTGRES_HOST: postgres
@@ -50,6 +53,7 @@ x-ledger: &ledger
   image: marketplace-pix/ledger:dev
   profiles: ["services"]
   environment:
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
     POSTGRES_USER: ${POSTGRES_USER}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     POSTGRES_HOST: postgres
@@ -64,6 +68,7 @@ x-inventory: &inventory
   image: marketplace-pix/inventory:dev
   profiles: ["services"]
   environment:
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
     POSTGRES_USER: ${POSTGRES_USER}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     POSTGRES_HOST: postgres
@@ -109,6 +114,23 @@ x-assistant: &assistant
     ORDERING_URL: http://ordering-api:8000
     EMBEDDER: hashing
     LLM: mock
+
+x-identity: &identity
+  build:
+    context: ..
+    dockerfile: backend/services/identity/Dockerfile
+  image: marketplace-pix/identity:dev
+  profiles: ["services"]
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    IDENTITY_DB: identity
+    ENVIRONMENT: ${ENVIRONMENT:-development}
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
+    IDENTITY_SIGNING_KEY: ${IDENTITY_SIGNING_KEY:-}
+    IDENTITY_SEED_PASSWORD: ${IDENTITY_SEED_PASSWORD:-}
 
 services:
   postgres:
@@ -485,6 +507,35 @@ services:
       timeout: 5s
       retries: 6
 
+  identity-migrate:
+    <<: *identity
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  identity-seed:
+    <<: *identity
+    command: ["python", "-m", "identity.seed"]
+    depends_on:
+      identity-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  identity-api:
+    <<: *identity
+    ports:
+      - "${IDENTITY_PORT:-8008}:8000"
+    depends_on:
+      identity-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
   gateway:
     build:
       context: ..
@@ -499,6 +550,8 @@ services:
       LEDGER_URL: http://ledger-api:8000
       NOTIFICATIONS_URL: http://notifications-api:8000
       ASSISTANT_URL: http://assistant-api:8000
+      IDENTITY_URL: http://identity-api:8000
+      INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-}
       ENABLE_DEV_ROUTES: "true"
       REDIS_URL: redis://redis:6379/0
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-600}

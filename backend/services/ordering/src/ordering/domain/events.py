@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import ClassVar
 from uuid import UUID, uuid4
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DomainEvent:
+    schema_version: ClassVar[int] = 1
+
     order_id: UUID
     event_id: UUID = field(default_factory=uuid4)
     occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -22,12 +25,15 @@ class OrderCreatedItem:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class OrderCreated(DomainEvent):
+    schema_version: ClassVar[int] = 2
+
     customer_id: UUID
     customer_name: str
     customer_email: str
     total_cents: int
     currency: str
     items: tuple[OrderCreatedItem, ...]
+    customer_type: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -37,4 +43,12 @@ class OrderPaid(DomainEvent):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class OrderCancelled(DomainEvent):
+    reason: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PaymentRefundRequested(DomainEvent):
+    payment_id: UUID
+    amount_cents: int
+    currency: str
     reason: str

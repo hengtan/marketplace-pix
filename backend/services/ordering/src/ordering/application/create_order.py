@@ -24,6 +24,7 @@ class CreateOrderCommand:
     customer_name: str
     customer_email: str
     items: list[CreateOrderItem]
+    owner_id: UUID | None = None
 
     def fingerprint(self) -> str:
         canonical = json.dumps(asdict(self), sort_keys=True, default=str)
@@ -77,5 +78,9 @@ class CreateOrder:
             for pid, quantity in quantities.items()
         ]
         return Order.create(
-            command.customer_id, items, command.customer_name, command.customer_email
+            command.customer_id,
+            items,
+            command.customer_name,
+            command.customer_email,
+            owner_id=command.owner_id,
         )

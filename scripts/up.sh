@@ -8,9 +8,17 @@ if [ ! -f .env ]; then
   cp .env.example .env
   sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 12)/" .env
   sed -i.bak "s/^PSP_WEBHOOK_SECRET=.*/PSP_WEBHOOK_SECRET=$(openssl rand -hex 24)/" .env
+  sed -i.bak "s/^INTERNAL_AUTH_SECRET=.*/INTERNAL_AUTH_SECRET=$(openssl rand -hex 32)/" .env
+  sed -i.bak "s/^IDENTITY_SEED_PASSWORD=.*/IDENTITY_SEED_PASSWORD=$(openssl rand -hex 12)/" .env
   rm -f .env.bak
   echo ".env criado com segredos novos"
 fi
+for var in INTERNAL_AUTH_SECRET IDENTITY_SEED_PASSWORD; do
+  if ! grep -q "^$var=" .env; then
+    echo "$var=$(openssl rand -hex 24)" >> .env
+    echo "$var gerado e adicionado ao .env"
+  fi
+done
 
 FILES=(-f infra/docker-compose.yml)
 if [ "${1:-}" = "--obs" ]; then
@@ -18,6 +26,10 @@ if [ "${1:-}" = "--obs" ]; then
   echo "observabilidade ligada (Prometheus, Grafana, Jaeger)"
 fi
 COMPOSE=(docker compose "${FILES[@]}" --env-file .env --profile services)
+"${COMPOSE[@]}" up -d --wait postgres
+for db in ordering payments ledger inventory catalog notifications identity; do
+  "${COMPOSE[@]}" exec -T postgres sh -c "psql -U \"\$POSTGRES_USER\" -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='$db'\" | grep -q 1 || psql -U \"\$POSTGRES_USER\" -d postgres -c 'CREATE DATABASE $db'" >/dev/null
+done
 "${COMPOSE[@]}" up -d --build
 
 echo "aguardando o gateway reportar todos os serviços saudáveis..."

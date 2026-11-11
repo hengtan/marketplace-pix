@@ -43,11 +43,17 @@ async def test_confirmed_and_expired_racing_for_the_same_order_have_one_winner(
         handler.handle(payment_event(order_id, "PaymentExpired")),
     )
 
-    assert sorted(r.value for r in results) == ["CONFLICT", "PROCESSED"]
     status = await order_status(session_factory, order_id)
-    expected_event = "OrderPaid" if status == "PAID" else "OrderCancelled"
-    assert status in {"PAID", "CANCELLED"}
-    assert await outbox_types(session_factory) == sorted(["OrderCreated", expected_event])
+    outcomes = sorted(r.value for r in results)
+    if status == "PAID":
+        assert outcomes == ["CONFLICT", "PROCESSED"]
+        assert await outbox_types(session_factory) == sorted(["OrderCreated", "OrderPaid"])
+    else:
+        assert status == "CANCELLED"
+        assert outcomes == ["PROCESSED", "REFUND_REQUESTED"]
+        assert await outbox_types(session_factory) == sorted(
+            ["OrderCreated", "OrderCancelled", "PaymentRefundRequested"]
+        )
 
 
 async def test_event_for_unknown_order_is_ignored_without_side_effects(

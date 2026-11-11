@@ -4,6 +4,12 @@ import asyncio
 import logging
 import signal
 
+from marketplace_common.maintenance import (
+    CleanupJob,
+    RetentionPolicy,
+    inbox_target,
+    outbox_target,
+)
 from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
@@ -37,6 +43,9 @@ async def main() -> None:
         HandlePaymentEvent(uow_factory, fee_bps=settings.platform_fee_bps),
     )
 
+    policy = RetentionPolicy.from_env()
+    cleanup = CleanupJob(engine, [outbox_target(policy), inbox_target(policy)], policy)
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -46,7 +55,7 @@ async def main() -> None:
     await payments.start()
     try:
         logging.getLogger(__name__).info("ledger worker started")
-        await asyncio.gather(orders.run(stop), payments.run(stop))
+        await asyncio.gather(orders.run(stop), payments.run(stop), cleanup.run_forever(stop))
     finally:
         await orders.stop()
         await payments.stop()

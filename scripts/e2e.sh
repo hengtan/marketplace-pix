@@ -1,83 +1,119 @@
 #!/usr/bin/env bash
 # Teste de ponta a ponta pelo gateway. Sai com código diferente de zero se algo falhar.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+HERE=$(cd "$(dirname "$0")" && pwd)
+cd "$HERE/.."
+ENV_FILE=${ENV_FILE:-.env}
 G=${GATEWAY:-http://localhost:8000/api}
 M=${MAILPIT:-http://localhost:8025/api/v1}
 PAYMENTS=${PAYMENTS_DIRECT:-http://localhost:8002}
-PASS=0; FAIL=0
-CODE_FILE=$(mktemp); trap 'rm -f "$CODE_FILE"' EXIT
-
-ok()   { PASS=$((PASS+1)); printf '  \033[32mOK\033[0m   %s\n' "$1"; }
-bad()  { FAIL=$((FAIL+1)); printf '  \033[31mFALHA\033[0m %s (obtido: %s)\n' "$1" "$2"; }
-check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "$2 | esperado: $3"; fi; }
-jget() { python3 -c "import sys,json
-d=json.load(sys.stdin)
-print($1)" 2>/dev/null; }
-uuid5() { python3 -c "import uuid;print(uuid.uuid5(uuid.NAMESPACE_URL,'marketplace-pix:$1:$2'))"; }
-wait_for() { # descrição, comando, valor esperado, tentativas
-  local n=${4:-30} v=""
-  for _ in $(seq 1 "$n"); do v=$(eval "$2" 2>/dev/null); [ "$v" = "$3" ] && break; sleep 1; done
-  check "$1" "$v" "$3"
-}
-post_order() { # produto, quantidade, cliente, e-mail, chave -> corpo; código HTTP em $CODE_FILE
-  local out
-  out=$(curl -s -w '\n%{http_code}' -X POST "$G/orders" -H 'content-type: application/json' -H "Idempotency-Key: $5" \
-    -d "{\"customer_id\":\"$3\",\"customer_name\":\"Teste E2E\",\"customer_email\":\"$4\",\"items\":[{\"product_id\":\"$1\",\"quantity\":$2,\"unit_price_cents\":1}]}")
-  echo "$out" | tail -n1 > "$CODE_FILE"; echo "$out" | sed '$d'
-}
+SEED_PASSWORD=${IDENTITY_SEED_PASSWORD:-$(grep -E '^IDENTITY_SEED_PASSWORD=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)}
+source "$HERE/e2e-lib.sh"
 
 RUN=$RANDOM$RANDOM
-CUST=$(python3 -c 'import uuid;print(uuid.uuid4())')
 EMAIL="e2e.$RUN@example.com"
+PASSWORD="E2e-senha-$RUN-segura"
 CORDA=$(uuid5 product corda-pular-speed); GPS=$(uuid5 product relogio-gps-trail)
-TRILHA=$(uuid5 merchant trilha-sports)
+TRILHA=$(uuid5 merchant trilha-sports); AURORA=$(uuid5 merchant aurora-tech)
 stock() { curl -s "$G/inventory/stock/$1" | jget "'%s/%s' % (d['available'], d['reserved'])"; }
-summary() { curl -s "$G/ledger/merchants/$TRILHA/summary?days=1"; }
 
 echo "== 1. Saúde"
-check "gateway agrega todos os serviços" "$(curl -s "$G/health" | jget "d['status']")" "ok"
+check "gateway agrega todos os serviços (inclui identity)" "$(curl -s "$G/health" | jget "d['status']")" "ok"
 
-echo "== 2. Catálogo"
+echo "== 2. Catálogo (público, sem token)"
 check "busca sem acento acha Luminária" "$(curl -s "$G/catalog/products?q=luminaria" | jget "d['items'][0]['name']")" "Luminária Arco Dourado"
 check "catálogo tem 24 produtos" "$(curl -s "$G/catalog/products?page_size=48" | jget "d['total']")" "24"
 
-echo "== 3. Pedido feliz (preço vem do catálogo mesmo o cliente mandando 1 centavo)"
-curl -s -X PUT "$G/inventory/stock/$CORDA" -H 'content-type: application/json' -d '{"available":25}' >/dev/null
+echo "== 3. Identidade"
+REG=$(curl -s -X POST "$G/auth/register" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"name\":\"Teste E2E\",\"password\":\"$PASSWORD\"}")
+TOKEN=$(echo "$REG" | jget "d['access_token']"); REFRESH=$(echo "$REG" | jget "d['refresh_token']"); CUST=$(echo "$REG" | jget "d['user']['id']")
+check "registro devolve access token JWT" "$(echo "$TOKEN" | awk -F. '{print NF}')" "3"
+check "e-mail repetido é recusado (409)" "$(status -X POST "$G/auth/register" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"name\":\"X\",\"password\":\"$PASSWORD\"}")" "409"
+check "senha errada é recusada (401)" "$(status -X POST "$G/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"errada-errada\"}")" "401"
+check "GET /auth/me devolve o usuário do token" "$(curl -s "$G/auth/me" -H "$(auth "$TOKEN")" | jget "d['email']")" "$EMAIL"
+check "token adulterado é recusado (401)" "$(status "$G/auth/me" -H "$(auth "${TOKEN%?}x")")" "401"
+check "sem token em rota protegida (401)" "$(status "$G/auth/me")" "401"
+ROT=$(curl -s -X POST "$G/auth/refresh" -H 'content-type: application/json' -d "{\"refresh_token\":\"$REFRESH\"}")
+NEWREFRESH=$(echo "$ROT" | jget "d['refresh_token']")
+check "refresh rotaciona o token" "$([ -n "$NEWREFRESH" ] && [ "$NEWREFRESH" != "$REFRESH" ] && echo yes)" "yes"
+check "reuso do refresh antigo é detectado (401)" "$(status -X POST "$G/auth/refresh" -H 'content-type: application/json' -d "{\"refresh_token\":\"$REFRESH\"}")" "401"
+check "reuso derruba a família: o refresh novo também morre (401)" "$(status -X POST "$G/auth/refresh" -H 'content-type: application/json' -d "{\"refresh_token\":\"$NEWREFRESH\"}")" "401"
+TOKEN=$(login "$EMAIL" "$PASSWORD")
+check "login volta a funcionar" "$(echo "$TOKEN" | awk -F. '{print NF}')" "3"
+check "cabeçalho X-User-Id forjado é ignorado (anônimo, 401)" "$(status "$G/ledger/reconciliation" -H "X-User-Id: $CUST" -H 'X-User-Roles: admin')" "401"
+MERCHANT_TOKEN=$(login "trilha-sports@marketplace-pix.local" "$SEED_PASSWORD")
+ADMIN_TOKEN=$(login "admin@marketplace-pix.local" "$SEED_PASSWORD")
+check "lojista (seed) autenticou" "$(echo "$MERCHANT_TOKEN" | awk -F. '{print NF}')" "3"
+check "admin (seed) autenticou" "$(echo "$ADMIN_TOKEN" | awk -F. '{print NF}')" "3"
+
+echo "== 4. Autorização e multi-tenant"
+check "ledger sem token (401)" "$(status "$G/ledger/merchants/$TRILHA/summary")" "401"
+check "cliente não lê ledger (403)" "$(status "$G/ledger/merchants/$TRILHA/summary" -H "$(auth "$TOKEN")")" "403"
+check "lojista lê o próprio ledger (200)" "$(status "$G/ledger/merchants/$TRILHA/summary" -H "$(auth "$MERCHANT_TOKEN")")" "200"
+check "lojista não lê o ledger de outro lojista (403)" "$(status "$G/ledger/merchants/$AURORA/summary" -H "$(auth "$MERCHANT_TOKEN")")" "403"
+check "lojista não lê conta de outro lojista (403)" "$(status "$G/ledger/accounts/merchant:$AURORA/entries" -H "$(auth "$MERCHANT_TOKEN")")" "403"
+check "lojista não roda conciliação (403)" "$(status "$G/ledger/reconciliation" -H "$(auth "$MERCHANT_TOKEN")")" "403"
+check "admin roda conciliação (200)" "$(status "$G/ledger/reconciliation" -H "$(auth "$ADMIN_TOKEN")")" "200"
+check "estoque sem token (401)" "$(status -X PUT "$G/inventory/stock/$CORDA" -H 'content-type: application/json' -d '{"available":25}')" "401"
+check "cliente não altera estoque (403)" "$(status -X PUT "$G/inventory/stock/$CORDA" -H 'content-type: application/json' -H "$(auth "$TOKEN")" -d '{"available":25}')" "403"
+check "lojista não altera estoque de outro lojista (403)" "$(status -X PUT "$G/inventory/stock/$(uuid5 product fone-bluetooth-nova)" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d '{"available":0}')" "403"
+check "lojista lista o próprio estoque (8 produtos)" "$(curl -s "$G/inventory/stock/mine" -H "$(auth "$MERCHANT_TOKEN")" | jget "len(d)")" "8"
+
+summary() { curl -s "$G/ledger/merchants/$TRILHA/summary?days=1" -H "$(auth "$MERCHANT_TOKEN")"; }
+
+echo "== 5. Pedido feliz (preço vem do catálogo mesmo o cliente mandando 1 centavo)"
+curl -s -X PUT "$G/inventory/stock/$CORDA" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d '{"available":25}' >/dev/null
 sleep 1
 S0=$(stock "$CORDA"); A0=${S0%/*}; R0=${S0#*/}
 BEFORE=$(summary); B_GROSS=$(echo "$BEFORE" | jget "d['gross_sales_cents']"); B_FEES=$(echo "$BEFORE" | jget "d['platform_fees_cents']")
 KEY="e2e-$RUN"
-ORDER_JSON=$(post_order "$CORDA" 2 "$CUST" "$EMAIL" "$KEY"); check "POST /orders devolve 201" "$(cat "$CODE_FILE")" "201"
+ORDER_JSON=$(post_order "$CORDA" 2 "$CUST" "$EMAIL" "$KEY" "$TOKEN"); check "POST /orders devolve 201" "$(cat "$CODE_FILE")" "201"
 ORDER=$(echo "$ORDER_JSON" | jget "d['id']")
-check "total = 2 x R\$ 49,90 (preço do catálogo)" "$(curl -s "$G/orders/$ORDER" | jget "d['total_cents']")" "9980"
-REPLAY=$(post_order "$CORDA" 2 "$CUST" "$EMAIL" "$KEY" | jget "d['id']"); check "mesma Idempotency-Key devolve o mesmo pedido" "$REPLAY" "$ORDER"
-wait_for "cobrança PIX criada" "curl -s -o /dev/null -w '%{http_code}' $G/payments/by-order/$ORDER" "200"
-CH=$(curl -s "$G/payments/by-order/$ORDER" | jget "d['psp_charge_id']")
+check "total = 2 x R\$ 49,90 (preço do catálogo)" "$(curl -s "$G/orders/$ORDER" -H "$(auth "$TOKEN")" | jget "d['total_cents']")" "9980"
+REPLAY=$(post_order "$CORDA" 2 "$CUST" "$EMAIL" "$KEY" "$TOKEN" | jget "d['id']"); check "mesma Idempotency-Key devolve o mesmo pedido" "$REPLAY" "$ORDER"
+wait_for "cobrança PIX criada" "curl -s -o /dev/null -w '%{http_code}' $G/payments/by-order/$ORDER -H 'Authorization: Bearer $TOKEN'" "200"
+CH=$(curl -s "$G/payments/by-order/$ORDER" -H "$(auth "$TOKEN")" | jget "d['psp_charge_id']")
 wait_for "estoque reservado (-2 livres, +2 reservados)" "stock $CORDA" "$((A0-2))/$((R0+2))"
-check "webhook sem assinatura é recusado (401)" "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PAYMENTS/webhooks/psp" -d "{\"event\":\"charge.paid\",\"charge_id\":\"$CH\"}")" "401"
-check "pedido segue PENDING antes do pagamento" "$(curl -s "$G/orders/$ORDER" | jget "d['status']")" "PENDING"
-curl -s -X POST "$G/payments/dev/psp/charges/$CH/pay" >/dev/null
-wait_for "pedido vira PAID" "curl -s $G/orders/$ORDER | python3 -c \"import sys,json;print(json.load(sys.stdin)['status'])\"" "PAID"
+check "webhook sem assinatura é recusado (401)" "$(status -X POST "$PAYMENTS/webhooks/psp" -d "{\"event\":\"charge.paid\",\"charge_id\":\"$CH\"}")" "401"
+check "pedido segue PENDING antes do pagamento" "$(curl -s "$G/orders/$ORDER" -H "$(auth "$TOKEN")" | jget "d['status']")" "PENDING"
+curl -s -X POST "$G/payments/dev/psp/charges/$CH/pay" -H "$(auth "$TOKEN")" >/dev/null
+wait_for "pedido vira PAID" "curl -s $G/orders/$ORDER -H 'Authorization: Bearer $TOKEN' | python3 -c \"import sys,json;print(json.load(sys.stdin)['status'])\"" "PAID"
 wait_for "venda confirmada (reservas voltam, livres ficam)" "stock $CORDA" "$((A0-2))/$R0"
 sleep 3
 AFTER=$(summary)
 check "ledger: vendas brutas +9980" "$(( $(echo "$AFTER" | jget "d['gross_sales_cents']") - B_GROSS ))" "9980"
 check "ledger: taxa da plataforma +998 (10%)" "$(( $(echo "$AFTER" | jget "d['platform_fees_cents']") - B_FEES ))" "998"
-check "ledger: conciliação balanceada" "$(curl -s "$G/ledger/reconciliation" | jget "d['balanced']")" "True"
+check "ledger: conciliação balanceada" "$(curl -s "$G/ledger/reconciliation" -H "$(auth "$ADMIN_TOKEN")" | jget "d['balanced']")" "True"
 wait_for "3 e-mails enviados" "curl -s '$M/search?query=to:$EMAIL' | python3 -c \"import sys,json;print(json.load(sys.stdin)['messages_count'])\"" "3" 40
-check "API de notificações lista os 3 como SENT" "$(curl -s "$G/notifications?customer_id=$CUST" | jget "sorted(set(n['status'] for n in d['items']))")" "['SENT']"
+check "API de notificações lista os 3 como SENT" "$(curl -s "$G/notifications" -H "$(auth "$TOKEN")" | jget "sorted(set(n['status'] for n in d['items']))")" "['SENT']"
+check "lojista vê o pedido na própria fila" "$(curl -s "$G/orders/merchant" -H "$(auth "$MERCHANT_TOKEN")" | jget "str(any(o['id']=='$ORDER' for o in d['items']))")" "True"
+check "lojista de outra loja não vê o pedido" "$(curl -s "$G/orders/merchant" -H "$(auth "$(login "aurora-tech@marketplace-pix.local" "$SEED_PASSWORD")")" | jget "str(any(o['id']=='$ORDER' for o in d['items']))")" "False"
 
-echo "== 4. Sem estoque cancela pedido e cobrança"
-OUT=$(post_order "$GPS" 50 "$CUST" "$EMAIL" "e2e-oos-$RUN"); ORDER2=$(echo "$OUT" | jget "d['id']"); check "pedido de 50 unidades aceito (201)" "$(cat "$CODE_FILE")" "201"
-wait_for "pedido cancelado por falta de estoque" "curl -s $G/orders/$ORDER2 | python3 -c \"import sys,json;d=json.load(sys.stdin);print(d['status'],d['cancel_reason'])\"" "CANCELLED out of stock"
-wait_for "cobrança cancelada" "curl -s $G/payments/by-order/$ORDER2 | python3 -c \"import sys,json;print(json.load(sys.stdin)['status'])\"" "CANCELLED"
-CH2=$(curl -s "$G/payments/by-order/$ORDER2" | jget "d['psp_charge_id']")
-check "pagar PIX cancelado é recusado (409)" "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$G/payments/dev/psp/charges/$CH2/pay")" "409"
+echo "== 6. Isolamento entre usuários (BOLA/IDOR)"
+OTHER_EMAIL="e2e.other.$RUN@example.com"
+OTHER=$(curl -s -X POST "$G/auth/register" -H 'content-type: application/json' -d "{\"email\":\"$OTHER_EMAIL\",\"name\":\"Outro\",\"password\":\"$PASSWORD\"}" | jget "d['access_token']")
+check "outro usuário não lê o pedido (404)" "$(status "$G/orders/$ORDER" -H "$(auth "$OTHER")")" "404"
+check "outro usuário não lê o pagamento (404)" "$(status "$G/payments/by-order/$ORDER" -H "$(auth "$OTHER")")" "404"
+check "pedido de outro não aparece na minha lista" "$(curl -s "$G/orders" -H "$(auth "$OTHER")" | jget "d['total']")" "0"
+check "outro usuário não lista meus pedidos por customer_id (403)" "$(status "$G/orders?customer_id=$CUST" -H "$(auth "$OTHER")")" "403"
+check "outro usuário não lê minhas notificações (403)" "$(status "$G/notifications?customer_id=$CUST" -H "$(auth "$OTHER")")" "403"
+check "dono continua lendo o pedido (200)" "$(status "$G/orders/$ORDER" -H "$(auth "$TOKEN")")" "200"
 
-echo "== 5. Validações"
-post_order "$(python3 -c 'import uuid;print(uuid.uuid4())')" 1 "$CUST" "$EMAIL" "e2e-unk-$RUN" >/dev/null; check "produto inexistente (422)" "$(cat "$CODE_FILE")" "422"
-check "sem Idempotency-Key (400)" "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$G/orders" -H 'content-type: application/json' -d "{\"customer_id\":\"$CUST\",\"customer_name\":\"Teste E2E\",\"customer_email\":\"$EMAIL\",\"items\":[{\"product_id\":\"$CORDA\",\"quantity\":1}]}")" "400"
+echo "== 7. Checkout de convidado continua funcionando"
+GUEST=$(python3 -c 'import uuid;print(uuid.uuid4())')
+GORDER=$(post_order "$CORDA" 1 "$GUEST" "guest.$RUN@example.com" "e2e-guest-$RUN" | jget "d['id']"); check "convidado cria pedido (201)" "$(cat "$CODE_FILE")" "201"
+check "convidado lê o próprio pedido pelo id (200)" "$(status "$G/orders/$GORDER")" "200"
+check "pedido de convidado não aparece na conta de ninguém" "$(curl -s "$G/orders" -H "$(auth "$TOKEN")" | jget "str(any(o['id']=='$GORDER' for o in d['items']))")" "False"
 
-echo
-if [ "$FAIL" -eq 0 ]; then printf '\033[32mTUDO OK: %d verificações\033[0m\n' "$PASS"; else printf '\033[31m%d falharam, %d passaram\033[0m\n' "$FAIL" "$PASS"; exit 1; fi
+echo "== 8. Sem estoque cancela pedido e cobrança"
+OUT=$(post_order "$GPS" 50 "$CUST" "$EMAIL" "e2e-oos-$RUN" "$TOKEN"); ORDER2=$(echo "$OUT" | jget "d['id']"); check "pedido de 50 unidades aceito (201)" "$(cat "$CODE_FILE")" "201"
+wait_for "pedido cancelado por falta de estoque" "curl -s $G/orders/$ORDER2 -H 'Authorization: Bearer $TOKEN' | python3 -c \"import sys,json;d=json.load(sys.stdin);print(d['status'],d['cancel_reason'])\"" "CANCELLED out of stock"
+wait_for "cobrança cancelada" "curl -s $G/payments/by-order/$ORDER2 -H 'Authorization: Bearer $TOKEN' | python3 -c \"import sys,json;print(json.load(sys.stdin)['status'])\"" "CANCELLED"
+CH2=$(curl -s "$G/payments/by-order/$ORDER2" -H "$(auth "$TOKEN")" | jget "d['psp_charge_id']")
+check "pagar PIX cancelado é recusado (409)" "$(status -X POST "$G/payments/dev/psp/charges/$CH2/pay" -H "$(auth "$TOKEN")")" "409"
+
+echo "== 9. Validações"
+post_order "$(python3 -c 'import uuid;print(uuid.uuid4())')" 1 "$CUST" "$EMAIL" "e2e-unk-$RUN" "$TOKEN" >/dev/null; check "produto inexistente (422)" "$(cat "$CODE_FILE")" "422"
+check "sem Idempotency-Key (400)" "$(status -X POST "$G/orders" -H 'content-type: application/json' -H "$(auth "$TOKEN")" -d "{\"customer_name\":\"Teste E2E\",\"customer_email\":\"$EMAIL\",\"items\":[{\"product_id\":\"$CORDA\",\"quantity\":1}]}")" "400"
+
+summary_result

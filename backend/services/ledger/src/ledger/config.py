@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     ledger_db: str = "ledger"
     kafka_bootstrap_servers: str = "localhost:9094"
     platform_fee_bps: int = 1000
+    internal_auth_secret: str = ""
 
     @property
     def database_url(self) -> str:

@@ -5,6 +5,7 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from ordering.infrastructure.db.audit import SqlAlchemyAuditLog
 from ordering.infrastructure.db.idempotency import SqlAlchemyIdempotencyStore
 from ordering.infrastructure.db.inbox import SqlAlchemyInboxStore
 from ordering.infrastructure.db.outbox import SqlAlchemyOutbox
@@ -21,6 +22,7 @@ class SqlAlchemyUnitOfWork:
         self._outbox_store: SqlAlchemyOutboxStore | None = None
         self._idempotency: SqlAlchemyIdempotencyStore | None = None
         self._inbox: SqlAlchemyInboxStore | None = None
+        self._audit: SqlAlchemyAuditLog | None = None
 
     @property
     def orders(self) -> SqlAlchemyOrderRepository:
@@ -43,6 +45,11 @@ class SqlAlchemyUnitOfWork:
         return self._inbox
 
     @property
+    def audit(self) -> SqlAlchemyAuditLog:
+        assert self._audit is not None, "use inside 'async with'"
+        return self._audit
+
+    @property
     def outbox_store(self) -> SqlAlchemyOutboxStore:
         assert self._outbox_store is not None, "use inside 'async with'"
         return self._outbox_store
@@ -54,6 +61,7 @@ class SqlAlchemyUnitOfWork:
         self._outbox_store = SqlAlchemyOutboxStore(self._session)
         self._idempotency = SqlAlchemyIdempotencyStore(self._session)
         self._inbox = SqlAlchemyInboxStore(self._session)
+        self._audit = SqlAlchemyAuditLog(self._session)
         return self
 
     async def __aexit__(

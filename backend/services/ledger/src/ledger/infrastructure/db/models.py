@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    UniqueConstraint,
     Uuid,
     func,
     text,
@@ -49,12 +50,18 @@ class TransactionModel(Base):
     __tablename__ = "ledger_transactions"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    order_id: Mapped[UUID] = mapped_column(Uuid, unique=True)
-    payment_id: Mapped[UUID] = mapped_column(Uuid, unique=True)
+    order_id: Mapped[UUID] = mapped_column(Uuid)
+    payment_id: Mapped[UUID] = mapped_column(Uuid)
+    kind: Mapped[str] = mapped_column(String(10), server_default="PAYMENT")
     currency: Mapped[str] = mapped_column(String(3))
     total_cents: Mapped[int] = mapped_column(BigInteger)
     platform_fee_cents: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("order_id", "kind", name="uq_ledger_transactions_order_kind"),
+        UniqueConstraint("payment_id", "kind", name="uq_ledger_transactions_payment_kind"),
+    )
 
 
 class EntryModel(Base):
@@ -92,6 +99,8 @@ class InboxMessageModel(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
+    __table_args__ = (Index("ix_inbox_processed_at", "processed_at"),)
+
 
 class OutboxEventModel(Base):
     __tablename__ = "outbox_events"
@@ -112,5 +121,10 @@ class OutboxEventModel(Base):
             "ix_outbox_unpublished",
             "created_at",
             postgresql_where=text("published_at IS NULL"),
+        ),
+        Index(
+            "ix_outbox_published_at",
+            "published_at",
+            postgresql_where=text("published_at IS NOT NULL"),
         ),
     )

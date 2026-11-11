@@ -83,3 +83,5 @@ class InboxMessageModel(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    __table_args__ = (Index("ix_inbox_processed_at", "processed_at"),)

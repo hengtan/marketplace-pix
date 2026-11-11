@@ -9,10 +9,10 @@ from marketplace_common.resilience import (
     RedisFailureMode,
     RouteRateLimiter,
 )
-from test_gateway import Recorder, settings
 
 from gateway.app import create_app
 from gateway.config import Settings
+from tests.test_gateway import Recorder, settings
 
 
 class Script:
@@ -100,7 +100,7 @@ async def test_breaker_counts_5xx_responses_as_failures() -> None:
     script = Script(httpx.Response(500, json={"detail": "bug"}))
     cfg = settings(breaker_minimum_calls=3, breaker_window_size=6, retry_attempts=1)
     async with Client(script, cfg) as c:
-        codes = [(await c.get("/api/ledger/reconciliation")).status_code for _ in range(5)]
+        codes = [(await c.get("/api/catalog/products")).status_code for _ in range(5)]
     assert codes == [500, 500, 500, 503, 503]
 
 

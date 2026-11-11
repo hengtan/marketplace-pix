@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     inventory_db: str = "inventory"
     kafka_bootstrap_servers: str = "localhost:9094"
     reservation_ttl_minutes: int = 35
+    internal_auth_secret: str = ""
     expiry_interval_seconds: float = 30.0
 
     @property

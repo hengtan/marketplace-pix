@@ -5,6 +5,7 @@ import pytest
 
 from inventory.interface.api import create_app
 from inventory.seed import PRODUCT_SLUGS, initial_stock, product_id_for
+from tests.auth import SECRET, as_user
 from tests.fakes import FakeDatabase, FakeUow
 
 
@@ -17,9 +18,11 @@ def db():
 
 @pytest.fixture
 async def client(db):
-    app = create_app(uow_factory=lambda: FakeUow(db))
+    app = create_app(uow_factory=lambda: FakeUow(db), internal_secret=SECRET)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test", headers=as_user(("admin",))
+    ) as client:
         yield client
 
 

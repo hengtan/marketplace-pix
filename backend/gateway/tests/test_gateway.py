@@ -16,12 +16,13 @@ UPSTREAMS = {
     "ledger": "http://ledger",
     "notifications": "http://notifications",
     "assistant": "http://assistant",
+    "identity": "http://identity",
 }
 
 
 def settings(**overrides) -> Settings:
     base = {f"{name}_url": url for name, url in UPSTREAMS.items()}
-    return Settings(_env_file=None, **{**base, **overrides})
+    return Settings(_env_file=None, internal_auth_secret="test-secret", **{**base, **overrides})
 
 
 class Recorder:
@@ -125,7 +126,7 @@ async def test_dev_routes_are_closed_unless_enabled():
         recorder,
         "POST",
         "/api/payments/dev/psp/charges/ch_1/pay",
-        app_kwargs={"enable_dev_routes": True},
+        app_kwargs={"enable_dev_routes": True, "auth_enabled": False},
     )
 
     assert closed.status_code == 404 and opened.status_code == 200

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -37,12 +38,26 @@ PRODUCT_SLUGS = [
     "kit-elasticos-forca",
 ]
 
+MERCHANT_SLUGS = ("aurora-tech", "casa-lume", "trilha-sports")
+PRODUCTS_PER_MERCHANT = 8
+
 DEFAULT_QUANTITY = 25
 QUANTITY_OVERRIDES = {"relogio-gps-trail": 3, "smartwatch-orbit": 5}
 
 
 def product_id_for(slug: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"marketplace-pix:product:{slug}")
+
+
+def merchant_id_for(slug: str) -> UUID:
+    return uuid5(NAMESPACE_URL, f"marketplace-pix:merchant:{slug}")
+
+
+def merchant_of_product() -> dict[UUID, UUID]:
+    return {
+        product_id_for(slug): merchant_id_for(MERCHANT_SLUGS[index // PRODUCTS_PER_MERCHANT])
+        for index, slug in enumerate(PRODUCT_SLUGS)
+    }
 
 
 def initial_stock() -> dict[UUID, int]:
@@ -53,8 +68,14 @@ def initial_stock() -> dict[UUID, int]:
 
 
 async def seed(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    owners = merchant_of_product()
     rows = [
-        {"product_id": product_id, "available": quantity, "reserved": 0}
+        {
+            "product_id": product_id,
+            "available": quantity,
+            "reserved": 0,
+            "merchant_id": owners[product_id],
+        }
         for product_id, quantity in initial_stock().items()
     ]
     async with session_factory() as session:
@@ -65,6 +86,12 @@ async def seed(session_factory: async_sessionmaker[AsyncSession]) -> int:
             .returning(StockModel.product_id)
         )
         created = len(result.all())
+        for product_id, merchant_id in owners.items():
+            await session.execute(
+                update(StockModel)
+                .where(StockModel.product_id == product_id, StockModel.merchant_id.is_(None))
+                .values(merchant_id=merchant_id)
+            )
         await session.commit()
     return created
 

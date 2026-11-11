@@ -23,8 +23,10 @@ from marketplace_common.resilience import (
     install_deadline,
 )
 from marketplace_common.resilience.clock import Sleeper, sleep
+from marketplace_common.security import strip_identity_headers
 from starlette.background import BackgroundTask
 
+from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
 from gateway.config import Settings
 from gateway.rate_limit import Limiter, build_limiter, build_redis
 from gateway.routes import resolve
@@ -92,6 +94,19 @@ def _service_deadline_factory(settings: Settings) -> Callable[[Request, str], De
     return resolve_deadline
 
 
+def _build_auth(settings: Settings, client: httpx.AsyncClient) -> GatewayAuth | None:
+    if not settings.auth_enabled:
+        return None
+    jwks = JwksCache(f"{settings.identity_url}/.well-known/jwks.json", client)
+    verifier = TokenVerifier(jwks, settings.jwt_issuer, settings.jwt_audience)
+    return GatewayAuth(
+        verifier,
+        settings.internal_auth_secret,
+        guest_checkout=settings.allow_guest_checkout,
+        ordering_url=settings.ordering_url,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -113,6 +128,7 @@ def create_app(
             transport=transport,
             event_hooks=deadline_event_hooks(),
         )
+        app.state.auth = _build_auth(settings, app.state.client)
         yield
         await app.state.client.aclose()
         if redis is not None:
@@ -130,6 +146,7 @@ def create_app(
         allow_origins=settings.allowed_origins,
         allow_methods=METHODS,
         allow_headers=[
+            "Authorization",
             "Content-Type",
             "Idempotency-Key",
             "If-None-Match",
@@ -188,13 +205,23 @@ def create_app(
         if target is None or (target.dev_only and not settings.enable_dev_routes):
             return _json(404, "not found", request_id, rate_headers)
 
-        headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
-        headers["x-request-id"] = request_id
         client: httpx.AsyncClient = request.app.state.client
+        auth: GatewayAuth | None = request.app.state.auth
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
+        headers = strip_identity_headers(headers)
+        query = request.url.query
+        if auth is not None:
+            verdict = await auth.authorize(request, client, request_id)
+            if isinstance(verdict, Denied):
+                challenge = {"WWW-Authenticate": "Bearer"} if verdict.challenge else None
+                return _json(verdict.status, verdict.detail, request_id, challenge)
+            query = verdict.query
+            headers = auth.upstream_headers(headers, verdict.principal, request_id)
+        headers["x-request-id"] = request_id
         upstream_request = client.build_request(
             request.method,
             upstreams[target.service] + target.path,
-            params=request.url.query,
+            params=query,
             content=await request.body(),
             headers=headers,
         )
