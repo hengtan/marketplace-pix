@@ -34,6 +34,7 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Limpeza (TTL) do inbox e do outbox publicado
 - [x] Reembolso de pagamento tardio (`PaymentRefundRequested`, `PaymentRefunded`, estorno no ledger e estoque devolvido)
 - [x] Cancelar a cobrança no PSP quando expira (se o PSP recusa porque já foi paga, o pagamento segue pendente para o webhook)
+- [x] `payments/by-order` logo após criar o pedido responde `202` com `Retry-After` em vez de `404`
 - [ ] Extrair outbox, relay e inbox para `backend/libs` (hoje copiados do ordering)
 
 ## Fase 3: Saga completa (ordering + payments) (FEITA)
@@ -72,8 +73,8 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Rate limit distribuído no Redis (token bucket em Lua) com fallback e fail-open configuráveis
 - [x] Aplicado no gateway, no cliente do PSP, no webhook e no LLM e embedder do assistant
 - [x] `scripts/chaos.sh` (catalog, payments e Redis), `scripts/loadtest.py`, painel e alertas de SLO (burn rate)
-- [ ] Estado do breaker compartilhado entre réplicas (hoje é por processo)
-- [ ] Identificar o cliente pelo `X-Forwarded-For` confiável no rate limit
+- [x] Estado do breaker compartilhado entre réplicas (opcional, `BREAKER_SHARED_STATE`, só a decisão de abrir é global)
+- [x] Identificar o cliente pelo `X-Forwarded-For` confiável (`TRUSTED_PROXIES`) no rate limit
 
 ## Fase 7: IA
 - [ ] RAG sobre o catálogo (pgvector)
@@ -96,9 +97,10 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Guardrails: injeção direta e indireta, PII em logs e traces, orçamento por sessão e usuário, saída estruturada com reparo, números verificados contra o trecho citado, 41 ataques no red team
 - [x] Observabilidade de LLM: spans por etapa, tokens e custo, painel `assistant` no Grafana
 - [x] Streaming com cancelamento, timeouts e fallback para a busca pura
-- [ ] `catalog` publicar `catalog.events` (o assistant já consome; hoje o índice só atualiza no reindex)
+- [x] `catalog` publica `catalog.events` por outbox e o assistant reindexa e invalida o cache sem reindex manual
 - [ ] Trocar embeddings e LLM por Ollama (adaptadores prontos e testados contra um servidor HTTP falso, falta rodar com o Ollama real e reavaliar)
-- [ ] Serviço `assistant-worker` no `docker-compose` e job no Prometheus
+- [x] Serviço `assistant-worker` no `docker-compose`
+- [ ] Job do `assistant-worker` no Prometheus
 
 ## Fase 8: Plataforma
 - [x] OpenTelemetry com traces atravessando o Kafka, métricas Prometheus (RED) e dashboard no Grafana
@@ -114,4 +116,5 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Retenção em lotes de outbox, inbox, idempotência e refresh tokens
 - [x] Timeout global da saga e pagamento tardio reembolsado de forma idempotente e auditável
 - [x] `docs/SEGURANCA.md` e `docs/EVOLUCAO-DE-EVENTOS.md`
-- [ ] MFA, cookie `HttpOnly` por BFF, revogação imediata do access token, cadastro em massa (ver limitações em `docs/SEGURANCA.md`)
+- [x] Revogação do access token (logout, reuso do refresh e conta desativada), cadastro em massa e login com limite por IP+e-mail e espera progressiva, cabeçalhos de segurança e limite de corpo no gateway, `GET /stock` público só com `available`, assistente com a identidade do usuário
+- [ ] MFA e cookie `HttpOnly` por BFF (ver limitações em `docs/SEGURANCA.md`)
