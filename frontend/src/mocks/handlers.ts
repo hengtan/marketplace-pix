@@ -1,6 +1,7 @@
 import { delay, HttpResponse, http } from "msw";
 import type { Product } from "@/api/schemas";
 import { env } from "@/lib/env";
+import { assistantHandlers } from "./assistant";
 import { buildCategories, PRODUCTS } from "./data";
 import * as db from "./db";
 
@@ -38,6 +39,8 @@ function notFound(detail: string) {
 }
 
 export const handlers = [
+  ...assistantHandlers,
+
   http.get(url("/api/catalog/products/slug/:slug"), async ({ params }) => {
     await delay(LATENCY);
     const p = PRODUCTS.find((x) => x.slug === params.slug);
