@@ -25,8 +25,8 @@ SERVICE_DIR = Path(__file__).resolve().parents[2]
 SNAPSHOT = SERVICE_DIR / "tests" / "fixtures" / "catalog.json"
 
 
-def test_settings() -> Settings:
-    return Settings(assistant_db=TEST_DB)  # type: ignore[call-arg]
+def test_settings(**overrides: object) -> Settings:
+    return Settings(assistant_db=TEST_DB, cache_enabled=False, **overrides)  # type: ignore[call-arg]
 
 
 async def _ensure_test_database() -> None:
@@ -63,7 +63,7 @@ def settings() -> Settings:
 @pytest.fixture
 async def engine(settings: Settings):
     engine: AsyncEngine = create_async_engine(settings.database_url, poolclass=NullPool)
-    wipe = text("truncate chunks, sessions, messages, eval_runs cascade")
+    wipe = text("truncate chunks, sessions, messages, eval_runs, semantic_cache cascade")
     async with engine.begin() as conn:
         await conn.execute(wipe)
     yield engine

@@ -22,7 +22,7 @@ STOCK_WORDS = frozenset(
 )  # fmt: skip
 ORDER_WORDS = frozenset({"pedido", "pedidos", "encomenda", "compra"})
 _ORDER_STRONG = frozenset({"pedido", "pedidos", "encomenda"})
-_REFERENCES = frozenset(
+REFERENCES = frozenset(
     {
         "esse", "essa", "desse", "dessa", "deste", "desta", "este", "esta", "dele", "dela",
         "aquele", "deles", "delas", "desses", "dessas", "destes", "destas", "esses", "essas",
@@ -126,7 +126,7 @@ class IntentClassifier:
             policy = None
         if policy is not None:
             return IntentResult(Intent.POLICY, f"policy {policy.topic}", policy)
-        if has_remembered_products and tokens & (_REFERENCES | SHOPPING_WORDS):
+        if has_remembered_products and tokens & (REFERENCES | SHOPPING_WORDS):
             return IntentResult(Intent.CATALOG, "follow-up")
         if has_filters or tokens & SHOPPING_WORDS:
             return IntentResult(Intent.CATALOG, "shopping words or filters")

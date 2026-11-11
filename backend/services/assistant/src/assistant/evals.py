@@ -42,7 +42,7 @@ async def run(
     gate: bool = False,
     update_baseline: bool = False,
 ) -> int:
-    settings = load_settings()
+    settings = load_settings().model_copy(update={"cache_enabled": False})
     engine = build_engine(settings.database_url)
     try:
         if offline:

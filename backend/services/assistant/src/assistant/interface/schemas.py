@@ -78,6 +78,7 @@ class ChatResponse(BaseModel):
     tool_calls: list[ToolCallOut]
     retrieved: list[RetrievedOut]
     latency_ms: int
+    cached: bool = False
 
     @classmethod
     def from_result(cls, r: ChatResult) -> ChatResponse:
@@ -88,6 +89,7 @@ class ChatResponse(BaseModel):
             tool_calls=[ToolCallOut.from_domain(t) for t in r.tool_calls],
             retrieved=[RetrievedOut.from_domain(p) for p in r.retrieved],
             latency_ms=r.latency_ms,
+            cached=r.cached,
         )
 
 
@@ -113,6 +115,20 @@ class SessionOut(BaseModel):
     session_id: UUID
     created_at: datetime
     messages: list[MessageOut]
+
+
+class CacheStatsOut(BaseModel):
+    enabled: bool
+    entries: int
+    persisted_hits: int
+    persisted_tokens_saved: int
+    lookups: int
+    hits: int
+    misses: int
+    skips: int
+    hit_rate: float
+    tokens_saved: int
+    cost_saved_usd: float
 
 
 class ReindexOut(BaseModel):

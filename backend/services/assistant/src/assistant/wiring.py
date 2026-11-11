@@ -23,6 +23,7 @@ from assistant.application.ports import (
 from assistant.application.prompt import PromptBuilder
 from assistant.application.rerank import LexicalReranker
 from assistant.application.retrieval import HybridRetriever, RetrievalConfig
+from assistant.application.semantic_cache import CacheConfig, SemanticCache
 from assistant.application.tools import (
     GetOrderStatusTool,
     GetPolicyTool,
@@ -32,6 +33,8 @@ from assistant.application.tools import (
 from assistant.application.understanding import QueryUnderstanding
 from assistant.config import Settings
 from assistant.domain.chunking import RecursiveChunker
+from assistant.domain.cost import CostModel
+from assistant.infrastructure.db.cache_store import PgCacheStore
 from assistant.infrastructure.db.chunk_store import PgChunkStore
 from assistant.infrastructure.db.eval_store import PgEvalStore
 from assistant.infrastructure.db.session import build_session_factory
@@ -58,6 +61,7 @@ class Container:
     eval_store: EvalStore
     embedder: Embedder
     llm: LlmClient
+    cache: SemanticCache
     clients: list[httpx.AsyncClient] = field(default_factory=list)
 
     async def aclose(self) -> None:
@@ -157,6 +161,14 @@ def build_container(
     delay = token_delay_seconds
     if delay is None:
         delay = settings.stream_token_delay_ms / 1000
+    cost = CostModel(settings.llm_price_prompt_per_1k, settings.llm_price_completion_per_1k)
+    cache = SemanticCache(
+        PgCacheStore(factory),
+        embedder,
+        understanding,
+        CacheConfig(settings.cache_enabled, settings.cache_threshold, settings.cache_ttl_seconds),
+        cost,
+    )
     chat = ChatService(
         agent,
         PromptBuilder(),
@@ -167,6 +179,8 @@ def build_container(
         max_message_chars=settings.max_message_chars,
         history_window=settings.history_window,
         token_delay_seconds=delay,
+        cache=cache,
+        cost=cost,
     )
     ingest = IngestCatalog(
         catalog,
@@ -174,4 +188,6 @@ def build_container(
         embedder,
         RecursiveChunker(settings.chunk_size, settings.chunk_overlap),
     )
-    return Container(settings, chat, ingest, retriever, PgEvalStore(factory), embedder, llm, owned)
+    return Container(
+        settings, chat, ingest, retriever, PgEvalStore(factory), embedder, llm, cache, owned
+    )

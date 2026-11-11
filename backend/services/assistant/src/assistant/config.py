@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     retrieval_decompose: bool = True
     retrieval_negation: bool = True
 
+    kafka_bootstrap_servers: str = "localhost:9094"
+    cache_enabled: bool = True
+    cache_threshold: float = 0.92
+    cache_ttl_seconds: int = 3600
+    llm_price_prompt_per_1k: float = 0.0005
+    llm_price_completion_per_1k: float = 0.0015
+
     agent_max_steps: int = 3
     max_message_chars: int = 1000
     history_window: int = 6

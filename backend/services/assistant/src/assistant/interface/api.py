@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from assistant.domain.errors import MessageTooLong, SessionNotFound, UpstreamUnavailable
 from assistant.interface.schemas import (
+    CacheStatsOut,
     ChatRequest,
     ChatResponse,
     EvalRunOut,
@@ -80,6 +81,25 @@ def build_router() -> APIRouter:
     async def reindex(request: Request) -> ReindexOut:
         report = await _container(request).ingest.execute()
         return ReindexOut(**report.to_dict())
+
+    @router.get("/cache/stats", response_model=CacheStatsOut)
+    async def cache_stats(request: Request) -> CacheStatsOut:
+        cache = _container(request).cache
+        summary = await cache.summary()
+        stats = cache.stats
+        return CacheStatsOut(
+            enabled=cache.enabled,
+            entries=summary.entries,
+            persisted_hits=summary.hits,
+            persisted_tokens_saved=summary.tokens_saved,
+            lookups=stats.lookups,
+            hits=stats.hits,
+            misses=stats.misses,
+            skips=stats.skips,
+            hit_rate=stats.hit_rate,
+            tokens_saved=stats.tokens_saved,
+            cost_saved_usd=round(stats.cost_saved_usd, 6),
+        )
 
     @router.get("/evals/latest", response_model=EvalRunOut)
     async def latest_eval(request: Request) -> EvalRunOut | JSONResponse:
