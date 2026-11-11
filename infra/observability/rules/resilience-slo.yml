@@ -1,0 +1,219 @@
+groups:
+  - name: slo-gateway-recording
+    interval: 30s
+    rules:
+      - record: slo:gateway_error_ratio:rate5m
+        expr: |
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total{service="gateway"}[5m])), 1e-9)
+      - record: slo:gateway_error_ratio:rate30m
+        expr: |
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[30m]))
+          /
+          clamp_min(sum(rate(http_requests_total{service="gateway"}[30m])), 1e-9)
+      - record: slo:gateway_error_ratio:rate1h
+        expr: |
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[1h]))
+          /
+          clamp_min(sum(rate(http_requests_total{service="gateway"}[1h])), 1e-9)
+      - record: slo:gateway_error_ratio:rate2h
+        expr: |
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[2h]))
+          /
+          clamp_min(sum(rate(http_requests_total{service="gateway"}[2h])), 1e-9)
+      - record: slo:gateway_error_ratio:rate6h
+        expr: |
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[6h]))
+          /
+          clamp_min(sum(rate(http_requests_total{service="gateway"}[6h])), 1e-9)
+      - record: slo:gateway_error_ratio:rate1d
+        expr: |
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[1d]))
+          /
+          clamp_min(sum(rate(http_requests_total{service="gateway"}[1d])), 1e-9)
+      - record: slo:gateway_slow_ratio:rate5m
+        expr: |
+          1 - (
+            sum(rate(http_request_duration_seconds_bucket{service="gateway",le="0.5"}[5m]))
+            /
+            clamp_min(sum(rate(http_request_duration_seconds_count{service="gateway"}[5m])), 1e-9)
+          )
+      - record: slo:gateway_slow_ratio:rate30m
+        expr: |
+          1 - (
+            sum(rate(http_request_duration_seconds_bucket{service="gateway",le="0.5"}[30m]))
+            /
+            clamp_min(sum(rate(http_request_duration_seconds_count{service="gateway"}[30m])), 1e-9)
+          )
+      - record: slo:gateway_slow_ratio:rate1h
+        expr: |
+          1 - (
+            sum(rate(http_request_duration_seconds_bucket{service="gateway",le="0.5"}[1h]))
+            /
+            clamp_min(sum(rate(http_request_duration_seconds_count{service="gateway"}[1h])), 1e-9)
+          )
+      - record: slo:gateway_slow_ratio:rate2h
+        expr: |
+          1 - (
+            sum(rate(http_request_duration_seconds_bucket{service="gateway",le="0.5"}[2h]))
+            /
+            clamp_min(sum(rate(http_request_duration_seconds_count{service="gateway"}[2h])), 1e-9)
+          )
+      - record: slo:gateway_slow_ratio:rate6h
+        expr: |
+          1 - (
+            sum(rate(http_request_duration_seconds_bucket{service="gateway",le="0.5"}[6h]))
+            /
+            clamp_min(sum(rate(http_request_duration_seconds_count{service="gateway"}[6h])), 1e-9)
+          )
+      - record: slo:gateway_slow_ratio:rate1d
+        expr: |
+          1 - (
+            sum(rate(http_request_duration_seconds_bucket{service="gateway",le="0.5"}[1d]))
+            /
+            clamp_min(sum(rate(http_request_duration_seconds_count{service="gateway"}[1d])), 1e-9)
+          )
+
+  - name: slo-gateway-burn-rate
+    rules:
+      - alert: GatewayAvailabilityBurnRateFast
+        expr: |
+          slo:gateway_error_ratio:rate1h > (14.4 * 0.005)
+          and
+          slo:gateway_error_ratio:rate5m > (14.4 * 0.005)
+        for: 2m
+        labels:
+          severity: page
+          slo: availability
+        annotations:
+          summary: "Queima rápida do orçamento de erro (disponibilidade) no gateway"
+          description: "O orçamento de disponibilidade do gateway está sendo consumido 14,4 vezes mais rápido que o sustentável (1h e 5m). Em cerca de 2 dias o orçamento do mês acabaria."
+      - alert: GatewayAvailabilityBurnRateSlow
+        expr: |
+          slo:gateway_error_ratio:rate6h > (6 * 0.005)
+          and
+          slo:gateway_error_ratio:rate30m > (6 * 0.005)
+        for: 2m
+        labels:
+          severity: page
+          slo: availability
+        annotations:
+          summary: "Queima sustentada do orçamento de erro (disponibilidade) no gateway"
+          description: "O orçamento de disponibilidade está sendo consumido 6 vezes mais rápido que o sustentável (6h e 30m)."
+      - alert: GatewayAvailabilityBurnRateTicket
+        expr: |
+          slo:gateway_error_ratio:rate1d > (3 * 0.005)
+          and
+          slo:gateway_error_ratio:rate2h > (3 * 0.005)
+        for: 2m
+        labels:
+          severity: ticket
+          slo: availability
+        annotations:
+          summary: "Queima lenta do orçamento de erro (disponibilidade) no gateway"
+          description: "O orçamento de disponibilidade está sendo consumido 3 vezes mais rápido que o sustentável (1d e 2h). Abrir ticket e investigar."
+      - alert: GatewayLatencyBurnRateFast
+        expr: |
+          slo:gateway_slow_ratio:rate1h > (14.4 * 0.05)
+          and
+          slo:gateway_slow_ratio:rate5m > (14.4 * 0.05)
+        for: 2m
+        labels:
+          severity: page
+          slo: latency
+        annotations:
+          summary: "Queima rápida do orçamento de erro (latência) no gateway"
+          description: "O orçamento de latência do gateway está sendo consumido 14,4 vezes mais rápido que o sustentável (1h e 5m). Em cerca de 2 dias o orçamento do mês acabaria."
+      - alert: GatewayLatencyBurnRateSlow
+        expr: |
+          slo:gateway_slow_ratio:rate6h > (6 * 0.05)
+          and
+          slo:gateway_slow_ratio:rate30m > (6 * 0.05)
+        for: 2m
+        labels:
+          severity: page
+          slo: latency
+        annotations:
+          summary: "Queima sustentada do orçamento de erro (latência) no gateway"
+          description: "O orçamento de latência está sendo consumido 6 vezes mais rápido que o sustentável (6h e 30m)."
+      - alert: GatewayLatencyBurnRateTicket
+        expr: |
+          slo:gateway_slow_ratio:rate1d > (3 * 0.05)
+          and
+          slo:gateway_slow_ratio:rate2h > (3 * 0.05)
+        for: 2m
+        labels:
+          severity: ticket
+          slo: latency
+        annotations:
+          summary: "Queima lenta do orçamento de erro (latência) no gateway"
+          description: "O orçamento de latência está sendo consumido 3 vezes mais rápido que o sustentável (1d e 2h). Abrir ticket e investigar."
+
+  - name: resilience-patterns
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: max by (name) (resilience_circuit_breaker_state{state="open"}) == 1
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} aberto"
+          description: "A dependência {{ $labels.name }} está sendo rejeitada pelo disjuntor há mais de 1 minuto. O gateway responde 503 com Retry-After."
+      - alert: CircuitBreakerFlapping
+        expr: sum by (name) (increase(resilience_circuit_breaker_transitions_total{to_state="open"}[15m])) >= 3
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} oscilando"
+          description: "O disjuntor de {{ $labels.name }} abriu 3 vezes ou mais em 15 minutos: a dependência está instável, não caída."
+      - alert: RateLimiterRedisDegraded
+        expr: sum(rate(resilience_rate_limit_backend_total{backend=~"memory_fallback|fail_open|fail_closed"}[2m])) > 0
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Rate limiter operando sem Redis"
+          description: "O limite de requisições caiu para o fallback (memória por instância, fail-open ou fail-closed). Os limites deixam de ser globais."
+      - alert: RateLimiterFailClosed
+        expr: sum(rate(resilience_rate_limit_backend_total{backend="fail_closed"}[1m])) > 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Rate limiter bloqueando tráfego por falha do Redis"
+          description: "O modo fail-closed está recusando requisições porque o Redis caiu."
+      - alert: HighRateLimiting
+        expr: |
+          sum(rate(resilience_rate_limit_decisions_total{result="limited"}[10m]))
+          / clamp_min(sum(rate(resilience_rate_limit_decisions_total[10m])), 1e-9) > 0.1
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Mais de 10% das requisições recebem 429"
+          description: "Pode ser abuso de um cliente ou limite configurado baixo demais para a carga real."
+      - alert: BulkheadRejecting
+        expr: sum by (name) (rate(resilience_bulkhead_rejected_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Bulkhead {{ $labels.name }} rejeitando chamadas"
+          description: "A dependência {{ $labels.name }} está saturada: as chamadas excedem a concorrência e a fila configuradas."
+      - alert: RetryBudgetExhausted
+        expr: sum by (name) (rate(resilience_retry_events_total{event="budget_denied"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Orçamento de retentativas esgotado em {{ $labels.name }}"
+          description: "As retentativas estão sendo negadas pelo orçamento: o sistema está evitando uma tempestade de retries contra uma dependência com falha."
+      - alert: DeadlineExceededSpike
+        expr: sum by (where) (rate(resilience_deadline_exceeded_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Requisições estourando o deadline ({{ $labels.where }})"
+          description: "Muitas requisições ficam sem tempo restante antes de terminar a cadeia de chamadas."
