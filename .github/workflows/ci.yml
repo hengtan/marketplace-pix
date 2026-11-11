@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, types and unit tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - backend/services/ordering
+          - backend/services/payments
+          - backend/gateway
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: ${{ matrix.service }}/uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+      - name: Unit tests
+        run: uv run pytest tests/unit -q || uv run pytest -q
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          PSP_WEBHOOK_SECRET: ci-secret
+
+  integration:
+    name: Integration tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - ordering
+          - payments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/services/${{ matrix.service }}/uv.lock
+      - name: Environment file
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-password/" .env
+      - name: Start Postgres, Redis and Kafka
+        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --wait postgres redis kafka
+      - name: Run all tests
+        working-directory: backend/services/${{ matrix.service }}
+        run: |
+          uv sync --frozen
+          uv run pytest -q
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail 200
