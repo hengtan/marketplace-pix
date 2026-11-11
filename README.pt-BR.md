@@ -365,7 +365,7 @@ A avaliação roda num conjunto dourado de 111 casos (adversariais, negação, e
 </tr>
 </table>
 
-Os logs são JSON estruturado com `trace_id`. As métricas são Prometheus (RED mais contadores de negócio). Os alertas incluem regras de burn rate de SLO verificadas com `promtool test rules`. Os rótulos dos dashboards do Grafana são em português, como o produto.
+Os logs são JSON estruturado com `trace_id`. As métricas são Prometheus (RED mais contadores de negócio). Os alertas incluem regras de burn rate de SLO verificadas com `promtool test rules`.
 
 ## Testes e qualidade
 

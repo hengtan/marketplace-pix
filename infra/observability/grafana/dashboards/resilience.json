@@ -1,6 +1,6 @@
 {
   "uid": "resilience",
-  "title": "Resiliência",
+  "title": "Resilience",
   "tags": [
     "marketplace",
     "resilience",
@@ -40,7 +40,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Estado dos breakers",
+      "title": "Breaker state",
       "description": "Verde = fechado, laranja = meio aberto (sondando), vermelho = aberto (rejeitando).",
       "datasource": {
         "type": "prometheus",
@@ -77,15 +77,15 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "FECHADO",
+                  "text": "CLOSED",
                   "color": "green"
                 },
                 "1": {
-                  "text": "MEIO ABERTO",
+                  "text": "HALF OPEN",
                   "color": "orange"
                 },
                 "2": {
-                  "text": "ABERTO",
+                  "text": "OPEN",
                   "color": "red"
                 }
               }
@@ -123,8 +123,8 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Transições de estado",
-      "description": "Quantas vezes cada breaker mudou de estado (increase em 5m). Muitas aberturas seguidas indicam dependência instável.",
+      "title": "State transitions",
+      "description": "How many times each breaker changed state (increase over 5m). Many consecutive openings point to an unstable dependency.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -173,8 +173,8 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Chamadas rejeitadas (fail fast)",
-      "description": "Chamadas recusadas sem tocar na dependência porque o circuito estava aberto.",
+      "title": "Rejected calls (fail fast)",
+      "description": "Calls refused without touching the dependency because the circuit was open.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -223,8 +223,8 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Resultado das chamadas por breaker",
-      "description": "Sucesso, falha e chamadas lentas vistas pelo breaker (por segundo).",
+      "title": "Call results by breaker",
+      "description": "Success, failure and slow calls seen by the breaker (per second).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -273,8 +273,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Taxa de falha por breaker",
-      "description": "Falhas sobre o total de chamadas (1m). O limiar padrão para abrir é 50%.",
+      "title": "Failure rate by breaker",
+      "description": "Failures over total calls (1m). The default threshold to open is 50%.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -336,8 +336,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Eventos de retry",
-      "description": "retried = nova tentativa feita; budget_denied = o orçamento de retries barrou; exhausted = acabaram as tentativas.",
+      "title": "Retry events",
+      "description": "retried = another attempt was made; budget_denied = the retry budget refused; exhausted = attempts ran out.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -386,8 +386,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Bulkhead: em execução e na fila",
-      "description": "Chamadas simultâneas por dependência e as que esperam vaga.",
+      "title": "Bulkhead: running and queued",
+      "description": "Concurrent calls per dependency and the ones waiting for a slot.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -428,7 +428,7 @@
             "uid": "prometheus"
           },
           "expr": "max by (name) (resilience_bulkhead_in_flight)",
-          "legendFormat": "{{name}} em execução",
+          "legendFormat": "{{name}} running",
           "refId": "A"
         },
         {
@@ -437,7 +437,7 @@
             "uid": "prometheus"
           },
           "expr": "max by (name) (resilience_bulkhead_queued)",
-          "legendFormat": "{{name}} na fila",
+          "legendFormat": "{{name}} queued",
           "refId": "B"
         }
       ]
@@ -445,8 +445,8 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Bulkhead: rejeições",
-      "description": "Chamadas recusadas por fila cheia (full) ou por espera acima do limite (timeout).",
+      "title": "Bulkhead: rejections",
+      "description": "Calls refused because the queue was full (full) or the wait exceeded the limit (timeout).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -495,8 +495,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Bulkhead: espera por vaga (p95)",
-      "description": "Tempo que as chamadas passam na fila do bulkhead.",
+      "title": "Bulkhead: wait for a slot (p95)",
+      "description": "Time calls spend in the bulkhead queue.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -558,8 +558,8 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Decisões do rate limit por rota",
-      "description": "Permitidas e limitadas (429) por rota, por segundo.",
+      "title": "Rate limit decisions by route",
+      "description": "Allowed and limited (429) per route, per second.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -608,8 +608,8 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Percentual de requisições limitadas (429)",
-      "description": "Limitadas sobre o total de decisões (5m).",
+      "title": "Share of rate-limited requests (429)",
+      "description": "Limited over total decisions (5m).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -658,8 +658,8 @@
     {
       "id": 15,
       "type": "timeseries",
-      "title": "Quem respondeu o limite: Redis ou fallback",
-      "description": "redis = normal; memory_fallback = limiter local por instância; fail_open = deixou passar; fail_closed = bloqueou.",
+      "title": "Who answered the limit: Redis or fallback",
+      "description": "redis = normal; memory_fallback = per-instance local limiter; fail_open = let it through; fail_closed = blocked.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -708,8 +708,8 @@
     {
       "id": 16,
       "type": "timeseries",
-      "title": "Respostas de degradação no gateway",
-      "description": "429 (limite), 503 (circuito aberto ou bulkhead) e 504 (deadline ou timeout) por segundo.",
+      "title": "Degradation responses at the gateway",
+      "description": "429 (rate limited), 503 (circuit open or bulkhead) and 504 (deadline or timeout) per second.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -759,7 +759,7 @@
       "id": 17,
       "type": "timeseries",
       "title": "Deadlines estourados",
-      "description": "Requisições que ficaram sem tempo restante, por ponto de verificação.",
+      "description": "Requests that ran out of time, by checkpoint.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -808,8 +808,8 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Latência do gateway p50, p95 e p99",
-      "description": "Latência vista pelo cliente na borda.",
+      "title": "Gateway latency p50, p95 and p99",
+      "description": "Latency as seen by the client at the edge.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -876,7 +876,7 @@
     {
       "id": 19,
       "type": "row",
-      "title": "SLO do gateway (disponibilidade 99,5% e latência 95% abaixo de 500 ms)",
+      "title": "Gateway SLO (99.5% availability and 95% of latency below 500 ms)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -889,8 +889,8 @@
     {
       "id": 20,
       "type": "stat",
-      "title": "Orçamento de erro restante (1d)",
-      "description": "Quanto do orçamento de disponibilidade (0,5%) ainda não foi consumido na janela de 1 dia. Abaixo de 0 significa SLO estourado.",
+      "title": "Error budget remaining (1d)",
+      "description": "How much of the availability budget (0.5%) is still unspent in the 1 day window. Below 0 means the SLO is blown.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -944,7 +944,7 @@
             "uid": "prometheus"
           },
           "expr": "1 - (slo:gateway_error_ratio:rate1d / 0.005)",
-          "legendFormat": "orçamento",
+          "legendFormat": "budget",
           "refId": "A",
           "instant": true
         }
@@ -953,8 +953,8 @@
     {
       "id": 21,
       "type": "stat",
-      "title": "Burn rate de disponibilidade (1h)",
-      "description": "Velocidade de consumo do orçamento: 1 = consumo sustentável, 14,4 = alerta de página.",
+      "title": "Availability burn rate (1h)",
+      "description": "Budget burn speed: 1 = sustainable consumption, 14.4 = page alert.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1017,8 +1017,8 @@
     {
       "id": 22,
       "type": "stat",
-      "title": "Burn rate de latência (1h)",
-      "description": "Mesma leitura para o SLO de latência (5% das requisições podem passar de 500 ms).",
+      "title": "Latency burn rate (1h)",
+      "description": "Same reading for the latency SLO (5% of requests may exceed 500 ms).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1082,7 +1082,7 @@
       "id": 23,
       "type": "stat",
       "title": "Disponibilidade (1d)",
-      "description": "Respostas não 5xx sobre o total, em 1 dia.",
+      "description": "Non-5xx responses over the total, over 1 day.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1145,8 +1145,8 @@
     {
       "id": 24,
       "type": "timeseries",
-      "title": "Burn rate de disponibilidade por janela",
-      "description": "Linhas acima de 14,4 (1h e 5m) disparam a página; acima de 6 (6h e 30m) também.",
+      "title": "Availability burn rate by window",
+      "description": "Lines above 14.4 (1h and 5m) page someone; above 6 (6h and 30m) do as well.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1213,8 +1213,8 @@
     {
       "id": 25,
       "type": "timeseries",
-      "title": "Burn rate de latência por janela",
-      "description": "Mesma leitura para o SLO de latência.",
+      "title": "Latency burn rate by window",
+      "description": "Same reading for the latency SLO.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

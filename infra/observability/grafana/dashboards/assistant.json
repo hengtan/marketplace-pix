@@ -1,6 +1,6 @@
 {
   "uid": "assistant",
-  "title": "Assistant: RAG e agente",
+  "title": "Assistant: RAG and agent",
   "tags": [
     "marketplace",
     "assistant",
@@ -28,7 +28,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Visão geral do assistente (período selecionado)",
+      "title": "Assistant overview (selected period)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -41,8 +41,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Conversas por minuto",
-      "description": "Pedidos de chat atendidos, qualquer desfecho.",
+      "title": "Conversations per minute",
+      "description": "Chat requests served, any outcome.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -87,8 +87,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Taxa de acerto do cache",
-      "description": "Acertos sobre consultas elegíveis (acerto mais erro).",
+      "title": "Cache hit rate",
+      "description": "Hits over eligible lookups (hit plus miss).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -133,8 +133,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Custo estimado",
-      "description": "Custo de referência do modelo no período (tokens estimados).",
+      "title": "Estimated cost",
+      "description": "Reference model cost over the period (estimated tokens).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -180,7 +180,7 @@
       "id": 5,
       "type": "stat",
       "title": "Tokens",
-      "description": "Tokens enviados e recebidos do modelo no período.",
+      "description": "Tokens sent to and received from the model in the period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -225,8 +225,8 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Respostas degradadas",
-      "description": "Respostas devolvidas só com a busca porque o modelo falhou.",
+      "title": "Degraded responses",
+      "description": "Answers returned with search results only because the model failed.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -271,8 +271,8 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "Injeções bloqueadas",
-      "description": "Mensagens bloqueadas pela detecção de prompt injection.",
+      "title": "Injections blocked",
+      "description": "Messages blocked by prompt injection detection.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -317,7 +317,7 @@
     {
       "id": 8,
       "type": "row",
-      "title": "Latência por etapa: entender, reescrever, recuperar, rerank, gerar",
+      "title": "Latency by stage: understand, rewrite, retrieve, rerank, generate",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -330,8 +330,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Latência p95 por etapa",
-      "description": "Histograma assistant_step_duration_seconds por etapa (understand, cache, rewrite, retrieve, rerank, tool, generate, guard, total).",
+      "title": "Latency p95 by stage",
+      "description": "Histogram assistant_step_duration_seconds by stage (understand, cache, rewrite, retrieve, rerank, tool, generate, guard, total).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -380,8 +380,8 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Latência p50 por etapa",
-      "description": "Mediana por etapa.",
+      "title": "Latency p50 by stage",
+      "description": "Median by stage.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -430,8 +430,8 @@
     {
       "id": 11,
       "type": "bargauge",
-      "title": "Tempo médio por etapa",
-      "description": "Soma dividida pela contagem de cada etapa na janela de 5 minutos.",
+      "title": "Average time by stage",
+      "description": "Sum divided by the count of each stage over a 5 minute window.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -475,7 +475,7 @@
     {
       "id": 12,
       "type": "row",
-      "title": "Tokens e custo",
+      "title": "Tokens and cost",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -488,8 +488,8 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Tokens por segundo",
-      "description": "Tokens estimados enviados (prompt) e recebidos (completion), por modelo.",
+      "title": "Tokens per second",
+      "description": "Estimated tokens sent (prompt) and received (completion), by model.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -538,8 +538,8 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Custo estimado por hora",
-      "description": "Custo de referência, projetado em dólares por hora.",
+      "title": "Estimated cost per hour",
+      "description": "Reference cost, projected in dollars per hour.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -588,8 +588,8 @@
     {
       "id": 15,
       "type": "timeseries",
-      "title": "Chamadas ao modelo por resultado",
-      "description": "Sucesso e erro das chamadas de geração.",
+      "title": "Model calls by result",
+      "description": "Success and error of generation calls.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -638,7 +638,7 @@
     {
       "id": 16,
       "type": "row",
-      "title": "Cache semântico",
+      "title": "Semantic cache",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -651,8 +651,8 @@
     {
       "id": 17,
       "type": "timeseries",
-      "title": "Taxa de acerto ao longo do tempo",
-      "description": "Acertos divididos por acertos mais erros.",
+      "title": "Hit rate over time",
+      "description": "Hits divided by hits plus misses.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -701,8 +701,8 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Consultas por resultado",
-      "description": "hit, miss e skip (perguntas que não podem usar cache: estoque, pedido, histórico).",
+      "title": "Lookups by result",
+      "description": "hit, miss and skip (questions that cannot use the cache: stock, order, history).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -755,8 +755,8 @@
     {
       "id": 19,
       "type": "timeseries",
-      "title": "Economia do cache",
-      "description": "Tokens e dólares que o cache evitou gastar.",
+      "title": "Cache savings",
+      "description": "Tokens and dollars the cache avoided spending.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -814,8 +814,8 @@
     {
       "id": 20,
       "type": "timeseries",
-      "title": "Entradas no cache",
-      "description": "Quantidade de respostas guardadas (atualizada quando /cache/stats é consultado).",
+      "title": "Cache entries",
+      "description": "Number of cached answers (updated when /cache/stats is queried).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -864,7 +864,7 @@
     {
       "id": 21,
       "type": "timeseries",
-      "title": "Invalidações por motivo",
+      "title": "Invalidations by reason",
       "description": "ttl, catalog_event e flush.",
       "datasource": {
         "type": "prometheus",
@@ -914,7 +914,7 @@
     {
       "id": 22,
       "type": "timeseries",
-      "title": "Eventos do catálogo tratados",
+      "title": "Catalog events handled",
       "description": "ProductCreated, ProductUpdated, ProductPriceChanged e ProductDeleted.",
       "datasource": {
         "type": "prometheus",
@@ -964,7 +964,7 @@
     {
       "id": 23,
       "type": "row",
-      "title": "Guardrails, orçamento e resiliência",
+      "title": "Guardrails, budget and resilience",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -977,7 +977,7 @@
     {
       "id": 24,
       "type": "timeseries",
-      "title": "Intervenções dos guardrails",
+      "title": "Guardrail interventions",
       "description": "injection_blocked, answer_corrected, structured_retry, structured_failed, planner_unknown_tool.",
       "datasource": {
         "type": "prometheus",
@@ -1027,8 +1027,8 @@
     {
       "id": 25,
       "type": "timeseries",
-      "title": "Recusas por orçamento",
-      "description": "Pedidos barrados por limite de tokens ou de custo, por sessão ou usuário.",
+      "title": "Refusals by budget",
+      "description": "Requests blocked by token or cost limits, per session or user.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1077,8 +1077,8 @@
     {
       "id": 26,
       "type": "timeseries",
-      "title": "Respostas degradadas e streams cancelados",
-      "description": "Fallback para a busca pura, por motivo, e streams fechados antes do fim.",
+      "title": "Degraded responses and cancelled streams",
+      "description": "Fallback to plain search by reason, and streams closed before the end.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1136,7 +1136,7 @@
     {
       "id": 27,
       "type": "row",
-      "title": "Desfecho das conversas e recuperação",
+      "title": "Conversation outcomes and retrieval",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1149,7 +1149,7 @@
     {
       "id": 28,
       "type": "timeseries",
-      "title": "Conversas por intenção e desfecho",
+      "title": "Conversations by intent and outcome",
       "description": "intent: catalog, order, stock, policy, out_of_scope. outcome: ok, cached, blocked, degraded, cancelled, error.",
       "datasource": {
         "type": "prometheus",
@@ -1203,8 +1203,8 @@
     {
       "id": 29,
       "type": "timeseries",
-      "title": "Recuperações com e sem resultado",
-      "description": "Buscas que devolveram trechos contra buscas vazias.",
+      "title": "Retrievals with and without results",
+      "description": "Searches that returned passages versus empty searches.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1258,7 +1258,7 @@
       "id": 30,
       "type": "timeseries",
       "title": "Streams abertos",
-      "description": "Conexões SSE em andamento agora.",
+      "description": "SSE connections open right now.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

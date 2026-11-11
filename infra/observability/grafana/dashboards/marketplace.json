@@ -35,7 +35,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "RED por serviço (APIs): taxa, erros e duração",
+      "title": "RED by service (APIs): rate, errors and duration",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -48,8 +48,8 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "Taxa de requisições por serviço",
-      "description": "R de RED: requisições por segundo servidas por cada API.",
+      "title": "Request rate by service",
+      "description": "R in RED: requests per second served by each API.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -98,8 +98,8 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Taxa de erros 5xx por serviço",
-      "description": "E de RED: percentual de respostas 5xx sobre o total de cada API.",
+      "title": "5xx error rate by service",
+      "description": "E in RED: share of 5xx responses over each API's total.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -164,8 +164,8 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Latência p50, p95 e p99 por serviço",
-      "description": "D de RED: duração das requisições em segundos (histograma).",
+      "title": "Latency p50, p95 and p99 by service",
+      "description": "D in RED: request duration in seconds (histogram).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -232,8 +232,8 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Respostas por status",
-      "description": "Distribuição das respostas HTTP por classe de status.",
+      "title": "Responses by status",
+      "description": "Distribution of HTTP responses by status class.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -286,8 +286,8 @@
     {
       "id": 6,
       "type": "table",
-      "title": "Rotas mais usadas",
-      "description": "Taxa, p95 e erros 5xx por serviço e rota (template da rota, sem ids).",
+      "title": "Most used routes",
+      "description": "Rate, p95 and 5xx errors by service and route (route template, no ids).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -306,7 +306,7 @@
         "showHeader": true,
         "sortBy": [
           {
-            "displayName": "Requisições/s",
+            "displayName": "Requests/s",
             "desc": true
           }
         ]
@@ -323,11 +323,11 @@
               "Time": true
             },
             "renameByName": {
-              "Value #A": "Requisições/s",
+              "Value #A": "Requests/s",
               "Value #B": "p95 (s)",
-              "Value #C": "Erros 5xx/s",
-              "route": "Rota",
-              "service": "Serviço"
+              "Value #C": "5xx errors/s",
+              "route": "Route",
+              "service": "Service"
             },
             "indexByName": {
               "service": 0,
@@ -394,8 +394,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Duração dos handlers por tipo de evento (p95)",
-      "description": "Tempo que o consumidor leva para tratar cada tipo de evento.",
+      "title": "Handler duration by event type (p95)",
+      "description": "Time the consumer takes to handle each event type.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -444,8 +444,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Eventos tratados por resultado",
-      "description": "Vazão dos handlers separada em sucesso e erro (cada tentativa conta).",
+      "title": "Events handled by result",
+      "description": "Handler throughput split into success and error (each attempt counts).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -498,8 +498,8 @@
     {
       "id": 10,
       "type": "stat",
-      "title": "Mensagens na DLQ (período)",
-      "description": "Mensagens enviadas à dead letter queue no período selecionado. Qualquer valor acima de zero pede investigação.",
+      "title": "Messages in the DLQ (period)",
+      "description": "Messages sent to the dead letter queue in the selected period. Any value above zero calls for investigation.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -562,8 +562,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Mensagens enviadas à DLQ",
-      "description": "Contador por tópico de origem e grupo consumidor.",
+      "title": "Messages sent to the DLQ",
+      "description": "Counter by source topic and consumer group.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -612,8 +612,8 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Outbox pendente por serviço",
-      "description": "Eventos gravados no outbox que o relay ainda não publicou. Se cresce sem parar, o relay ou o Kafka estão com problema.",
+      "title": "Pending outbox by service",
+      "description": "Events written to the outbox that the relay has not published yet. If it keeps growing, the relay or Kafka has a problem.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -682,8 +682,8 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Eventos publicados pelo relay",
-      "description": "Taxa de eventos publicados no Kafka, por tipo de evento.",
+      "title": "Events published by the relay",
+      "description": "Rate of events published to Kafka, by event type.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -736,8 +736,8 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Falhas do relay",
-      "description": "Iterações do relay que falharam (queda do Kafka ou do banco).",
+      "title": "Relay failures",
+      "description": "Relay iterations that failed (Kafka or database outage).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -786,7 +786,7 @@
     {
       "id": 15,
       "type": "row",
-      "title": "Funil de pedidos (período selecionado)",
+      "title": "Order funnel (selected period)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -799,8 +799,8 @@
     {
       "id": 16,
       "type": "stat",
-      "title": "Pedidos criados",
-      "description": "Pedidos criados no período selecionado.",
+      "title": "Orders created",
+      "description": "Orders created in the selected period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -860,7 +860,7 @@
       "id": 17,
       "type": "stat",
       "title": "Estoque reservado",
-      "description": "Estoque reservado no período selecionado.",
+      "description": "Stock reserved in the selected period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -920,7 +920,7 @@
       "id": 18,
       "type": "stat",
       "title": "Pix gerado",
-      "description": "Pix gerado no período selecionado.",
+      "description": "PIX generated in the selected period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -980,7 +980,7 @@
       "id": 19,
       "type": "stat",
       "title": "Pagamentos confirmados",
-      "description": "Pagamentos confirmados no período selecionado.",
+      "description": "Payments confirmed in the selected period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1039,8 +1039,8 @@
     {
       "id": 20,
       "type": "stat",
-      "title": "Pedidos pagos",
-      "description": "Pedidos pagos no período selecionado.",
+      "title": "Orders paid",
+      "description": "Orders paid in the selected period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1099,8 +1099,8 @@
     {
       "id": 21,
       "type": "stat",
-      "title": "Pedidos cancelados",
-      "description": "Pedidos cancelados no período selecionado.",
+      "title": "Orders cancelled",
+      "description": "Orders cancelled in the selected period.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1159,8 +1159,8 @@
     {
       "id": 22,
       "type": "bargauge",
-      "title": "Funil de pedidos",
-      "description": "Etapas do pedido no período: onde a compra para de avançar.",
+      "title": "Order funnel",
+      "description": "Order stages in the period: where the purchase stops moving forward.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1202,7 +1202,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(increase(marketplace_orders_created_total[$__range])) or vector(0)",
-          "legendFormat": "Pedidos criados",
+          "legendFormat": "Orders created",
           "refId": "A",
           "instant": true,
           "range": false
@@ -1246,7 +1246,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(increase(marketplace_outbox_published_total{event_type=\"OrderPaid\"}[$__range])) or vector(0)",
-          "legendFormat": "Pedidos pagos",
+          "legendFormat": "Orders paid",
           "refId": "E",
           "instant": true,
           "range": false
@@ -1257,7 +1257,7 @@
             "uid": "prometheus"
           },
           "expr": "sum(increase(marketplace_outbox_published_total{event_type=\"OrderCancelled\"}[$__range])) or vector(0)",
-          "legendFormat": "Pedidos cancelados",
+          "legendFormat": "Orders cancelled",
           "refId": "F",
           "instant": true,
           "range": false
@@ -1267,8 +1267,8 @@
     {
       "id": 23,
       "type": "timeseries",
-      "title": "Etapas do funil ao longo do tempo",
-      "description": "Taxa por minuto de cada etapa do fluxo de compra.",
+      "title": "Funnel stages over time",
+      "description": "Per-minute rate of each stage of the purchase flow.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

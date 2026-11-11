@@ -4,7 +4,7 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
-  - name: erro de 10 por cento por 90 minutos dispara a queima rápida de disponibilidade
+  - name: a 10 percent error rate for 90 minutes triggers the fast availability burn
     interval: 1m
     input_series:
       - series: 'http_requests_total{service="gateway",status="200",route="/api/{path:path}",method="GET"}'
@@ -19,10 +19,10 @@ tests:
               severity: page
               slo: availability
             exp_annotations:
-              summary: "Queima rápida do orçamento de erro (disponibilidade) no gateway"
-              description: "O orçamento de disponibilidade do gateway está sendo consumido 14,4 vezes mais rápido que o sustentável (1h e 5m). Em cerca de 2 dias o orçamento do mês acabaria."
+              summary: "Fast error budget burn (availability) at the gateway"
+              description: "The gateway availability budget is being consumed 14.4 times faster than sustainable (1h and 5m). The monthly budget would run out in about 2 days."
 
-  - name: tráfego saudável com 0,1 por cento de erro não alerta
+  - name: healthy traffic with a 0.1 percent error rate does not alert
     interval: 1m
     input_series:
       - series: 'http_requests_total{service="gateway",status="200",route="/api/{path:path}",method="GET"}'
@@ -37,7 +37,7 @@ tests:
         alertname: GatewayAvailabilityBurnRateSlow
         exp_alerts: []
 
-  - name: 90 por cento das respostas acima de 500 ms dispara a queima rápida de latência
+  - name: 90 percent of responses above 500 ms trigger the fast latency burn
     interval: 1m
     input_series:
       - series: 'http_request_duration_seconds_bucket{service="gateway",le="0.5",route="/x",method="GET"}'
@@ -52,8 +52,8 @@ tests:
               severity: page
               slo: latency
             exp_annotations:
-              summary: "Queima rápida do orçamento de erro (latência) no gateway"
-              description: "O orçamento de latência do gateway está sendo consumido 14,4 vezes mais rápido que o sustentável (1h e 5m). Em cerca de 2 dias o orçamento do mês acabaria."
+              summary: "Fast error budget burn (latency) at the gateway"
+              description: "The gateway latency budget is being consumed 14.4 times faster than sustainable (1h and 5m). The monthly budget would run out in about 2 days."
 
   - name: breaker aberto por mais de um minuto vira alerta e fallback do Redis vira ticket
     interval: 1m
@@ -73,7 +73,7 @@ tests:
               name: catalog
             exp_annotations:
               summary: "Circuit breaker catalog aberto"
-              description: "A dependência catalog está sendo rejeitada pelo disjuntor há mais de 1 minuto. O gateway responde 503 com Retry-After."
+              description: "The catalog dependency has been rejected by the circuit breaker for over 1 minute. The gateway answers 503 with Retry-After."
       - eval_time: 1m
         alertname: CircuitBreakerOpen
         exp_alerts: []
@@ -84,4 +84,4 @@ tests:
               severity: ticket
             exp_annotations:
               summary: "Rate limiter operando sem Redis"
-              description: "O limite de requisições caiu para o fallback (memória por instância, fail-open ou fail-closed). Os limites deixam de ser globais."
+              description: "The rate limiter fell back (per-instance memory, fail-open or fail-closed). Limits are no longer global."

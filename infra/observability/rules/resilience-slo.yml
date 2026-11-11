@@ -87,8 +87,8 @@ groups:
           severity: page
           slo: availability
         annotations:
-          summary: "Queima rápida do orçamento de erro (disponibilidade) no gateway"
-          description: "O orçamento de disponibilidade do gateway está sendo consumido 14,4 vezes mais rápido que o sustentável (1h e 5m). Em cerca de 2 dias o orçamento do mês acabaria."
+          summary: "Fast error budget burn (availability) at the gateway"
+          description: "The gateway availability budget is being consumed 14.4 times faster than sustainable (1h and 5m). The monthly budget would run out in about 2 days."
       - alert: GatewayAvailabilityBurnRateSlow
         expr: |
           slo:gateway_error_ratio:rate6h > (6 * 0.005)
@@ -99,8 +99,8 @@ groups:
           severity: page
           slo: availability
         annotations:
-          summary: "Queima sustentada do orçamento de erro (disponibilidade) no gateway"
-          description: "O orçamento de disponibilidade está sendo consumido 6 vezes mais rápido que o sustentável (6h e 30m)."
+          summary: "Sustained error budget burn (availability) at the gateway"
+          description: "The availability budget is being consumed 6 times faster than sustainable (6h and 30m)."
       - alert: GatewayAvailabilityBurnRateTicket
         expr: |
           slo:gateway_error_ratio:rate1d > (3 * 0.005)
@@ -111,8 +111,8 @@ groups:
           severity: ticket
           slo: availability
         annotations:
-          summary: "Queima lenta do orçamento de erro (disponibilidade) no gateway"
-          description: "O orçamento de disponibilidade está sendo consumido 3 vezes mais rápido que o sustentável (1d e 2h). Abrir ticket e investigar."
+          summary: "Slow error budget burn (availability) at the gateway"
+          description: "The availability budget is being consumed 3 times faster than sustainable (1d and 2h). Open a ticket and investigate."
       - alert: GatewayLatencyBurnRateFast
         expr: |
           slo:gateway_slow_ratio:rate1h > (14.4 * 0.05)
@@ -123,8 +123,8 @@ groups:
           severity: page
           slo: latency
         annotations:
-          summary: "Queima rápida do orçamento de erro (latência) no gateway"
-          description: "O orçamento de latência do gateway está sendo consumido 14,4 vezes mais rápido que o sustentável (1h e 5m). Em cerca de 2 dias o orçamento do mês acabaria."
+          summary: "Fast error budget burn (latency) at the gateway"
+          description: "The gateway latency budget is being consumed 14.4 times faster than sustainable (1h and 5m). The monthly budget would run out in about 2 days."
       - alert: GatewayLatencyBurnRateSlow
         expr: |
           slo:gateway_slow_ratio:rate6h > (6 * 0.05)
@@ -135,8 +135,8 @@ groups:
           severity: page
           slo: latency
         annotations:
-          summary: "Queima sustentada do orçamento de erro (latência) no gateway"
-          description: "O orçamento de latência está sendo consumido 6 vezes mais rápido que o sustentável (6h e 30m)."
+          summary: "Sustained error budget burn (latency) at the gateway"
+          description: "The latency budget is being consumed 6 times faster than sustainable (6h and 30m)."
       - alert: GatewayLatencyBurnRateTicket
         expr: |
           slo:gateway_slow_ratio:rate1d > (3 * 0.05)
@@ -147,8 +147,8 @@ groups:
           severity: ticket
           slo: latency
         annotations:
-          summary: "Queima lenta do orçamento de erro (latência) no gateway"
-          description: "O orçamento de latência está sendo consumido 3 vezes mais rápido que o sustentável (1d e 2h). Abrir ticket e investigar."
+          summary: "Slow error budget burn (latency) at the gateway"
+          description: "The latency budget is being consumed 3 times faster than sustainable (1d and 2h). Open a ticket and investigate."
 
   - name: resilience-patterns
     rules:
@@ -159,14 +159,14 @@ groups:
           severity: page
         annotations:
           summary: "Circuit breaker {{ $labels.name }} aberto"
-          description: "A dependência {{ $labels.name }} está sendo rejeitada pelo disjuntor há mais de 1 minuto. O gateway responde 503 com Retry-After."
+          description: "The {{ $labels.name }} dependency has been rejected by the circuit breaker for over 1 minute. The gateway answers 503 with Retry-After."
       - alert: CircuitBreakerFlapping
         expr: sum by (name) (increase(resilience_circuit_breaker_transitions_total{to_state="open"}[15m])) >= 3
         labels:
           severity: ticket
         annotations:
           summary: "Circuit breaker {{ $labels.name }} oscilando"
-          description: "O disjuntor de {{ $labels.name }} abriu 3 vezes ou mais em 15 minutos: a dependência está instável, não caída."
+          description: "The {{ $labels.name }} circuit breaker opened 3 or more times in 15 minutes: the dependency is unstable, not down."
       - alert: RateLimiterRedisDegraded
         expr: sum(rate(resilience_rate_limit_backend_total{backend=~"memory_fallback|fail_open|fail_closed"}[2m])) > 0
         for: 2m
@@ -174,15 +174,15 @@ groups:
           severity: ticket
         annotations:
           summary: "Rate limiter operando sem Redis"
-          description: "O limite de requisições caiu para o fallback (memória por instância, fail-open ou fail-closed). Os limites deixam de ser globais."
+          description: "The rate limiter fell back (per-instance memory, fail-open or fail-closed). Limits are no longer global."
       - alert: RateLimiterFailClosed
         expr: sum(rate(resilience_rate_limit_backend_total{backend="fail_closed"}[1m])) > 0
         for: 1m
         labels:
           severity: page
         annotations:
-          summary: "Rate limiter bloqueando tráfego por falha do Redis"
-          description: "O modo fail-closed está recusando requisições porque o Redis caiu."
+          summary: "Rate limiter blocking traffic because Redis failed"
+          description: "Fail-closed mode is refusing requests because Redis is down."
       - alert: HighRateLimiting
         expr: |
           sum(rate(resilience_rate_limit_decisions_total{result="limited"}[10m]))
@@ -191,7 +191,7 @@ groups:
         labels:
           severity: ticket
         annotations:
-          summary: "Mais de 10% das requisições recebem 429"
+          summary: "More than 10% of requests receive 429"
           description: "Pode ser abuso de um cliente ou limite configurado baixo demais para a carga real."
       - alert: BulkheadRejecting
         expr: sum by (name) (rate(resilience_bulkhead_rejected_total[5m])) > 0
@@ -200,20 +200,20 @@ groups:
           severity: ticket
         annotations:
           summary: "Bulkhead {{ $labels.name }} rejeitando chamadas"
-          description: "A dependência {{ $labels.name }} está saturada: as chamadas excedem a concorrência e a fila configuradas."
+          description: "The {{ $labels.name }} dependency is saturated: calls exceed the configured concurrency and queue."
       - alert: RetryBudgetExhausted
         expr: sum by (name) (rate(resilience_retry_events_total{event="budget_denied"}[5m])) > 0.1
         for: 5m
         labels:
           severity: ticket
         annotations:
-          summary: "Orçamento de retentativas esgotado em {{ $labels.name }}"
-          description: "As retentativas estão sendo negadas pelo orçamento: o sistema está evitando uma tempestade de retries contra uma dependência com falha."
+          summary: "Retry budget exhausted on {{ $labels.name }}"
+          description: "Retries are being denied by the budget: the system is avoiding a retry storm against a failing dependency."
       - alert: DeadlineExceededSpike
         expr: sum by (where) (rate(resilience_deadline_exceeded_total[5m])) > 0.5
         for: 5m
         labels:
           severity: ticket
         annotations:
-          summary: "Requisições estourando o deadline ({{ $labels.where }})"
-          description: "Muitas requisições ficam sem tempo restante antes de terminar a cadeia de chamadas."
+          summary: "Requests exceeding the deadline ({{ $labels.where }})"
+          description: "Many requests run out of time before the chain of calls finishes."

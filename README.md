@@ -365,7 +365,7 @@ Evaluation runs on a 111-case golden set (adversarial, negation, typos, multi-ho
 </tr>
 </table>
 
-Logs are structured JSON with `trace_id`. Metrics are Prometheus (RED plus business counters). Alerts include SLO burn-rate rules checked with `promtool test rules`. The Grafana dashboard labels are in Portuguese, like the product.
+Logs are structured JSON with `trace_id`. Metrics are Prometheus (RED plus business counters). Alerts include SLO burn-rate rules checked with `promtool test rules`.
 
 ## Testing and quality
 
