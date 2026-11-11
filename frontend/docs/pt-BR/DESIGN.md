@@ -97,9 +97,9 @@ Contrato real observado no gateway e como o painel lida com ele:
 - Conta `admin` não tem loja: `orders/merchant` e `stock/mine` respondem 403. A aba Pedidos explica isso sem chamar a API e o Estoque usa a leitura pública com `reserved`.
 - `page_size` máximo de 50 em pedidos. O painel avisa quando mostra só os mais recentes.
 - Escrita sem escopo ou em produto alheio dá 403, e o painel mostra a mensagem em vez de falhar calado: erros de estoque viram toast e rollback, os de catálogo aparecem no formulário. Nome repetido (409) vira erro no campo.
-- A API não tem reativação de produto: desativar é definitivo no painel e a confirmação diz isso.
-- Produto novo ainda não tem linha no inventário (o `PUT` do lojista responde 403 até existir uma): o painel tenta definir o estoque inicial, e se falhar avisa que o produto nasceu sem estoque.
-- A lista pública do catálogo fica em cache por algum tempo depois de editar ou desativar. `src/lib/recent-writes.ts` sobrepõe por 2 minutos o que o próprio lojista acabou de fazer, para a tela não "voltar atrás".
+- Desativar é reversível. A aba Produtos lista os produtos desativados do dono numa seção "Desativados", alimentada por `GET /catalog/products/mine`, cada um com um botão Reativar. A quantidade em estoque é preservada. Se uma conta pode ler mas não escrever, o painel cai para a lista pública, que mostra só os produtos ativos.
+- Um produto novo ganha a linha de estoque de forma assíncrona, a partir do evento `ProductCreated` (em geral em uma fração de segundo). O painel espera um instante e repete o `PUT` do estoque inicial (`retryUntilReady`), e só avisa "Produto criado, ainda sem estoque" se mesmo assim não conseguir gravar.
+- As leituras do catálogo revalidam a cada requisição (ETag, `Cache-Control: max-age=0, must-revalidate`) e a lista do dono é `no-store`, então uma edição, um produto novo ou uma desativação aparece na hora e a tela nunca "volta no tempo".
 
 Atalhos (fora de campos de texto e sem diálogo aberto): `g` e depois `v`, `p`, `e`, `r` (produtos) ou `x`; `n` novo produto; `/` busca da aba; `?` ajuda. A paleta ⌘K ganha "Ir para ..." para cada aba e "Novo produto" para contas de lojista e admin, mantendo período e loja quando já está no painel.
 

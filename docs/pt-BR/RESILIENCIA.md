@@ -339,7 +339,8 @@ deduplica) cria a cobrança. O teste de caos prova isso.
 
 **Breaker por processo ou compartilhado?** Por processo: simples, sem ponto central, sem custo de rede.
 O preço é que as réplicas aprendem de forma independente. Compartilhar o estado no Redis só vale se a
-decisão precisar ser idêntica em todas as réplicas.
+decisão precisar ser idêntica em todas as réplicas. O gateway suporta os dois: por processo por padrão,
+e um modo compartilhado opcional (`BREAKER_SHARED_STATE=true`) em que só a decisão de abrir é compartilhada pelo Redis.
 
 **Como escolhe os limiares?** Começo conservador (50% de falha, mínimo de 10 chamadas), olho o painel em
 carga real e ajusto. Medir antes de configurar: o caso do timeout do Redis mostra por quê.

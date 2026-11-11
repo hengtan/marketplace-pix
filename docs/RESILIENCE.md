@@ -349,7 +349,8 @@ which deduplicates) creates the charge. The chaos test proves it.
 
 **Per-process or shared breaker?** Per process: simple, no central point, no network cost. The price is that
 replicas learn independently. Sharing state in Redis only pays off if the decision needs to be identical across
-all replicas.
+all replicas. The gateway supports both: per process by default, and an optional shared mode
+(`BREAKER_SHARED_STATE=true`) where only the decision to open is shared through Redis.
 
 **How do you choose thresholds?** I start conservative (50% failure rate, minimum of 10 calls), watch the
 dashboard under real load, and adjust. Measure before configuring: the Redis timeout case shows why.
