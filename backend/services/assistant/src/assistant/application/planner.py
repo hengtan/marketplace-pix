@@ -35,10 +35,21 @@ class RuleBasedPlanner:
     would pick tools through function calling; the loop around it does not change."""
 
     async def next_action(
-        self, message: str, history: Sequence[Turn], observations: Sequence[Observation]
+        self,
+        message: str,
+        history: Sequence[Turn],
+        observations: Sequence[Observation],
+        intent: str | None = None,
     ) -> Action | None:
         tokens = set(tokenize(message))
         done = {obs.tool for obs in observations}
+
+        if intent == "out_of_scope":
+            return None
+        if intent == "policy":
+            if "get_policy" in done:
+                return None
+            return Action("get_policy", {"question": message})
 
         order = _UUID.search(message)
         if order:
@@ -46,7 +57,7 @@ class RuleBasedPlanner:
                 return None
             return Action("get_order_status", {"order_id": str(UUID(order.group(0)))})
 
-        remembered = _last_products(history)
+        remembered = last_products(history)
         if tokens & STOCK_WORDS:
             return self._stock_step(message, tokens, observations, remembered, done)
 
@@ -86,7 +97,7 @@ def _asks_for_order(tokens: set[str]) -> bool:
     return "pedido" in tokens or "pedidos" in tokens
 
 
-def _last_products(history: Sequence[Turn]) -> list[UUID]:
+def last_products(history: Sequence[Turn]) -> list[UUID]:
     for turn in reversed(history):
         if turn.role == "assistant" and turn.product_ids:
             return list(turn.product_ids)

@@ -42,6 +42,7 @@ class Filters:
     min_price_cents: int | None = None
     category: str | None = None
     product_ids: tuple[UUID, ...] | None = None
+    min_rating: float | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -50,6 +51,7 @@ class Filters:
             and self.min_price_cents is None
             and self.category is None
             and self.product_ids is None
+            and self.min_rating is None
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,7 +60,17 @@ class Filters:
             "min_price_cents": self.min_price_cents,
             "category": self.category,
             "product_ids": [str(p) for p in self.product_ids] if self.product_ids else None,
+            "min_rating": self.min_rating,
         }
+
+    def matches(self, price_cents: int, category: str, rating: float, product_id: UUID) -> bool:
+        return (
+            (self.max_price_cents is None or price_cents <= self.max_price_cents)
+            and (self.min_price_cents is None or price_cents >= self.min_price_cents)
+            and (self.category is None or category == self.category)
+            and (self.min_rating is None or rating >= self.min_rating)
+            and (self.product_ids is None or product_id in self.product_ids)
+        )
 
 
 @dataclass(frozen=True)
@@ -127,6 +139,7 @@ class Citation:
 
 @dataclass
 class AgentOutcome:
+    intent: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     observations: list[Observation] = field(default_factory=list)
     passages: list[Passage] = field(default_factory=list)

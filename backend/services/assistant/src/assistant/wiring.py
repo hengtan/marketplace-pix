@@ -23,7 +23,13 @@ from assistant.application.ports import (
 from assistant.application.prompt import PromptBuilder
 from assistant.application.rerank import LexicalReranker
 from assistant.application.retrieval import HybridRetriever, RetrievalConfig
-from assistant.application.tools import GetOrderStatusTool, GetStockTool, SearchProductsTool
+from assistant.application.tools import (
+    GetOrderStatusTool,
+    GetPolicyTool,
+    GetStockTool,
+    SearchProductsTool,
+)
+from assistant.application.understanding import QueryUnderstanding
 from assistant.config import Settings
 from assistant.domain.chunking import RecursiveChunker
 from assistant.infrastructure.db.chunk_store import PgChunkStore
@@ -90,6 +96,22 @@ def _names_provider(store: ChunkStore, embedder: Embedder) -> NamesProvider:
     return provide
 
 
+def retrieval_config(settings: Settings) -> RetrievalConfig:
+    return RetrievalConfig(
+        branch_limit=settings.retrieval_branch_limit,
+        candidates=settings.retrieval_candidates,
+        final=settings.retrieval_final,
+        rrf_k=settings.rrf_k,
+        min_score=settings.retrieval_min_score,
+        relative_cutoff=settings.retrieval_relative_cutoff,
+        rewrite=settings.retrieval_rewrite,
+        typo_correction=settings.retrieval_typo_correction,
+        hyde=settings.retrieval_hyde,
+        decompose=settings.retrieval_decompose,
+        negation=settings.retrieval_negation,
+    )
+
+
 def build_container(
     settings: Settings,
     engine: AsyncEngine,
@@ -117,25 +139,21 @@ def build_container(
 
     factory = build_session_factory(engine)
     store = PgChunkStore(factory)
+    understanding = QueryUnderstanding(store, embedder.name)
     retriever = HybridRetriever(
         store,
         embedder,
         LexicalReranker(),
-        RetrievalConfig(
-            branch_limit=settings.retrieval_branch_limit,
-            candidates=settings.retrieval_candidates,
-            final=settings.retrieval_final,
-            rrf_k=settings.rrf_k,
-            min_score=settings.retrieval_min_score,
-            relative_cutoff=settings.retrieval_relative_cutoff,
-        ),
+        retrieval_config(settings),
+        understanding,
     )
     tools: dict[str, Tool] = {
         "search_products": SearchProductsTool(retriever),
         "get_stock": GetStockTool(inventory, catalog),
         "get_order_status": GetOrderStatusTool(orders),
+        "get_policy": GetPolicyTool(),
     }
-    agent = AgentLoop(RuleBasedPlanner(), tools, settings.agent_max_steps)
+    agent = AgentLoop(RuleBasedPlanner(), tools, settings.agent_max_steps, understanding)
     delay = token_delay_seconds
     if delay is None:
         delay = settings.stream_token_delay_ms / 1000

@@ -14,6 +14,12 @@ _MIN_PRICE = re.compile(
     rf"\b(?:acima de|mais de|a partir de|no minimo|minimo de)\s*(?:r\$\s*)?{_NUMBER}"
     rf"(?:\s*(?:reais|real))?"
 )
+_MIN_RATING = re.compile(
+    r"\b(?:nota|avaliacao|avaliacoes|estrelas?)\s*(?:acima de|maior que|minima de|minimo de|"
+    r"de pelo menos|pelo menos|a partir de)\s*(\d(?:[.,]\d)?)"
+    r"|\b(?:acima de|pelo menos|a partir de)\s*(\d(?:[.,]\d)?)\s*(?:estrelas?|pontos)"
+    r"|\b(\d(?:[.,]\d)?)\s*estrelas?\s*(?:ou mais|pra cima|para cima)"
+)
 _CATEGORY_STOP = frozenset({"e", "de", "da", "do", "para", "com"})
 _SORT_PRICE = re.compile(r"\b(?:mais barat\w*|menor(?:es)? preco\w*|mais em conta)\b")
 _SORT_RATING = re.compile(
@@ -61,6 +67,13 @@ class FilterParser:
         text = normalize(question)
         max_price: int | None = None
         min_price: int | None = None
+        min_rating: float | None = None
+
+        rating = _MIN_RATING.search(text)
+        if rating:
+            raw = next(g for g in rating.groups() if g)
+            min_rating = float(raw.replace(",", "."))
+            text = text.replace(rating.group(0), " ")
 
         match = _MAX_PRICE.search(text)
         if match:
@@ -80,7 +93,12 @@ class FilterParser:
 
         category, text = self._match_category(text)
         return ParsedQuery(
-            Filters(max_price_cents=max_price, min_price_cents=min_price, category=category),
+            Filters(
+                max_price_cents=max_price,
+                min_price_cents=min_price,
+                category=category,
+                min_rating=min_rating,
+            ),
             " ".join(text.split()),
             sort,
         )

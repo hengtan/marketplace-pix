@@ -102,7 +102,9 @@ class ChatService:
             else:
                 yield StreamEvent("tool_call", item)
 
-        prompt = self._builder.build(message, outcome.passages, outcome.observations, history)
+        prompt = self._builder.build(
+            message, outcome.passages, outcome.observations, history, outcome.intent
+        )
         parts: list[str] = []
         if stream_tokens:
             async for token in self._llm.stream(prompt):

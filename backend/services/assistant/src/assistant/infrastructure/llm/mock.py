@@ -9,6 +9,10 @@ _METADATA_SENTENCE = re.compile(r"^(Preço|Avaliação|Vendido por|Palavras-chav
 _SENTENCES = re.compile(r"[^\n]+?[.!?]+(?=\s|$)")
 _STATUS_PT = {"PENDING": "aguardando pagamento", "PAID": "pago", "CANCELLED": "cancelado"}
 
+OUT_OF_SCOPE = (
+    "Só consigo ajudar com produtos do catálogo, estoque, pedidos e políticas da loja. "
+    "Pergunte, por exemplo, por um produto, uma faixa de preço ou o status de um pedido."
+)
 NOT_FOUND = (
     "Não encontrei no catálogo nada que corresponda a isso. "
     "Tente descrever o tipo de produto, a categoria ou uma faixa de preço."
@@ -27,6 +31,11 @@ class MockLlm:
 
     async def generate(self, prompt: Prompt) -> str:
         question = normalize(prompt.question)
+        if prompt.intent == "out_of_scope":
+            return OUT_OF_SCOPE
+        policies = [o for o in prompt.observations if o.tool == "get_policy" and o.ok]
+        if policies:
+            return policies[-1].summary
         orders = [o for o in prompt.observations if o.tool == "get_order_status"]
         stocks = [o for o in prompt.observations if o.tool == "get_stock"]
         if orders:

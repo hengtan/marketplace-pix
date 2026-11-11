@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     retrieval_min_score: float = 0.1
     retrieval_relative_cutoff: float = 0.5
+    retrieval_rewrite: Literal["off", "always", "adaptive"] = "adaptive"
+    retrieval_typo_correction: bool = True
+    retrieval_hyde: bool = False
+    retrieval_decompose: bool = True
+    retrieval_negation: bool = True
 
     agent_max_steps: int = 3
     max_message_chars: int = 1000

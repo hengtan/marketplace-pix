@@ -66,6 +66,7 @@ class PromptBuilder:
         passages: Sequence[Passage],
         observations: Sequence[Observation],
         history: Sequence[Turn] = (),
+        intent: str | None = None,
     ) -> Prompt:
         flagged_total = 0
         context: list[ContextItem] = []
@@ -94,6 +95,7 @@ class PromptBuilder:
             observations=tuple(clean_observations),
             text=text,
             history=tuple(history),
+            intent=intent,
         )
 
     @staticmethod

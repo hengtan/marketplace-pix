@@ -3,7 +3,9 @@ import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
+from assistant.application.planner import last_products
 from assistant.application.ports import Planner, Tool
+from assistant.application.understanding import QueryUnderstanding
 from assistant.domain.models import AgentOutcome, Observation, Passage, ToolCall, Turn
 
 logger = logging.getLogger(__name__)
@@ -13,17 +15,29 @@ class AgentLoop:
     """plan -> act -> observe, at most `max_steps` times. The planner sees every observation so
     far and returns the next tool call or None when it has what it needs."""
 
-    def __init__(self, planner: Planner, tools: Mapping[str, Tool], max_steps: int = 3) -> None:
+    def __init__(
+        self,
+        planner: Planner,
+        tools: Mapping[str, Tool],
+        max_steps: int = 3,
+        understanding: QueryUnderstanding | None = None,
+    ) -> None:
         self._planner = planner
         self._tools = tools
         self._max_steps = max_steps
+        self._understanding = understanding
 
     async def iterate(
         self, message: str, history: Sequence[Turn] = ()
     ) -> AsyncIterator[ToolCall | AgentOutcome]:
         outcome = AgentOutcome()
+        if self._understanding is not None:
+            result = await self._understanding.classify(message, bool(last_products(history)))
+            outcome.intent = result.intent.value
         for _ in range(self._max_steps):
-            action = await self._planner.next_action(message, history, outcome.observations)
+            action = await self._planner.next_action(
+                message, history, outcome.observations, outcome.intent
+            )
             if action is None:
                 break
             call, observation, passages = await self._execute(action.tool, action.arguments)
