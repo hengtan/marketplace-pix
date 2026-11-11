@@ -95,14 +95,16 @@ function CitedCard({
               : `Adicionar ${citation.name} ao carrinho`
         }
         className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-[background-color,color,border-color,transform] duration-300 active:scale-95 disabled:opacity-40",
+          "inline-flex size-10 items-center justify-center gap-1.5 rounded-full border text-sm font-medium min-[420px]:h-9 min-[420px]:w-auto min-[420px]:px-3 transition-[background-color,color,border-color,transform] duration-300 active:scale-95 disabled:opacity-40",
           added
             ? "border-pix bg-pix text-[oklch(0.2_0.06_165)]"
             : "border-border bg-surface hover:border-primary hover:bg-primary hover:text-primary-foreground",
         )}
       >
         {added ? <Check className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
-        <span aria-hidden>{added ? "Pronto" : "Adicionar"}</span>
+        <span aria-hidden className="hidden min-[420px]:inline">
+          {added ? "Pronto" : "Adicionar"}
+        </span>
       </button>
     </li>
   );

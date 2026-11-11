@@ -80,7 +80,7 @@ function Composer({ autoFocus }: { autoFocus: boolean }) {
           maxLength={MAX_MESSAGE_LENGTH}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Pergunte sobre produtos, preços ou pedidos"
+          placeholder="Pergunte sobre a loja"
           className="max-h-[150px] min-h-11 flex-1 resize-none self-center bg-transparent py-2.5 text-base outline-none placeholder:text-muted"
         />
         {streaming ? (

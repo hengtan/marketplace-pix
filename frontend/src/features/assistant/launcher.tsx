@@ -1,6 +1,5 @@
 import { Sparkles } from "lucide-react";
 import { useEffect } from "react";
-import { Kbd } from "@/components/ui/misc";
 import { useUi } from "@/store/ui";
 import { LAUNCHER_ID } from "./panel";
 
@@ -41,9 +40,12 @@ export function AssistantLauncher() {
       />
       <span className="hidden text-[0.95rem] font-semibold sm:inline">Assistente</span>
       <span className="sr-only sm:hidden">Assistente de compras</span>
-      <span className="hidden sm:inline" aria-hidden>
-        <Kbd>{isMacLike() ? "⌘/" : "Ctrl /"}</Kbd>
-      </span>
+      <kbd
+        aria-hidden
+        className="hidden rounded-sm bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-[0.7rem] text-primary-foreground sm:inline"
+      >
+        {isMacLike() ? "⌘/" : "Ctrl /"}
+      </kbd>
     </button>
   );
 }
