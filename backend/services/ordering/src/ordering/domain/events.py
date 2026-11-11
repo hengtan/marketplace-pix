@@ -12,11 +12,22 @@ class DomainEvent:
     occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
+@dataclass(frozen=True, slots=True)
+class OrderCreatedItem:
+    product_id: UUID
+    merchant_id: UUID
+    quantity: int
+    unit_price_cents: int
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class OrderCreated(DomainEvent):
     customer_id: UUID
+    customer_name: str
+    customer_email: str
     total_cents: int
     currency: str
+    items: tuple[OrderCreatedItem, ...]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

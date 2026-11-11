@@ -26,7 +26,9 @@ def db():
 
 @pytest.fixture
 def order(db):
-    order = Order.create(uuid4(), [OrderItem(uuid4(), 2, Money(1990))])
+    order = Order.create(
+        uuid4(), [OrderItem(uuid4(), uuid4(), 2, Money(1990))], "Maria Souza", "maria@example.com"
+    )
     order.pull_events()
     db.orders[order.id] = order
     return order

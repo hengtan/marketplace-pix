@@ -8,3 +8,11 @@ class IdempotencyKeyReused(ApplicationError):
 
 class OrderNotFound(ApplicationError):
     pass
+
+
+class UnknownProduct(ApplicationError):
+    pass
+
+
+class CatalogUnavailable(ApplicationError):
+    pass

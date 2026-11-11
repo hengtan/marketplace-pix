@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from uuid import UUID
 
-from ordering.application.errors import IdempotencyKeyReused
-from ordering.application.ports import UnitOfWork
+from ordering.application.errors import IdempotencyKeyReused, UnknownProduct
+from ordering.application.ports import CatalogGateway, UnitOfWork
 from ordering.domain.money import Money
 from ordering.domain.order import Order, OrderItem
 
@@ -16,14 +16,14 @@ from ordering.domain.order import Order, OrderItem
 class CreateOrderItem:
     product_id: UUID
     quantity: int
-    unit_price_cents: int
 
 
 @dataclass(frozen=True, slots=True)
 class CreateOrderCommand:
     customer_id: UUID
+    customer_name: str
+    customer_email: str
     items: list[CreateOrderItem]
-    currency: str = "BRL"
 
     def fingerprint(self) -> str:
         canonical = json.dumps(asdict(self), sort_keys=True, default=str)
@@ -37,17 +37,14 @@ class CreateOrderResult:
 
 
 class CreateOrder:
-    def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
+    def __init__(self, uow_factory: Callable[[], UnitOfWork], catalog: CatalogGateway) -> None:
         self._uow_factory = uow_factory
+        self._catalog = catalog
 
     async def execute(
         self, command: CreateOrderCommand, idempotency_key: str | None = None
     ) -> CreateOrderResult:
-        items = [
-            OrderItem(i.product_id, i.quantity, Money(i.unit_price_cents, command.currency))
-            for i in command.items
-        ]
-        order = Order.create(command.customer_id, items)
+        order = await self._build_order(command)
         async with self._uow_factory() as uow:
             if idempotency_key is not None:
                 existing = await uow.idempotency.claim(
@@ -61,3 +58,24 @@ class CreateOrder:
             await uow.outbox.add(order.pull_events())
             await uow.commit()
         return CreateOrderResult(order.id, replayed=False)
+
+    async def _build_order(self, command: CreateOrderCommand) -> Order:
+        quantities: dict[UUID, int] = {}
+        for item in command.items:
+            quantities[item.product_id] = quantities.get(item.product_id, 0) + item.quantity
+        products = {p.id: p for p in await self._catalog.get_products(list(quantities))}
+        missing = [str(pid) for pid in quantities if pid not in products]
+        if missing:
+            raise UnknownProduct(", ".join(missing))
+        items = [
+            OrderItem(
+                product_id=pid,
+                merchant_id=products[pid].merchant_id,
+                quantity=quantity,
+                unit_price=Money(products[pid].price_cents, products[pid].currency),
+            )
+            for pid, quantity in quantities.items()
+        ]
+        return Order.create(
+            command.customer_id, items, command.customer_name, command.customer_email
+        )

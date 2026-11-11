@@ -1,7 +1,8 @@
 import copy
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
-from ordering.application.ports import IdempotencyRecord
+from ordering.application.errors import CatalogUnavailable
+from ordering.application.ports import CatalogProduct, IdempotencyRecord
 from ordering.domain.events import DomainEvent
 from ordering.domain.order import Order
 
@@ -29,6 +30,14 @@ class FakeOrders:
 
     async def save(self, order: Order) -> None:
         self._uow.staged_orders[order.id] = persisted(order)
+
+    async def list_by_customer(
+        self, customer_id: UUID, page: int, page_size: int
+    ) -> tuple[list[Order], int]:
+        mine = [o for o in self._uow.db.orders.values() if o.customer_id == customer_id]
+        mine.reverse()
+        start = (page - 1) * page_size
+        return [copy.deepcopy(o) for o in mine[start : start + page_size]], len(mine)
 
     async def get(self, order_id: UUID, lock: bool = False) -> Order | None:
         order = self._uow.staged_orders.get(order_id) or self._uow.db.orders.get(order_id)
@@ -97,3 +106,32 @@ class FakeUow:
         self.db.inbox.update(self.staged_inbox)
         self._discard()
         self.committed = True
+
+
+def merchant_of(product_id: UUID) -> UUID:
+    return uuid5(NAMESPACE_URL, f"test-merchant-of:{product_id}")
+
+
+class FakeCatalog:
+    def __init__(self, prices: dict[UUID, int] | None = None, default_price: int = 1990) -> None:
+        self.prices = dict(prices or {})
+        self.default_price = default_price
+        self.unknown: set[UUID] = set()
+        self.fail = False
+        self.calls = 0
+
+    async def get_products(self, ids: list[UUID]) -> list[CatalogProduct]:
+        self.calls += 1
+        if self.fail:
+            raise CatalogUnavailable("catalog is down")
+        return [
+            CatalogProduct(
+                id=i,
+                name=f"Produto {str(i)[:4]}",
+                price_cents=self.prices.get(i, self.default_price),
+                currency="BRL",
+                merchant_id=merchant_of(i),
+            )
+            for i in ids
+            if i not in self.unknown
+        ]

@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
 from ordering.domain.errors import InvalidOrder, InvalidStateTransition
-from ordering.domain.events import DomainEvent, OrderCancelled, OrderCreated, OrderPaid
+from ordering.domain.events import (
+    DomainEvent,
+    OrderCancelled,
+    OrderCreated,
+    OrderCreatedItem,
+    OrderPaid,
+)
 from ordering.domain.money import Money
 
 
@@ -18,6 +25,7 @@ class OrderStatus(StrEnum):
 @dataclass(frozen=True, slots=True)
 class OrderItem:
     product_id: UUID
+    merchant_id: UUID
     quantity: int
     unit_price: Money
 
@@ -34,25 +42,56 @@ class OrderItem:
 class Order:
     id: UUID
     customer_id: UUID
+    customer_name: str
+    customer_email: str
     items: tuple[OrderItem, ...]
     status: OrderStatus = OrderStatus.PENDING
+    cancel_reason: str | None = None
+    created_at: datetime | None = None
     _events: list[DomainEvent] = field(default_factory=list, repr=False)
 
     @classmethod
-    def create(cls, customer_id: UUID, items: list[OrderItem]) -> Order:
+    def create(
+        cls,
+        customer_id: UUID,
+        items: list[OrderItem],
+        customer_name: str,
+        customer_email: str,
+    ) -> Order:
         if not items:
             raise InvalidOrder("order needs at least one item")
+        if not customer_name.strip():
+            raise InvalidOrder("customer name is required")
+        if "@" not in customer_email:
+            raise InvalidOrder("customer email is invalid")
         currencies = {i.unit_price.currency for i in items}
         if len(currencies) > 1:
             raise InvalidOrder("all items must share one currency")
-        order = cls(id=uuid4(), customer_id=customer_id, items=tuple(items))
+        order = cls(
+            id=uuid4(),
+            customer_id=customer_id,
+            customer_name=customer_name.strip(),
+            customer_email=customer_email.strip(),
+            items=tuple(items),
+        )
         total = order.total
         order._events.append(
             OrderCreated(
                 order_id=order.id,
                 customer_id=customer_id,
+                customer_name=order.customer_name,
+                customer_email=order.customer_email,
                 total_cents=total.cents,
                 currency=total.currency,
+                items=tuple(
+                    OrderCreatedItem(
+                        product_id=i.product_id,
+                        merchant_id=i.merchant_id,
+                        quantity=i.quantity,
+                        unit_price_cents=i.unit_price.cents,
+                    )
+                    for i in order.items
+                ),
             )
         )
         return order
@@ -79,6 +118,7 @@ class Order:
         if self.status is not OrderStatus.PENDING:
             raise InvalidStateTransition(f"cannot cancel an order in {self.status}")
         self.status = OrderStatus.CANCELLED
+        self.cancel_reason = reason
         self._events.append(OrderCancelled(order_id=self.id, reason=reason))
 
     def pull_events(self) -> list[DomainEvent]:

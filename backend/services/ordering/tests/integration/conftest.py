@@ -27,9 +27,18 @@ async def _ensure_test_database() -> None:
     await admin.dispose()
 
 
+async def _reset_schema() -> None:
+    engine = create_async_engine(_url(TEST_DB), poolclass=NullPool)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    await engine.dispose()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def test_database() -> None:
     asyncio.run(_ensure_test_database())
+    asyncio.run(_reset_schema())
 
 
 @pytest.fixture

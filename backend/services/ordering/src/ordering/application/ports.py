@@ -16,6 +16,23 @@ class OrderRepository(Protocol):
 
     async def save(self, order: Order) -> None: ...
 
+    async def list_by_customer(
+        self, customer_id: UUID, page: int, page_size: int
+    ) -> tuple[list[Order], int]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogProduct:
+    id: UUID
+    name: str
+    price_cents: int
+    currency: str
+    merchant_id: UUID
+
+
+class CatalogGateway(Protocol):
+    async def get_products(self, ids: list[UUID]) -> list[CatalogProduct]: ...
+
 
 @dataclass(frozen=True, slots=True)
 class IncomingEvent:

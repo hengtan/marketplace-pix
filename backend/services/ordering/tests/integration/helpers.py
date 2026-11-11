@@ -5,11 +5,19 @@ from sqlalchemy import func, select
 from ordering.application.create_order import CreateOrder, CreateOrderCommand, CreateOrderItem
 from ordering.application.ports import IncomingEvent
 from ordering.infrastructure.db.models import OrderModel, OutboxEventModel
+from tests.fakes import FakeCatalog
 
 
-async def make_order(uow_factory) -> UUID:
-    command = CreateOrderCommand(uuid4(), [CreateOrderItem(uuid4(), 1, 4480)])
-    return (await CreateOrder(uow_factory).execute(command)).order_id
+async def make_order(uow_factory, customer_id: UUID | None = None) -> UUID:
+    product_id = uuid4()
+    command = CreateOrderCommand(
+        customer_id or uuid4(),
+        "Maria Souza",
+        "maria@example.com",
+        [CreateOrderItem(product_id, 1)],
+    )
+    catalog = FakeCatalog({product_id: 4480})
+    return (await CreateOrder(uow_factory, catalog).execute(command)).order_id
 
 
 def payment_event(order_id: UUID, type_: str = "PaymentConfirmed", event_id=None) -> IncomingEvent:

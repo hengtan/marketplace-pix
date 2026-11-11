@@ -8,22 +8,26 @@ from ordering.domain.money import Money
 from ordering.domain.order import Order, OrderItem, OrderStatus
 
 
-def make_order() -> Order:
-    items = [
-        OrderItem(uuid4(), 2, Money(1990)),
-        OrderItem(uuid4(), 1, Money(500)),
-    ]
-    return Order.create(uuid4(), items)
+def item(qty=1, price=1990, currency="BRL") -> OrderItem:
+    return OrderItem(uuid4(), uuid4(), qty, Money(price, currency))
 
 
-def test_create_computes_total_and_emits_event():
+def make_order(items=None) -> Order:
+    items = items or [item(2, 1990), item(1, 500)]
+    return Order.create(uuid4(), items, "Maria Souza", "maria@example.com")
+
+
+def test_create_computes_total_and_emits_event_with_items_and_contact():
     order = make_order()
     assert order.status is OrderStatus.PENDING
     assert order.total == Money(4480)
-    events = order.pull_events()
-    assert len(events) == 1
-    assert isinstance(events[0], OrderCreated)
-    assert events[0].total_cents == 4480
+    (event,) = order.pull_events()
+    assert isinstance(event, OrderCreated)
+    assert event.total_cents == 4480
+    assert event.customer_name == "Maria Souza"
+    assert event.customer_email == "maria@example.com"
+    assert [(i.quantity, i.unit_price_cents) for i in event.items] == [(2, 1990), (1, 500)]
+    assert event.items[0].merchant_id == order.items[0].merchant_id
 
 
 def test_pull_events_clears_the_buffer():
@@ -34,18 +38,24 @@ def test_pull_events_clears_the_buffer():
 
 def test_empty_order_is_rejected():
     with pytest.raises(InvalidOrder):
-        Order.create(uuid4(), [])
+        Order.create(uuid4(), [], "Maria", "maria@example.com")
+
+
+def test_blank_name_and_invalid_email_are_rejected():
+    with pytest.raises(InvalidOrder):
+        Order.create(uuid4(), [item()], "   ", "maria@example.com")
+    with pytest.raises(InvalidOrder):
+        Order.create(uuid4(), [item()], "Maria", "not-an-email")
 
 
 def test_zero_quantity_is_rejected():
     with pytest.raises(InvalidOrder):
-        OrderItem(uuid4(), 0, Money(100))
+        item(qty=0)
 
 
 def test_mixed_currency_is_rejected():
-    items = [OrderItem(uuid4(), 1, Money(100, "BRL")), OrderItem(uuid4(), 1, Money(100, "USD"))]
     with pytest.raises(InvalidOrder):
-        Order.create(uuid4(), items)
+        make_order([item(currency="BRL"), item(currency="USD")])
 
 
 def test_mark_paid_is_idempotent():
@@ -58,12 +68,13 @@ def test_mark_paid_is_idempotent():
     assert [type(e) for e in events] == [OrderPaid]
 
 
-def test_cancel_pending_order():
+def test_cancel_pending_order_records_the_reason():
     order = make_order()
     order.pull_events()
     order.cancel("pix expired")
     events = order.pull_events()
     assert order.status is OrderStatus.CANCELLED
+    assert order.cancel_reason == "pix expired"
     assert isinstance(events[0], OrderCancelled)
     assert events[0].reason == "pix expired"
 

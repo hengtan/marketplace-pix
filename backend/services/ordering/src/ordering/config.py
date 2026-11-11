@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5433
     ordering_db: str = "ordering"
     kafka_bootstrap_servers: str = "localhost:9094"
+    catalog_url: str = "http://localhost:8003"
 
     @property
     def database_url(self) -> str:
