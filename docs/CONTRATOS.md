@@ -185,10 +185,16 @@ Categoria: `slug`, `label`, `count`.
 
 | Gateway | Serviço |
 |---|---|
-| `GET /api/inventory/stock?product_ids=a,b` | `GET /stock?product_ids=a,b` → `[{product_id, available, reserved}]` |
+| `GET /api/inventory/stock?product_ids=a,b` | `GET /stock?product_ids=a,b` → `[{product_id, available}]` |
 | `GET /api/inventory/stock/{product_id}` | `GET /stock/{product_id}` |
 | `PUT /api/inventory/stock/{product_id}` | `PUT /stock/{product_id}` com `{ "available": 10 }` (lojista só nos próprios produtos, `403` nos demais; `admin` em todos) |
-| `GET /api/inventory/stock/mine` | `GET /stock/mine` → estoque dos produtos do lojista do token |
+| `GET /api/inventory/stock/mine` | `GET /stock/mine` → estoque dos produtos do lojista do token, com `reserved` |
+
+A leitura de estoque é pública e devolve só `available`: `reserved` (a demanda em andamento) aparece apenas para o lojista dono do
+produto (escopo `stock:write:own` e `merchant_id` igual ao do produto) e para o `admin`, em `GET /stock`, `GET /stock/{id}`,
+`GET /stock/mine` e na resposta do `PUT`. Para isso o gateway repassa a identidade assinada quando o token é válido nas leituras de
+estoque; token ausente, inválido ou expirado nessas rotas vale como anônimo (a vitrine continua pública). Produto sem lojista dono
+nunca expõe `reserved` a um lojista.
 
 ### ordering (porta 8001)
 
@@ -370,7 +376,8 @@ Matriz de acesso no gateway (`401` sem token válido, `403` sem o escopo):
 
 | Rota | Acesso |
 |---|---|
-| `GET /api/catalog/**`, `GET /api/inventory/stock**` | público |
+| `GET /api/catalog/**` | público |
+| `GET /api/inventory/stock**` | público (com token válido o gateway repassa a identidade, para o lojista dono ver `reserved`) |
 | `POST /api/orders` | anônimo (convidado) ou autenticado; `ALLOW_GUEST_CHECKOUT=false` exige token |
 | `GET /api/orders`, `GET /api/orders/{id}`, `GET /api/payments/by-order/{id}` | anônimo ou autenticado; o serviço decide pelo dono |
 | `GET /api/orders/merchant` | `orders:read:merchant` |

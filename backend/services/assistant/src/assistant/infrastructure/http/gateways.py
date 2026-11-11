@@ -83,7 +83,7 @@ class HttpInventoryGateway:
         body = await _get(self._client, f"{self._base}/stock/{product_id}")
         if body is None:
             return None
-        return StockInfo(product_id, int(body["available"]), int(body["reserved"]))
+        return StockInfo(product_id, int(body["available"]))
 
 
 class HttpOrderGateway:

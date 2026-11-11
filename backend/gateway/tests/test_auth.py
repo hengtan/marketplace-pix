@@ -350,3 +350,28 @@ async def test_gateway_refuses_to_start_auth_without_a_secret() -> None:
     with pytest.raises(RuntimeError):
         async with app.router.lifespan_context(app):
             pass
+
+
+async def test_stock_reads_forward_the_identity_when_the_token_is_valid(world: World) -> None:
+    merchant = uuid4()
+    token = world.issuer.token(("merchant",), merchant_id=merchant)
+    response = await call(
+        world, "GET", "/api/inventory/stock/abc", make_settings(), headers=bearer(token)
+    )
+    assert response.status_code == 200
+    forwarded = world.upstream("inventory")[0]
+    principal = verify_principal(SECRET, dict(forwarded.headers), forwarded.headers["x-request-id"])
+    assert principal is not None and principal.merchant_id == merchant
+
+
+@pytest.mark.parametrize(
+    "headers", [{}, {"Authorization": "Bearer not-a-token"}, {"Authorization": "Basic abc"}]
+)
+async def test_stock_reads_stay_public_for_anonymous_or_broken_credentials(
+    world: World, headers: dict[str, str]
+) -> None:
+    response = await call(world, "GET", "/api/inventory/stock", make_settings(), headers=headers)
+    assert response.status_code == 200
+    forwarded = world.upstream("inventory")[0]
+    assert "x-user-id" not in forwarded.headers
+    assert "authorization" not in forwarded.headers

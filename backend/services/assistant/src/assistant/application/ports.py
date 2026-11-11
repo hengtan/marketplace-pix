@@ -134,7 +134,6 @@ class CatalogGateway(Protocol):
 class StockInfo:
     product_id: UUID
     available: int
-    reserved: int
 
 
 class InventoryGateway(Protocol):

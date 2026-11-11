@@ -97,24 +97,29 @@ class GatewayAuth:
         if access is Access.PUBLIC:
             return None, None
         if header is None:
-            if access is Access.OPTIONAL:
+            if access in (Access.OPTIONAL, Access.SOFT):
                 return None, None
             return None, Denied(401, "authentication required", challenge=True)
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not token:
+            if access is Access.SOFT:
+                return None, None
             return None, Denied(401, "invalid authorization header", challenge=True)
         try:
             verified = await self._verifier.verify_token(token.strip())
             if self._revocations is not None and await self._revocations.is_revoked(verified.jti):
+                if access is Access.SOFT:
+                    return None, None
                 return None, Denied(401, "invalid or expired token", challenge=True)
             return verified.principal, None
         except InvalidToken:
+            if access is Access.SOFT:
+                return None, None
             return None, Denied(401, "invalid or expired token", challenge=True)
-        except JwksUnavailable:
-            logger.error("identity JWKS unavailable, rejecting authenticated request")
-            return None, Denied(503, "authentication unavailable")
-        except RevocationUnavailable:
-            logger.error("revocation list unavailable, rejecting authenticated request")
+        except (JwksUnavailable, RevocationUnavailable):
+            if access is Access.SOFT:
+                return None, None
+            logger.error("token validation unavailable, rejecting authenticated request")
             return None, Denied(503, "authentication unavailable")
 
     @staticmethod

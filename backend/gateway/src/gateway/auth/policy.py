@@ -10,6 +10,7 @@ from marketplace_common.security import Scope
 class Access(StrEnum):
     PUBLIC = "public"
     OPTIONAL = "optional"
+    SOFT = "soft"
     REQUIRED = "required"
 
 
@@ -59,7 +60,7 @@ def build_rules(guest_checkout: bool) -> tuple[Rule, ...]:
             Scope.CATALOG_WRITE_ANY,
         ),
         _rule("GET", r"^/api/inventory/stock/mine$", Access.REQUIRED, Scope.STOCK_WRITE_OWN),
-        _rule(READ, r"^/api/inventory/stock(/.*)?$", Access.PUBLIC),
+        _rule(READ, r"^/api/inventory/stock(/.*)?$", Access.SOFT),
         _rule(
             "PUT",
             r"^/api/inventory/stock/[^/]+$",
