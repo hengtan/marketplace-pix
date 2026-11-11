@@ -68,7 +68,7 @@ function Composer({ autoFocus }: { autoFocus: boolean }) {
       onSubmit={submit}
       className="border-t border-border bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
     >
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-1.5 pl-4 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/30">
+      <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-1.5 pl-4 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
         <label htmlFor="assistente-mensagem" className="sr-only">
           Sua pergunta para o assistente
         </label>
@@ -195,16 +195,16 @@ export function AssistantPanel() {
             e.preventDefault();
             document.getElementById(LAUNCHER_ID)?.focus();
           }}
-          className="fixed inset-y-0 right-0 z-50 flex h-dvh w-full flex-col bg-surface text-foreground shadow-lift outline-none duration-300 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right sm:max-w-[27rem] sm:rounded-l-xl sm:border-l sm:border-border"
+          className="fixed inset-y-0 right-0 z-50 flex h-dvh w-full flex-col bg-surface text-foreground shadow-lift outline-none duration-300 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right sm:max-w-[30rem] sm:rounded-l-xl sm:border-l sm:border-border"
         >
           <header className="flex items-center gap-3 border-b border-border px-4 py-3">
             <Avatar className="size-10" />
             <div className="min-w-0 flex-1">
-              <D.Title className="font-display text-lg leading-tight font-semibold">
+              <D.Title className="font-display text-lg leading-tight font-semibold whitespace-nowrap">
                 Assistente de compras
               </D.Title>
               <D.Description className="truncate text-xs text-muted">
-                Respostas com base no catálogo da loja
+                Responde com dados da loja
               </D.Description>
             </div>
             <button
@@ -214,8 +214,7 @@ export function AssistantPanel() {
               className="inline-flex h-11 items-center gap-2 rounded-full px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <SquarePen className="size-4" aria-hidden />
-              <span className="hidden min-[400px]:inline">Nova conversa</span>
-              <span className="sr-only min-[400px]:hidden">Nova conversa</span>
+              <span className="sr-only min-[400px]:not-sr-only">Nova conversa</span>
             </button>
             <D.Close
               aria-label="Fechar o assistente"

@@ -77,9 +77,9 @@ export function Trace({ toolCalls, retrieved, latencyMs }: TraceProps) {
         onClick={() => setOpen((o) => !o)}
         className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm"
       >
-        <span className="font-medium">Como cheguei nessa resposta</span>
-        <span className="tabular ml-auto hidden truncate text-xs text-muted min-[420px]:inline">
-          {parts.join(" · ")}
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Como cheguei nessa resposta</span>
+          <span className="tabular block text-xs text-muted">{parts.join(" · ")}</span>
         </span>
         <ChevronDown
           aria-hidden
@@ -112,9 +112,9 @@ export function Trace({ toolCalls, retrieved, latencyMs }: TraceProps) {
                 }
               >
                 {Object.keys(call.arguments).length > 0 && (
-                  <dl className="mt-1.5 grid gap-1">
+                  <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-xs">
                     {Object.entries(call.arguments).map(([key, value]) => (
-                      <div key={key} className="flex flex-wrap gap-x-2 text-xs">
+                      <div key={key} className="col-span-2 grid grid-cols-subgrid">
                         <dt className="font-mono text-muted">{key}</dt>
                         <dd className="min-w-0 font-mono break-words">{formatArg(value)}</dd>
                       </div>
