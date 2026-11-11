@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
@@ -22,7 +23,9 @@ class AgentLoop:
         tools: Mapping[str, Tool],
         max_steps: int = 3,
         understanding: QueryUnderstanding | None = None,
+        tool_timeout_seconds: float | None = None,
     ) -> None:
+        self._tool_timeout = tool_timeout_seconds
         self._planner = planner
         self._tools = tools
         self._max_steps = max_steps
@@ -69,9 +72,16 @@ class AgentLoop:
         else:
             with step_span("tool", attributes={"assistant.tool": name}) as span:
                 try:
-                    result = await tool.run(dict(arguments))
+                    result = await asyncio.wait_for(tool.run(dict(arguments)), self._tool_timeout)
                     summary, data, ok = result.summary, result.data, result.ok
                     passages = list(result.passages)
+                except TimeoutError:
+                    logger.warning("tool timed out name=%s", name)
+                    summary, data, ok = (
+                        f"A ferramenta {name} demorou demais para responder.",
+                        {},
+                        False,
+                    )
                 except Exception as exc:
                     logger.warning("tool failed name=%s error=%s", name, type(exc).__name__)
                     summary, data, ok = f"Falha ao executar a ferramenta {name}.", {}, False

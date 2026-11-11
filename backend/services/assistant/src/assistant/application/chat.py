@@ -1,8 +1,9 @@
 import asyncio
+import contextlib
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -12,6 +13,7 @@ from opentelemetry.trace import use_span
 
 from assistant.application.agent import AgentLoop
 from assistant.application.budget import BudgetManager
+from assistant.application.fallback import DEGRADED_WARNING, SEARCH_UNAVAILABLE, build_fallback
 from assistant.application.guardrails import (
     INJECTION_REFUSAL,
     GroundingGuard,
@@ -26,11 +28,13 @@ from assistant.domain.errors import MessageTooLong, SessionNotFound
 from assistant.domain.models import AgentOutcome, Citation, Observation, Passage, ToolCall, Turn
 from assistant.metrics import (
     CHAT_REQUESTS,
+    FALLBACKS,
     GUARDRAIL_EVENTS,
     LLM_COST,
     LLM_REQUESTS,
     LLM_TOKENS,
     STEP_DURATION,
+    STREAMS_CANCELLED,
 )
 from assistant.telemetry import ChatTrace, is_done, next_in_span, preview, step_span
 
@@ -47,6 +51,15 @@ class ChatResult:
     latency_ms: int
     grounded: bool = True
     cached: bool = False
+    degraded: bool = False
+    warning: str | None = None
+
+
+@dataclass(frozen=True)
+class StreamTimeouts:
+    first_token: float = 15.0
+    idle: float = 10.0
+    total: float = 60.0
 
 
 @dataclass(frozen=True)
@@ -82,7 +95,9 @@ class ChatService:
         cache: SemanticCache | None = None,
         cost: CostModel | None = None,
         budget: BudgetManager | None = None,
+        timeouts: StreamTimeouts | None = None,
     ) -> None:
+        self._timeouts = timeouts or StreamTimeouts()
         self._budget = budget
         self._cache = cache
         self._cost = cost or CostModel()
@@ -120,7 +135,7 @@ class ChatService:
         message: str,
         stream_tokens: bool = True,
         user_id: str | None = None,
-    ) -> AsyncIterator[StreamEvent]:
+    ) -> AsyncGenerator[StreamEvent]:
         started = time.perf_counter()
         message = self.validate_message(message)
         trace = ChatTrace()
@@ -180,15 +195,52 @@ class ChatService:
                 with trace.scope():
                     await self._budget.reserve(str(sid), user_id, prompt_tokens)
 
+            if not outcome.passages and any(
+                not o.ok and o.tool == "search_products" for o in outcome.observations
+            ):
+                FALLBACKS.labels("search_unavailable").inc()
+                with trace.scope():
+                    await self._persist(
+                        sid, message, SEARCH_UNAVAILABLE, [], outcome.tool_calls, []
+                    )
+                outcome_label = "degraded"
+                yield StreamEvent(
+                    "done",
+                    ChatResult(
+                        sid,
+                        SEARCH_UNAVAILABLE,
+                        [],
+                        outcome.tool_calls,
+                        [],
+                        int((time.perf_counter() - started) * 1000),
+                        degraded=True,
+                        warning=SEARCH_UNAVAILABLE,
+                    ),
+                )
+                return
+
             generate = trace.child("generate")
             generate.handle.set_attribute("gen_ai.request.model", self._llm.name)
             generate.handle.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
             parts: list[str] = []
+            llm_stream: AsyncIterator[str] | None = None
+            failure_reason: str | None = None
+            deadline = time.monotonic() + self._timeouts.total
             try:
                 if stream_tokens:
                     llm_stream = self._llm.stream(prompt).__aiter__()
+                    first = True
                     while True:
-                        token = await next_in_span(llm_stream, generate.handle.span)
+                        remaining = deadline - time.monotonic()
+                        limit = min(
+                            self._timeouts.first_token if first else self._timeouts.idle, remaining
+                        )
+                        if limit <= 0:
+                            raise TimeoutError("generation deadline exceeded")
+                        token = await asyncio.wait_for(
+                            next_in_span(llm_stream, generate.handle.span), limit
+                        )
+                        first = False
                         if is_done(token):
                             break
                         parts.append(token)
@@ -203,11 +255,51 @@ class ChatService:
                         record_exception=False,
                         set_status_on_exception=False,
                     ):
-                        raw_answer = await self._llm.generate(prompt)
-            except BaseException as exc:
+                        raw_answer = await asyncio.wait_for(
+                            self._llm.generate(prompt), self._timeouts.total
+                        )
+            except (asyncio.CancelledError, GeneratorExit):
+                generate.end()
+                await self._release(llm_stream, sid, user_id, prompt_tokens, "".join(parts))
+                raise
+            except Exception as exc:
                 generate.end(exc)
                 LLM_REQUESTS.labels(self._llm.name, "error").inc()
-                raise
+                failure_reason = "timeout" if isinstance(exc, TimeoutError) else "llm_error"
+                logger.warning(
+                    "generation failed reason=%s error=%s", failure_reason, type(exc).__name__
+                )
+                await self._release(llm_stream, sid, user_id, prompt_tokens, "".join(parts))
+            else:
+                await self._close(llm_stream)
+
+            if failure_reason is not None:
+                FALLBACKS.labels(failure_reason).inc()
+                answer, fallback_citations = build_fallback(outcome)
+                remembered = _remembered_products(fallback_citations, outcome)
+                with trace.scope():
+                    await self._persist(
+                        sid, message, answer, fallback_citations, outcome.tool_calls, remembered
+                    )
+                latency_ms = int((time.perf_counter() - started) * 1000)
+                outcome_label = "degraded"
+                yield StreamEvent("warning", {"detail": DEGRADED_WARNING, "reason": failure_reason})
+                yield StreamEvent(
+                    "done",
+                    ChatResult(
+                        sid,
+                        answer,
+                        fallback_citations,
+                        outcome.tool_calls,
+                        [c.passage for c in prompt.context],
+                        latency_ms,
+                        grounded=True,
+                        degraded=True,
+                        warning=DEGRADED_WARNING,
+                    ),
+                )
+                return
+
             completion_tokens = estimate_tokens(raw_answer)
             generate.handle.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
             cost = self._cost.cost_usd(prompt_tokens, completion_tokens)
@@ -290,10 +382,35 @@ class ChatService:
             cancelled = isinstance(failure, GeneratorExit | asyncio.CancelledError)
             if cancelled:
                 outcome_label = "cancelled"
+                STREAMS_CANCELLED.inc()
             trace.set_attribute("assistant.outcome", outcome_label)
             trace.end(None if cancelled else failure)
             CHAT_REQUESTS.labels(intent, outcome_label).inc()
             STEP_DURATION.labels("total").observe(time.perf_counter() - started)
+
+    @staticmethod
+    async def _close(iterator: AsyncIterator[str] | None) -> None:
+        close = getattr(iterator, "aclose", None)
+        if close is not None:
+            with contextlib.suppress(Exception):
+                await close()
+
+    async def _release(
+        self,
+        iterator: AsyncIterator[str] | None,
+        sid: UUID,
+        user_id: str | None,
+        prompt_tokens: int,
+        partial: str,
+    ) -> None:
+        """Frees what a request that stopped early still holds: the model connection is closed
+        so the provider stops generating, and the tokens already spent are booked."""
+        await self._close(iterator)
+        if self._budget is not None:
+            with contextlib.suppress(Exception):
+                await self._budget.record(
+                    str(sid), user_id, prompt_tokens, estimate_tokens(partial)
+                )
 
     async def _persist(
         self,

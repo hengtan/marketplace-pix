@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     budget_user_daily_tokens: int = 100_000
     budget_user_daily_cost_usd: float = 0.25
 
+    llm_first_token_timeout_seconds: float = 15.0
+    llm_token_idle_timeout_seconds: float = 10.0
+    llm_total_timeout_seconds: float = 60.0
+    tool_timeout_seconds: float = 8.0
     planner: Literal["rules", "llm"] = "rules"
     agent_max_steps: int = 3
     max_message_chars: int = 1000

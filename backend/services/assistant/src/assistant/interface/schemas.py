@@ -79,6 +79,8 @@ class ChatResponse(BaseModel):
     retrieved: list[RetrievedOut]
     latency_ms: int
     cached: bool = False
+    degraded: bool = False
+    warning: str | None = None
 
     @classmethod
     def from_result(cls, r: ChatResult) -> ChatResponse:
@@ -90,6 +92,8 @@ class ChatResponse(BaseModel):
             retrieved=[RetrievedOut.from_domain(p) for p in r.retrieved],
             latency_ms=r.latency_ms,
             cached=r.cached,
+            degraded=r.degraded,
+            warning=r.warning,
         )
 
 

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from assistant.application.agent import AgentLoop
 from assistant.application.budget import BudgetConfig, BudgetManager
-from assistant.application.chat import ChatService
+from assistant.application.chat import ChatService, StreamTimeouts
 from assistant.application.guardrails import GroundingGuard
 from assistant.application.ingest import IngestCatalog
 from assistant.application.llm_planner import LlmPlanner
@@ -171,7 +171,13 @@ def build_container(
     planner: Planner = RuleBasedPlanner()
     if settings.planner == "llm":
         planner = LlmPlanner(llm, planner, TOOL_DESCRIPTIONS)
-    agent = AgentLoop(planner, tools, settings.agent_max_steps, understanding)
+    agent = AgentLoop(
+        planner,
+        tools,
+        settings.agent_max_steps,
+        understanding,
+        settings.tool_timeout_seconds,
+    )
     delay = token_delay_seconds
     if delay is None:
         delay = settings.stream_token_delay_ms / 1000
@@ -195,6 +201,11 @@ def build_container(
         token_delay_seconds=delay,
         cache=cache,
         cost=cost,
+        timeouts=StreamTimeouts(
+            settings.llm_first_token_timeout_seconds,
+            settings.llm_token_idle_timeout_seconds,
+            settings.llm_total_timeout_seconds,
+        ),
         budget=BudgetManager(
             PgUsageStore(factory),
             BudgetConfig(

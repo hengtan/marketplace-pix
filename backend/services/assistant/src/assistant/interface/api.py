@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, aclosing
 from typing import Any
 from uuid import UUID
 
@@ -22,6 +22,7 @@ from assistant.interface.schemas import (
     SessionOut,
     ToolCallOut,
 )
+from assistant.metrics import STREAMS_ACTIVE
 from assistant.wiring import Container
 
 ReadyCheck = Callable[[], Awaitable[bool]]
@@ -62,19 +63,31 @@ def build_router() -> APIRouter:
         user = user_key(request)
 
         async def events() -> AsyncIterator[str]:
+            STREAMS_ACTIVE.inc()
             try:
-                async for event in service.stream(body.session_id, message, user_id=user):
-                    if event.kind == "tool_call":
-                        yield _sse("tool_call", ToolCallOut.from_domain(event.payload).model_dump())
-                    elif event.kind == "token":
-                        yield _sse("token", {"text": event.payload})
-                    else:
-                        done = ChatResponse.from_result(event.payload)
-                        yield _sse("done", json.loads(done.model_dump_json()))
+                async with aclosing(
+                    service.stream(body.session_id, message, user_id=user)
+                ) as stream:
+                    async for event in stream:
+                        if await request.is_disconnected():
+                            return
+                        if event.kind == "tool_call":
+                            yield _sse(
+                                "tool_call", ToolCallOut.from_domain(event.payload).model_dump()
+                            )
+                        elif event.kind == "token":
+                            yield _sse("token", {"text": event.payload})
+                        elif event.kind == "warning":
+                            yield _sse("warning", event.payload)
+                        else:
+                            done = ChatResponse.from_result(event.payload)
+                            yield _sse("done", json.loads(done.model_dump_json()))
             except UpstreamUnavailable:
                 yield _sse("error", {"detail": "model unavailable"})
             except BudgetExceeded as exc:
                 yield _sse("error", {"detail": "budget exceeded", "scope": exc.scope})
+            finally:
+                STREAMS_ACTIVE.dec()
 
         return StreamingResponse(
             events(),
