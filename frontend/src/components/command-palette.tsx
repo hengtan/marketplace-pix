@@ -6,11 +6,13 @@ import {
   Moon,
   Search,
   ShoppingBag,
+  Sparkles,
   Store,
   Sun,
   Tag,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useAssistantChat } from "@/features/assistant/store";
 import { useOrders, useProductSearch } from "@/hooks/queries";
 import { useDebounced } from "@/hooks/utils";
 import { formatMoney, shortId } from "@/lib/format";
@@ -36,6 +38,8 @@ export function CommandPalette() {
   const open = useUi((s) => s.paletteOpen);
   const setOpen = useUi((s) => s.setPaletteOpen);
   const setCartOpen = useUi((s) => s.setCartOpen);
+  const setAssistantOpen = useUi((s) => s.setAssistantOpen);
+  const askAssistant = useAssistantChat((s) => s.send);
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const [query, setQuery] = useState("");
@@ -68,6 +72,12 @@ export function CommandPalette() {
       [
         { id: "loja", label: "Ir para a loja", icon: <Store />, run: () => navigate({ to: "/" }) },
         {
+          id: "assistente",
+          label: "Perguntar ao assistente",
+          icon: <Sparkles />,
+          run: () => setAssistantOpen(true),
+        },
+        {
           id: "carrinho",
           label: "Abrir carrinho",
           icon: <ShoppingBag />,
@@ -92,12 +102,11 @@ export function CommandPalette() {
           run: toggle,
         },
       ].filter((a) => !query || norm(a.label).includes(norm(query))),
-    [navigate, setCartOpen, theme, toggle, query],
+    [navigate, setCartOpen, setAssistantOpen, theme, toggle, query],
   );
 
   const products = query.trim() ? (search.data?.items ?? []) : [];
   const recentOrders = query.trim() ? [] : (orders.data?.items.slice(0, 3) ?? []);
-  const nothing = actions.length === 0 && products.length === 0 && !search.isFetching;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -121,11 +130,6 @@ export function CommandPalette() {
             <Kbd>esc</Kbd>
           </div>
           <Command.List className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2">
-            {nothing && (
-              <p className="px-3 py-8 text-center text-sm text-muted">
-                Nada encontrado para "{query}".
-              </p>
-            )}
             {products.length > 0 && (
               <Command.Group heading="Produtos" className={groupClass}>
                 {products.map((p) => (
@@ -146,6 +150,23 @@ export function CommandPalette() {
             )}
             {search.isFetching && query.trim() && products.length === 0 && (
               <p className="px-3 py-6 text-center text-sm text-muted">Buscando...</p>
+            )}
+            {query.trim() && (
+              <Command.Group heading="Assistente" className={groupClass}>
+                <Command.Item
+                  value="perguntar-ao-assistente"
+                  className={itemClass}
+                  onSelect={() =>
+                    run(() => {
+                      setAssistantOpen(true);
+                      void askAssistant(query);
+                    })
+                  }
+                >
+                  <Sparkles />
+                  <span className="min-w-0 flex-1 truncate">Perguntar: {query.trim()}</span>
+                </Command.Item>
+              </Command.Group>
             )}
             {actions.length > 0 && (
               <Command.Group heading="Navegar" className={groupClass}>

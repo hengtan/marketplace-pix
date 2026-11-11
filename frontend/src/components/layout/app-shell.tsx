@@ -6,6 +6,8 @@ import { CartDrawer } from "@/components/cart-drawer";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { Kbd } from "@/components/ui/misc";
+import { AssistantLauncher } from "@/features/assistant/launcher";
+import { AssistantPanel } from "@/features/assistant/panel";
 import { cn } from "@/lib/utils";
 import { selectCount, useCart } from "@/store/cart";
 import { useTheme } from "@/store/theme";
@@ -186,7 +188,14 @@ export function AppShell() {
       <Footer />
       <CartDrawer />
       <CommandPalette />
-      <Toaster position="bottom-right" offset={24} theme={toastTheme} />
+      <AssistantLauncher />
+      <AssistantPanel />
+      <Toaster
+        position="bottom-right"
+        offset={{ right: 24, bottom: 92 }}
+        mobileOffset={{ right: 16, bottom: 84 }}
+        theme={toastTheme}
+      />
     </>
   );
 }
