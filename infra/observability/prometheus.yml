@@ -23,6 +23,14 @@ scrape_configs:
           service: catalog
           component: api
 
+  - job_name: assistant-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["assistant-api:8000"]
+        labels:
+          service: assistant
+          component: api
+
   - job_name: ordering-api
     metrics_path: /metrics
     static_configs:

@@ -94,7 +94,8 @@ x-notifications: &notifications
 
 x-assistant: &assistant
   build:
-    context: ../backend/services/assistant
+    context: ..
+    dockerfile: backend/services/assistant/Dockerfile
   image: marketplace-pix/assistant:dev
   profiles: ["services"]
   environment:

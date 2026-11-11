@@ -90,6 +90,9 @@ services:
   catalog-api:
     environment: *otel
 
+  assistant-api:
+    environment: *otel
+
 volumes:
   promdata:
   grafanadata:

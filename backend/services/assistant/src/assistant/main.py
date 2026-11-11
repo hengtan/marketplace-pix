@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     container = build_container(settings, engine)
     app.state.container = container
     app.state.ready_check = _db_check(engine)
@@ -40,3 +42,4 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = create_app(lifespan=lifespan)
+install_api_observability(app, "assistant-api")
