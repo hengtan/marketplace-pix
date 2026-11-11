@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import math
+import random
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -10,11 +12,20 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from marketplace_common.observability import get_request_id
+from marketplace_common.resilience import (
+    BulkheadFullError,
+    CircuitOpenError,
+    DeadlineExceeded,
+    deadline_event_hooks,
+    install_deadline,
+)
+from marketplace_common.resilience.clock import Sleeper, sleep
 from starlette.background import BackgroundTask
 
 from gateway.config import Settings
-from gateway.rate_limit import RateLimiter
+from gateway.rate_limit import Limiter, build_limiter, build_redis
 from gateway.routes import resolve
+from gateway.upstream import UpstreamGuard
 
 HOP_BY_HOP = {
     "connection",
@@ -41,35 +52,84 @@ def _request_id(request: Request) -> str:
 
 
 def _json(
-    status: int, detail: str, request_id: str, headers: dict[str, str] | None = None
+    status: int,
+    detail: str,
+    request_id: str,
+    headers: dict[str, str] | None = None,
+    extra: dict[str, object] | None = None,
 ) -> Response:
-    response = JSONResponse({"detail": detail}, status_code=status, headers=headers)
+    response = JSONResponse(
+        {"detail": detail, **(extra or {})}, status_code=status, headers=headers
+    )
     response.headers["X-Request-Id"] = request_id
     return response
+
+
+def _unavailable(
+    request_id: str, service: str, code: str, retry_after: float, headers: dict[str, str]
+) -> Response:
+    seconds = max(1, math.ceil(retry_after))
+    return _json(
+        503,
+        f"{service} is temporarily unavailable",
+        request_id,
+        {**headers, "Retry-After": str(seconds)},
+        {"code": code, "service": service, "retry_after_seconds": seconds},
+    )
 
 
 def create_app(
     settings: Settings | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
-    rate_limiter: RateLimiter | None = None,
+    rate_limiter: Limiter | None = None,
+    sleeper: Sleeper = sleep,
+    rng: random.Random | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     upstreams = settings.upstreams()
-    limiter = rate_limiter or RateLimiter(settings.rate_limit_per_minute)
+    redis = None if rate_limiter is not None else build_redis(settings)
+    limiter: Limiter = rate_limiter or build_limiter(settings, redis)
+    guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.client = httpx.AsyncClient(timeout=settings.upstream_timeout, transport=transport)
+        app.state.client = httpx.AsyncClient(
+            timeout=settings.upstream_timeout,
+            transport=transport,
+            event_hooks=deadline_event_hooks(),
+        )
         yield
         await app.state.client.aclose()
+        if redis is not None:
+            await redis.aclose()
 
     app = FastAPI(title="gateway", lifespan=lifespan)
+    app.state.guard = guard
+    install_deadline(
+        app,
+        default_seconds=settings.request_deadline_seconds,
+        max_seconds=settings.max_request_deadline_seconds,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_methods=METHODS,
-        allow_headers=["Content-Type", "Idempotency-Key", "If-None-Match", "X-Request-Id"],
-        expose_headers=["Idempotent-Replayed", "X-Request-Id", "ETag"],
+        allow_headers=[
+            "Content-Type",
+            "Idempotency-Key",
+            "If-None-Match",
+            "X-Request-Id",
+            "X-Request-Deadline",
+        ],
+        expose_headers=[
+            "Idempotent-Replayed",
+            "X-Request-Id",
+            "ETag",
+            "Retry-After",
+            "RateLimit-Limit",
+            "RateLimit-Remaining",
+            "RateLimit-Reset",
+        ],
     )
 
     @app.get("/health")
@@ -90,9 +150,13 @@ def create_app(
         names = list(upstreams)
         results = await asyncio.gather(*(probe(upstreams[n]) for n in names))
         services = dict(zip(names, results, strict=True))
-        healthy = all(v == "ok" for v in services.values())
+        healthy = all(v == "ok" for v in services.values()) and guard.all_closed()
         return JSONResponse(
-            {"status": "ok" if healthy else "degraded", "services": services},
+            {
+                "status": "ok" if healthy else "degraded",
+                "services": services,
+                "breakers": guard.snapshot(),
+            },
             status_code=200 if healthy else 503,
         )
 
@@ -100,15 +164,14 @@ def create_app(
     async def proxy(request: Request) -> Response:
         request_id = _request_id(request)
         client_ip = request.client.host if request.client else "unknown"
-        retry_after = limiter.check(client_ip)
-        if retry_after is not None:
-            return _json(
-                429, "too many requests", request_id, {"Retry-After": str(int(retry_after) + 1)}
-            )
-
         target = resolve(request.url.path)
+        decision = await limiter.acquire(target.service if target else "unmatched", client_ip)
+        rate_headers = decision.headers()
+        if not decision.allowed:
+            return _json(429, "too many requests", request_id, rate_headers)
+
         if target is None or (target.dev_only and not settings.enable_dev_routes):
-            return _json(404, "not found", request_id)
+            return _json(404, "not found", request_id, rate_headers)
 
         headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
         headers["x-request-id"] = request_id
@@ -121,11 +184,21 @@ def create_app(
             headers=headers,
         )
         try:
-            upstream = await client.send(upstream_request, stream=True)
+            upstream = await guard.send(client, target.service, upstream_request)
+        except CircuitOpenError as error:
+            return _unavailable(
+                request_id, target.service, "circuit_open", error.retry_after_seconds, rate_headers
+            )
+        except BulkheadFullError as error:
+            return _unavailable(
+                request_id, target.service, "overloaded", error.retry_after_seconds, rate_headers
+            )
+        except DeadlineExceeded:
+            return _json(504, "request deadline exceeded", request_id, rate_headers)
         except httpx.TimeoutException:
-            return _json(504, "upstream timeout", request_id)
+            return _json(504, "upstream timeout", request_id, rate_headers)
         except httpx.HTTPError:
-            return _json(502, "upstream unavailable", request_id)
+            return _json(502, "upstream unavailable", request_id, rate_headers)
 
         if upstream.headers.get("content-type", "").startswith("text/event-stream"):
             streaming = StreamingResponse(
@@ -138,15 +211,17 @@ def create_app(
             )
             streaming.headers["X-Request-Id"] = request_id
             streaming.headers["X-Accel-Buffering"] = "no"
+            for key, value in rate_headers.items():
+                streaming.headers[key] = value
             return streaming
 
-        await upstream.aread()
-        await upstream.aclose()
         response = Response(content=upstream.content, status_code=upstream.status_code)
         for key, value in upstream.headers.multi_items():
             if key.lower() not in RESPONSE_DROP:
                 response.headers.append(key, value)
         response.headers["X-Request-Id"] = request_id
+        for key, value in rate_headers.items():
+            response.headers[key] = value
         return response
 
     return app

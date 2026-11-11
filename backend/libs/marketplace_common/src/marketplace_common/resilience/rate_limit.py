@@ -220,8 +220,8 @@ class RouteRateLimiter:
             decision = await self._take_primary(key, policy, cost)
         except CircuitOpenError:
             return self._degraded(key, policy, cost)
-        except Exception:
-            logger.warning("rate limit backend failed", exc_info=True)
+        except Exception as error:
+            logger.warning("rate limit backend failed: %s", type(error).__name__)
             return self._degraded(key, policy, cost)
         metrics.RATE_LIMIT_BACKEND.labels("redis").inc()
         return decision

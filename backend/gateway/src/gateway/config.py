@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from marketplace_common.resilience import RedisFailureMode
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +27,30 @@ class Settings(BaseSettings):
     upstream_timeout: float = 10.0
     enable_dev_routes: bool = False
     rate_limit_per_minute: int = 600
+    rate_limit_routes: dict[str, int] = {"ordering": 120, "assistant": 60}
+    rate_limit_failure_mode: RedisFailureMode = RedisFailureMode.FALLBACK
+    rate_limit_redis_timeout: float = 0.1
+    redis_url: str = ""
+
+    request_deadline_seconds: float = 8.0
+    max_request_deadline_seconds: float = 30.0
+
+    breaker_failure_rate: float = 0.5
+    breaker_slow_call_seconds: float | None = None
+    breaker_minimum_calls: int = 10
+    breaker_window_size: int = 20
+    breaker_window_seconds: float = 30.0
+    breaker_open_seconds: float = 10.0
+    breaker_half_open_calls: int = 3
+
+    retry_attempts: int = 3
+    retry_base_delay: float = 0.05
+    retry_max_delay: float = 0.5
+    retry_budget_ratio: float = 0.2
+
+    bulkhead_max_concurrent: int = 100
+    bulkhead_max_queue: int = 50
+    bulkhead_queue_timeout: float = 1.0
 
     def upstreams(self) -> dict[str, str]:
         return {
