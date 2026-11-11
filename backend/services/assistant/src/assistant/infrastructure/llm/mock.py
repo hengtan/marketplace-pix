@@ -6,7 +6,7 @@ from assistant.domain.models import Observation
 from assistant.domain.text import content_tokens, format_brl, normalize
 
 _METADATA_SENTENCE = re.compile(r"^(Preço|Avaliação|Vendido por|Palavras-chave)")
-_SENTENCES = re.compile(r"[^.!?]+[.!?]")
+_SENTENCES = re.compile(r"[^\n]+?[.!?]+(?=\s|$)")
 _STATUS_PT = {"PENDING": "aguardando pagamento", "PAID": "pago", "CANCELLED": "cancelado"}
 
 NOT_FOUND = (

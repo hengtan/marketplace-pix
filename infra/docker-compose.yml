@@ -86,6 +86,23 @@ x-notifications: &notifications
     ADMIN_EMAIL: admin@marketplace-pix.local
     FRONTEND_BASE_URL: http://localhost:5173
 
+x-assistant: &assistant
+  build:
+    context: ../backend/services/assistant
+  image: marketplace-pix/assistant:dev
+  profiles: ["services"]
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_HOST: pgvector
+    ASSISTANT_DB_PORT: 5432
+    ASSISTANT_DB: assistant
+    CATALOG_URL: http://catalog-api:8000
+    INVENTORY_URL: http://inventory-api:8000
+    ORDERING_URL: http://ordering-api:8000
+    EMBEDDER: hashing
+    LLM: mock
+
 services:
   postgres:
     image: postgres:17
@@ -429,6 +446,37 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+
+  assistant-migrate:
+    <<: *assistant
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    restart: "no"
+
+  assistant-ingest:
+    <<: *assistant
+    command: ["python", "-m", "assistant.ingest"]
+    depends_on:
+      assistant-migrate:
+        condition: service_completed_successfully
+      catalog-api:
+        condition: service_healthy
+    restart: "no"
+
+  assistant-api:
+    <<: *assistant
+    ports:
+      - "${ASSISTANT_PORT:-8007}:8000"
+    depends_on:
+      assistant-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   gateway:
     build:
