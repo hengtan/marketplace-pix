@@ -155,12 +155,12 @@ test("remembers the conversation after reload and starts a new one", async ({ pa
   await expect(page.getByRole("heading", { name: "Como posso ajudar?" })).toBeVisible();
 });
 
-test("an out of scope question says nothing was found", async ({ page }) => {
+test("an out of scope question is declined", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: /Assistente/ }).click();
   await ask(page, "qual a capital da França?");
   await expect(page.getByTestId("assistant-message").last()).toContainText(
-    "Não encontrei no catálogo",
+    "Só consigo ajudar com produtos",
     {
       timeout: 15_000,
     },

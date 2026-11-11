@@ -5,6 +5,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { api, type ProductFilters } from "@/api/endpoints";
+import { useAuth } from "@/store/auth";
 
 export const qk = {
   products: (f: ProductFilters) => ["products", f] as const,
@@ -95,10 +96,12 @@ export function useOrders(customerId: string, page: number) {
 }
 
 export function useNotifications(customerId: string) {
+  const signedIn = useAuth((s) => Boolean(s.accessToken));
   return useQuery({
     queryKey: qk.notifications(customerId),
     queryFn: () => api.notifications(customerId, 1, 20),
-    refetchInterval: 15_000,
+    enabled: signedIn,
+    refetchInterval: signedIn ? 15_000 : false,
     staleTime: 5_000,
   });
 }

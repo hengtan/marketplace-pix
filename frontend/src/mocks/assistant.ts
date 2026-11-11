@@ -141,6 +141,9 @@ const cite = (p: Product, s: number): Citation => ({
   score: Number(s.toFixed(4)),
 });
 
+const OUT_OF_SCOPE =
+  "Só consigo ajudar com produtos do catálogo, estoque, pedidos e políticas da loja. Pergunte, por exemplo, por um produto, uma faixa de preço ou o status de um pedido.";
+
 const NOT_FOUND =
   "Não encontrei no catálogo nada que corresponda a isso. Tente descrever o tipo de produto, a categoria ou uma faixa de preço.";
 
@@ -258,7 +261,7 @@ export function composeReply(message: string, history: StoredMessage[]): Reply {
     duration_ms: 7,
   };
   if (ranked.length === 0) {
-    return { answer: NOT_FOUND, citations: [], retrieved: [], tool_calls: [call] };
+    return { answer: OUT_OF_SCOPE, citations: [], retrieved: [], tool_calls: [call] };
   }
   const lines = ranked.map(
     ({ p }, i) =>

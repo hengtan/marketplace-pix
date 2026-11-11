@@ -112,6 +112,7 @@ x-assistant: &assistant
     CATALOG_URL: http://catalog-api:8000
     INVENTORY_URL: http://inventory-api:8000
     ORDERING_URL: http://ordering-api:8000
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     EMBEDDER: hashing
     LLM: mock
 
@@ -493,6 +494,15 @@ services:
       catalog-api:
         condition: service_healthy
     restart: "no"
+
+  assistant-worker:
+    <<: *assistant
+    command: ["python", "-m", "assistant.worker_main"]
+    depends_on:
+      assistant-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
 
   assistant-api:
     <<: *assistant
