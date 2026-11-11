@@ -1,19 +1,20 @@
 FROM python:3.13-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
-WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
-COPY src ./src
-COPY alembic ./alembic
-COPY alembic.ini ./
-RUN uv sync --frozen --no-dev
+WORKDIR /srv/backend/services/catalog
+COPY backend/libs/marketplace_common /srv/backend/libs/marketplace_common
+COPY backend/services/catalog/pyproject.toml backend/services/catalog/uv.lock ./
+RUN uv sync --frozen --no-install-project --no-dev --no-editable
+COPY backend/services/catalog/src ./src
+COPY backend/services/catalog/alembic ./alembic
+COPY backend/services/catalog/alembic.ini ./
+RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.13-slim
 RUN useradd --create-home --uid 10001 app
-WORKDIR /app
-COPY --from=builder --chown=app:app /app /app
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+WORKDIR /srv/backend/services/catalog
+COPY --from=builder --chown=app:app /srv/backend/services/catalog /srv/backend/services/catalog
+ENV PATH="/srv/backend/services/catalog/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 USER app
 EXPOSE 8000
 CMD ["uvicorn", "catalog.main:app", "--host", "0.0.0.0", "--port", "8000"]

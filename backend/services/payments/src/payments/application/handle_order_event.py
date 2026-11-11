@@ -6,8 +6,10 @@ from datetime import timedelta
 from enum import StrEnum
 from uuid import UUID
 
+from marketplace_common.messaging import IncomingEvent
+
 from payments.application.clock import Clock, utcnow
-from payments.application.ports import IncomingEvent, PspGateway, UnitOfWork
+from payments.application.ports import PspGateway, UnitOfWork
 from payments.domain.errors import InvalidStateTransition
 from payments.domain.money import Money
 from payments.domain.payment import Payment

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from notifications.application.ports import IncomingEvent
+from marketplace_common.messaging import IncomingEvent
 
 NOW = datetime(2026, 11, 11, 15, 0, tzinfo=UTC)
 CUSTOMER_ID = uuid4()

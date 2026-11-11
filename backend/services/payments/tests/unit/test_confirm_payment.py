@@ -2,11 +2,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from marketplace_common.messaging import IncomingEvent
 
 from payments.application.confirm_payment import ConfirmPayment, ConfirmResult
 from payments.application.errors import PaymentNotFound
 from payments.application.handle_order_event import HandleOrderEvent
-from payments.application.ports import ChargeStatus, IncomingEvent
+from payments.application.ports import ChargeStatus
 from payments.domain.errors import InvalidStateTransition
 from payments.domain.events import PaymentConfirmed
 from payments.domain.payment import PaymentStatus

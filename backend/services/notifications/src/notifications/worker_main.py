@@ -4,11 +4,13 @@ import asyncio
 import logging
 import signal
 
+from marketplace_common.messaging import KafkaEventConsumer
+from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
+
 from notifications.application.handle_event import HandleEvent
 from notifications.config import load_settings
 from notifications.infrastructure.db.session import build_engine, build_session_factory
 from notifications.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from notifications.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from notifications.worker.queue import CeleryNotificationQueue
 
 TOPICS = ("orders.events", "payments.events")
@@ -16,9 +18,10 @@ CONSUMER_GROUP = "notifications"
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_worker_observability("notifications-worker")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     factory = build_session_factory(engine)
 
     handler = HandleEvent(

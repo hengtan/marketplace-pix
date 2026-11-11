@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from ledger.application.ports import IncomingEvent
+from marketplace_common.messaging import IncomingEvent
 
 
 def order_created(

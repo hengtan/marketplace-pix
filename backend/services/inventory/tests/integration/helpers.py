@@ -1,8 +1,8 @@
 from uuid import UUID, uuid4
 
+from marketplace_common.messaging import IncomingEvent
 from sqlalchemy import func, select
 
-from inventory.application.ports import IncomingEvent
 from inventory.domain.reservation import ReservationItem, ReservationStatus
 from inventory.infrastructure.db.models import OutboxEventModel, ReservationModel, StockModel
 

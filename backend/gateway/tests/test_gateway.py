@@ -222,3 +222,20 @@ def test_rate_limiter_is_per_client_and_disabled_with_zero():
     assert limiter.check("a") is None and limiter.check("a") is not None
     assert limiter.check("b") is None
     assert RateLimiter(0).check("a") is None
+
+
+async def test_traceparent_and_request_id_are_forwarded_upstream():
+    recorder = Recorder()
+    traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+    response = await call(
+        recorder,
+        "GET",
+        "/api/catalog/products",
+        headers={"traceparent": traceparent, "X-Request-Id": "req-1"},
+    )
+
+    (forwarded,) = recorder.requests
+    assert forwarded.headers["traceparent"] == traceparent
+    assert forwarded.headers["x-request-id"] == "req-1"
+    assert response.headers["x-request-id"] == "req-1"

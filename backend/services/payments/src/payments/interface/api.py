@@ -15,6 +15,7 @@ from payments.application.errors import PaymentNotFound
 from payments.application.get_payment import GetPaymentByOrder
 from payments.application.ports import PspGateway, UnitOfWork
 from payments.domain.errors import DomainError
+from payments.interface.metrics import PAYMENTS_CONFIRMED
 from payments.interface.schemas import PaymentOut
 from payments.interface.webhook_security import sign, verify
 
@@ -53,6 +54,8 @@ def build_router() -> APIRouter:
         result = await use_case.execute(charge_id)
         if result is ConfirmResult.NOT_PAID:
             raise HTTPException(409, "PSP does not confirm this charge as paid")
+        if result is ConfirmResult.CONFIRMED:
+            PAYMENTS_CONFIRMED.inc()
         return JSONResponse({"status": result.value.lower()})
 
     @router.get("/payments/by-order/{order_id}", response_model=PaymentOut)

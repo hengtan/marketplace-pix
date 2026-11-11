@@ -1,23 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from dataclasses import dataclass
 from datetime import datetime
 from types import TracebackType
-from typing import Any, Protocol, Self
+from typing import Protocol, Self
 from uuid import UUID
 
 from inventory.domain.events import DomainEvent
 from inventory.domain.reservation import Reservation
 from inventory.domain.stock import Stock
-
-
-@dataclass(frozen=True, slots=True)
-class IncomingEvent:
-    id: UUID
-    type: str
-    key: str
-    payload: dict[str, Any]
 
 
 class StockRepository(Protocol):
@@ -60,41 +51,6 @@ class UnitOfWork(Protocol):
 
     @property
     def inbox(self) -> InboxStore: ...
-
-    async def __aenter__(self) -> Self: ...
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None: ...
-
-    async def commit(self) -> None: ...
-
-
-@dataclass(frozen=True, slots=True)
-class OutboxMessage:
-    id: UUID
-    topic: str
-    key: str
-    type: str
-    payload: dict[str, Any]
-
-
-class OutboxStore(Protocol):
-    async def fetch_pending(self, limit: int) -> list[OutboxMessage]: ...
-
-    async def mark_published(self, ids: list[UUID]) -> None: ...
-
-
-class MessagePublisher(Protocol):
-    async def publish(self, message: OutboxMessage) -> None: ...
-
-
-class RelayUnitOfWork(Protocol):
-    @property
-    def outbox_store(self) -> OutboxStore: ...
 
     async def __aenter__(self) -> Self: ...
 

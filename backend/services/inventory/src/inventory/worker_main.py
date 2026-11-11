@@ -5,6 +5,9 @@ import logging
 import signal
 from datetime import timedelta
 
+from marketplace_common.messaging import KafkaEventConsumer
+from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
+
 from inventory.application.event_handlers import (
     ORDERS_CONSUMER,
     PAYMENTS_CONSUMER,
@@ -15,16 +18,16 @@ from inventory.application.expire_reservations import ExpireReservations
 from inventory.config import load_settings
 from inventory.infrastructure.db.session import build_engine, build_session_factory
 from inventory.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from inventory.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 
 ORDERS_TOPIC = "orders.events"
 PAYMENTS_TOPIC = "payments.events"
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_worker_observability("inventory-worker")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     factory = build_session_factory(engine)
 
     def uow_factory() -> SqlAlchemyUnitOfWork:

@@ -6,12 +6,11 @@ from uuid import uuid4
 import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaPublisher, OutboxRelay
 from sqlalchemy import select
 
-from ordering.application.outbox_relay import OutboxRelay
 from ordering.config import load_settings
 from ordering.infrastructure.db.models import OutboxEventModel
-from ordering.infrastructure.messaging.kafka_publisher import KafkaPublisher
 
 BOOTSTRAP = load_settings().kafka_bootstrap_servers
 

@@ -1,9 +1,9 @@
 from uuid import UUID, uuid4
 
+from marketplace_common.messaging import IncomingEvent
 from sqlalchemy import func, select
 
 from ordering.application.create_order import CreateOrder, CreateOrderCommand, CreateOrderItem
-from ordering.application.ports import IncomingEvent
 from ordering.infrastructure.db.models import OrderModel, OutboxEventModel
 from tests.fakes import FakeCatalog
 

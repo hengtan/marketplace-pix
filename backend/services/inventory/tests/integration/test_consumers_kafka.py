@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from aiokafka import AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaEventConsumer
 from sqlalchemy import select
 
 from inventory.application.event_handlers import (
@@ -16,7 +17,6 @@ from inventory.application.event_handlers import (
 from inventory.config import load_settings
 from inventory.domain.reservation import ReservationStatus
 from inventory.infrastructure.db.models import InboxMessageModel, ReservationModel
-from inventory.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from tests.integration.helpers import (
     count,
     outbox_types,

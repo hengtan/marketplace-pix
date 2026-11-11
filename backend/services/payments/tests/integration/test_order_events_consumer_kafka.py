@@ -5,11 +5,11 @@ from uuid import uuid4
 import pytest
 from aiokafka import AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaEventConsumer
 
 from payments.application.handle_order_event import HandleOrderEvent
 from payments.config import load_settings
 from payments.infrastructure.db.models import InboxMessageModel, PaymentModel
-from payments.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from tests.integration.helpers import count
 
 BOOTSTRAP = load_settings().kafka_bootstrap_servers

@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from marketplace_common.messaging import IncomingEvent
+
 from payments.application.expire_payments import ExpirePayments
 from payments.application.handle_order_event import HandleOrderEvent
-from payments.application.ports import IncomingEvent
 from payments.domain.events import PaymentExpired
 from payments.domain.payment import PaymentStatus
 from tests.fakes import FakeDatabase, FakePsp, FakeUow

@@ -4,17 +4,19 @@ import asyncio
 import logging
 import signal
 
-from payments.application.outbox_relay import OutboxRelay
+from marketplace_common.messaging import KafkaPublisher, OutboxRelay
+from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
+
 from payments.config import load_settings
 from payments.infrastructure.db.session import build_engine, build_session_factory
 from payments.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from payments.infrastructure.messaging.kafka_publisher import KafkaPublisher
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    setup_worker_observability("payments-relay")
     settings = load_settings()
     engine = build_engine(settings.database_url)
+    instrument_sqlalchemy(engine)
     session_factory = build_session_factory(engine)
     publisher = KafkaPublisher(settings.kafka_bootstrap_servers)
 

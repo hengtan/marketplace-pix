@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from marketplace_common.messaging import OutboxMessage
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ledger.application.ports import OutboxMessage
 from ledger.infrastructure.db.models import OutboxEventModel
 
 
@@ -23,9 +23,24 @@ class SqlAlchemyOutboxStore:
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return [
-            OutboxMessage(id=r.id, topic=r.topic, key=r.key, type=r.type, payload=r.payload)
+            OutboxMessage(
+                id=r.id,
+                topic=r.topic,
+                key=r.key,
+                type=r.type,
+                payload=r.payload,
+                traceparent=r.traceparent,
+            )
             for r in rows
         ]
+
+    async def count_pending(self) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(OutboxEventModel)
+            .where(OutboxEventModel.published_at.is_(None))
+        )
+        return int(await self._session.scalar(stmt) or 0)
 
     async def mark_published(self, ids: list[UUID]) -> None:
         await self._session.execute(

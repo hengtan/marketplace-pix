@@ -4,9 +4,11 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from marketplace_common.messaging import IncomingEvent
+from prometheus_client import REGISTRY
 
 from payments.application.handle_order_event import HandleOrderEvent
-from payments.application.ports import ChargeStatus, IncomingEvent
+from payments.application.ports import ChargeStatus
 from payments.interface.api import create_app
 from payments.interface.webhook_security import sign
 from tests.fakes import FakeDatabase, FakePsp, FakeUow
@@ -132,3 +134,15 @@ async def test_webhook_for_a_cancelled_payment_is_rejected_even_if_signed(env):
     response = await client.post("/webhooks/psp", content=body, headers=headers)
 
     assert response.status_code == 409
+
+
+async def test_confirmed_payments_counter_increments_once_per_confirmation(env):
+    client, _, psp, _, charge_id = env
+    psp.statuses[charge_id] = ChargeStatus.PAID
+    body, headers = webhook(charge_id)
+    before = REGISTRY.get_sample_value("marketplace_payments_confirmed_total") or 0.0
+
+    await client.post("/webhooks/psp", content=body, headers=headers)
+    await client.post("/webhooks/psp", content=body, headers=headers)
+
+    assert (REGISTRY.get_sample_value("marketplace_payments_confirmed_total") or 0.0) - before == 1

@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from prometheus_client import REGISTRY
 
 from ordering.interface.api import create_app
 from tests.fakes import FakeCatalog, FakeDatabase, FakeUow
@@ -137,3 +138,13 @@ async def test_list_requires_customer_id(client):
 
 async def test_health(client):
     assert (await client.get("/health")).json() == {"status": "ok"}
+
+
+async def test_orders_created_counter_counts_new_orders_but_not_replays(client):
+    before = REGISTRY.get_sample_value("marketplace_orders_created_total") or 0.0
+    payload, headers = body(), {"Idempotency-Key": "metric-key"}
+
+    await client.post("/orders", json=payload, headers=headers)
+    await client.post("/orders", json=payload, headers=headers)
+
+    assert (REGISTRY.get_sample_value("marketplace_orders_created_total") or 0.0) - before == 1

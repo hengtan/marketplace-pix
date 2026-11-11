@@ -1,9 +1,9 @@
 from uuid import UUID, uuid4
 
 import pytest
+from marketplace_common.messaging import IncomingEvent
 
 from ordering.application.handle_saga_event import HandleResult, HandleSagaEvent
-from ordering.application.ports import IncomingEvent
 from ordering.domain.events import OrderCancelled, OrderCreated, OrderPaid
 from ordering.domain.money import Money
 from ordering.domain.order import Order, OrderItem, OrderStatus

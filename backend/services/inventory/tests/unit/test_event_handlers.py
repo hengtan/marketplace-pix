@@ -2,10 +2,10 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from marketplace_common.messaging import IncomingEvent
 
 from inventory.application.common import Outcome, ReservationNotFound
 from inventory.application.event_handlers import HandleOrderEvent, HandlePaymentEvent
-from inventory.application.ports import IncomingEvent
 from inventory.domain.reservation import ReservationStatus
 from tests.fakes import FakeDatabase, FakeUow
 

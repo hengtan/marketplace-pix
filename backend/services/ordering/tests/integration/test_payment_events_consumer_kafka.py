@@ -5,11 +5,11 @@ from uuid import uuid4
 import pytest
 from aiokafka import AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaEventConsumer
 
 from ordering.application.handle_saga_event import HandleSagaEvent
 from ordering.config import load_settings
 from ordering.infrastructure.db.models import InboxMessageModel
-from ordering.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from tests.integration.helpers import count, make_order, order_status, outbox_types
 
 BOOTSTRAP = load_settings().kafka_bootstrap_servers

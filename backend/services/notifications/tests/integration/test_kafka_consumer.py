@@ -6,11 +6,11 @@ from uuid import UUID, uuid4
 import pytest
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from marketplace_common.messaging import KafkaEventConsumer
 
 from notifications.application.handle_event import HandleEvent
 from notifications.config import load_settings
 from notifications.infrastructure.db.models import InboxMessageModel, NotificationModel
-from notifications.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from tests.fakes import FakeQueue
 from tests.helpers import NOW, order_cancelled, order_created, payment_created
 from tests.integration.helpers import all_notifications, count
@@ -171,7 +171,7 @@ async def test_consumer_skips_malformed_messages_and_a_poison_event_without_bloc
     await publish(topics[1], "PaymentCreated", orphan.id, orphan.key, orphan.payload)
     created = order_created()
     await publish(topics[0], "OrderCreated", created.id, created.key, created.payload)
-    consumer = make_consumer(topics, uow_factory, FakeQueue(), max_handler_attempts=3)
+    consumer = make_consumer(topics, uow_factory, FakeQueue(), max_attempts=3)
 
     async def processed() -> bool:
         return await count(session_factory, NotificationModel) >= 1

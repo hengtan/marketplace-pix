@@ -7,6 +7,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "marketplace-common[kafka,sqlalchemy]",
     "aiokafka>=0.15.0",
     "alembic>=1.20.1",
     "asyncpg>=0.32.0",
@@ -16,6 +17,9 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1.8",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[tool.uv.sources]
+marketplace-common = { path = "../../libs/marketplace_common", editable = true }
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]

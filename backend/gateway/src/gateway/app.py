@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from marketplace_common.observability import get_request_id
 
 from gateway.config import Settings
 from gateway.rate_limit import RateLimiter
@@ -31,6 +32,9 @@ METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 
 
 def _request_id(request: Request) -> str:
+    current = get_request_id()
+    if current:
+        return current
     incoming = request.headers.get("x-request-id", "")
     return incoming if 0 < len(incoming) <= 64 and incoming.isprintable() else uuid.uuid4().hex
 
