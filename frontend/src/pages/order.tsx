@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Ban, ClipboardList, Hourglass, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { api } from "@/api/endpoints";
 import type { Order } from "@/api/schemas";
@@ -20,6 +19,7 @@ import { usePageTitle } from "@/hooks/utils";
 import { env } from "@/lib/env";
 import { formatMoney, shortId } from "@/lib/format";
 import { friendlyCancelReason } from "@/lib/merchants";
+import { toast } from "@/lib/toast";
 import { useCart } from "@/store/cart";
 
 const route = getRouteApi("/pedido/$id");
@@ -138,6 +138,7 @@ export default function OrderPage() {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <ErrorState
+          error={error}
           title={missing ? "Pedido não encontrado" : "Não foi possível carregar o pedido"}
           message={missing ? "Confira o link ou veja seus pedidos recentes." : error?.message}
           onRetry={missing ? undefined : () => client.invalidateQueries({ queryKey: qk.order(id) })}

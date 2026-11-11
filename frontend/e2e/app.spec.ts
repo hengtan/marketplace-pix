@@ -113,6 +113,111 @@ test("protected route redirects guests to login and returns after sign in", asyn
   await expect(page.getByText("Saldo a receber")).toBeVisible();
 });
 
+test("the session survives a reload without the access token touching storage", async ({
+  page,
+}) => {
+  await signIn(page, "/");
+  await expect(page.getByRole("button", { name: /Conta de Lívia Prado/ })).toBeVisible();
+
+  const stored = () =>
+    page.evaluate(() => ({
+      session: Object.entries(sessionStorage),
+      local: Object.entries(localStorage).filter(([k]) => !k.startsWith("praca-mock")),
+    }));
+  const before = await stored();
+  expect(before.session.map(([k]) => k)).toEqual(["praca-rt"]);
+  expect(JSON.stringify(before)).not.toContain("acc.");
+  expect(before.local.map(([k]) => k)).not.toContain("praca-auth");
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Conta de Lívia Prado/ })).toBeVisible();
+  const after = await stored();
+  expect(after.session[0]?.[1]).not.toBe(before.session[0]?.[1]);
+  expect(JSON.stringify(after)).not.toContain("acc.");
+
+  await page.goto("/lojista");
+  await expect(page.getByText("Saldo a receber")).toBeVisible();
+});
+
+test("signing out revokes the session for good", async ({ page }) => {
+  await signIn(page, "/");
+  await page.getByRole("button", { name: /Conta de Lívia Prado/ }).click();
+  await page.getByRole("menuitem", { name: "Sair" }).click();
+  await expect(page.getByRole("link", { name: "Entrar" }).first()).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+
+  await page.goto("/lojista");
+  await expect(page).toHaveURL(/\/entrar\?redirect=%2Flojista/);
+});
+
+test("an expired session sends the user to login and brings them back", async ({ page }) => {
+  await signIn(page, "/lojista");
+  await expect(page.getByText("Saldo a receber")).toBeVisible();
+
+  await page.evaluate(() => {
+    localStorage.setItem("praca-mock-sessions", "[]");
+    sessionStorage.setItem("praca-rt", "ref.revoked");
+  });
+  await page.reload();
+  await expect(page).toHaveURL(/\/entrar\?redirect=%2Flojista/);
+  await page.getByLabel("E-mail").fill("lojista@praca.dev");
+  await page.getByLabel("Senha", { exact: true }).fill("praca1234");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL(/\/lojista/);
+  await expect(page.getByText("Saldo a receber")).toBeVisible();
+});
+
+test("page changes play the exit transition and keep focus and scroll sane", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("product-card").first()).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 900));
+
+  const opacities = page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const seen: number[] = [];
+        const tick = () => {
+          const el = document.querySelector("#conteudo > div");
+          if (el) seen.push(Number(getComputedStyle(el).opacity));
+          if (seen.length < 90) requestAnimationFrame(tick);
+          else resolve(seen);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  await page.getByRole("link", { name: "Meus pedidos" }).first().click();
+  await expect(page.getByRole("heading", { name: /pedidos/i }).first()).toBeVisible();
+  const seen = await opacities;
+  expect(Math.min(...seen)).toBeLessThan(0.3);
+  expect(seen.at(-1)).toBe(1);
+
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(await page.evaluate(() => document.activeElement?.id)).toBe("conteudo");
+  await expectNoA11yViolations(page);
+});
+
+test("reduced motion skips the exit and still lands on the page", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(page.getByTestId("product-card").first()).toBeVisible();
+  await page.getByRole("link", { name: "Meus pedidos" }).first().click();
+  await expect(page).toHaveURL(/\/pedidos/);
+  await expect(page.getByRole("heading", { name: /pedidos/i }).first()).toBeVisible();
+  expect(await page.evaluate(() => document.activeElement?.id)).toBe("conteudo");
+});
+
+test("a product opens from the list with the shared image transition", async ({ page }) => {
+  await page.goto("/");
+  const card = page.getByTestId("product-card").first();
+  await expect(card).toBeVisible();
+  await card.getByRole("link").first().click({ force: true });
+  await expect(page).toHaveURL(/\/produto\//);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: /Voltar para a loja/ }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("product-card").first()).toBeVisible();
+});
+
 test("guests can browse and register an account", async ({ page }) => {
   await page.goto("/cadastro");
   await page.getByRole("button", { name: "Criar conta", exact: true }).click();

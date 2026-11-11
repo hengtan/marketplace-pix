@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, CircleAlert, ShieldCheck } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { lazy, Suspense, useState } from "react";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import { Stagger, StaggerItem } from "@/components/motion/reveal";
@@ -44,7 +44,7 @@ function Sparkline({ values, tone }: { values: number[]; tone: "primary" | "pix"
       aria-hidden
       preserveAspectRatio="none"
     >
-      <motion.path
+      <m.path
         d={d}
         fill="none"
         strokeWidth="2"
@@ -118,7 +118,7 @@ function Kpi({
 
 function Statement({ merchantId }: { merchantId: string }) {
   const [page, setPage] = useState(1);
-  const { data, isPending, isError, refetch } = useMerchantEntries(merchantId, page);
+  const { data, isPending, isError, error, refetch } = useMerchantEntries(merchantId, page);
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
@@ -127,7 +127,11 @@ function Statement({ merchantId }: { merchantId: string }) {
         Extrato
       </h2>
       {isError ? (
-        <ErrorState onRetry={() => refetch()} title="Não foi possível carregar o extrato" />
+        <ErrorState
+          error={error}
+          onRetry={() => refetch()}
+          title="Não foi possível carregar o extrato"
+        />
       ) : isPending ? (
         <div className="mt-4 grid gap-2" aria-busy>
           {Array.from({ length: 5 }, (_, i) => (
@@ -159,7 +163,7 @@ function Statement({ merchantId }: { merchantId: string }) {
             <tbody>
               <>
                 {data.items.map((e, i) => (
-                  <motion.tr
+                  <m.tr
                     key={e.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -184,7 +188,7 @@ function Statement({ merchantId }: { merchantId: string }) {
                       {e.direction === "CREDIT" ? "+" : "-"}
                       {formatMoney(e.amount_cents)}
                     </td>
-                  </motion.tr>
+                  </m.tr>
                 ))}
               </>
             </tbody>
@@ -281,7 +285,7 @@ function Segmented<T extends string | number>({
             )}
           >
             {active && (
-              <motion.span
+              <m.span
                 layoutId={id}
                 className="absolute inset-0 rounded-full bg-foreground"
                 transition={SPRING}
@@ -365,6 +369,7 @@ export default function MerchantPage() {
         <div className="mt-6 grid gap-6">
           {summary.isError ? (
             <ErrorState
+              error={summary.error}
               onRetry={() => summary.refetch()}
               message={summary.error.message}
               title="Não foi possível carregar o resumo"
