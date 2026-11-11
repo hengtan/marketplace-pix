@@ -19,6 +19,7 @@ import { formatMoney } from "@/lib/format";
 import { writeErrorMessage } from "@/lib/merchant-errors";
 import { normalize, parseStockInput } from "@/lib/merchant-metrics";
 import { EASE } from "@/lib/motion";
+import { retryUntilReady } from "@/lib/retry-until-ready";
 import { toast } from "@/lib/toast";
 import { useMerchant, useMerchantNav } from "./context";
 import { useStockRows } from "./data";
@@ -76,8 +77,7 @@ function ProductDialog({
         const stock = parseStockInput(values.stock.trim() === "" ? "0" : values.stock);
         let stockSaved = true;
         if (stock.ok && stock.value > 0) {
-          stockSaved = await merchantApi
-            .setStock(created.id, stock.value)
+          stockSaved = await retryUntilReady(() => merchantApi.setStock(created.id, stock.value))
             .then(() => {
               void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
               return true;
@@ -91,7 +91,7 @@ function ProductDialog({
         } else {
           void toast.message("Produto criado, ainda sem estoque", {
             description:
-              "O serviço de estoque ainda não reconhece produtos novos. Defina as unidades na aba Estoque quando ele aparecer por lá.",
+              "O estoque do produto novo ainda está sendo preparado. Defina as unidades na aba Estoque em instantes.",
           });
         }
       }

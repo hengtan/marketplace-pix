@@ -164,6 +164,8 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 | `DELETE /api/catalog/products/{id}` | `DELETE /products/{id}` (desativa; idempotente, `204`) |
 | `POST /api/catalog/products/{id}/reactivate` | `POST /products/{id}/reactivate` (dono ou `admin`; devolve o produto; reativar um produto ativo é um `200` sem efeito; publica `ProductCreated` de novo para que os consumidores o reindexem e garantam o estoque) |
 
+As leituras do catálogo (`GET`) devolvem `ETag` e `Cache-Control: public, max-age=0, must-revalidate`: o navegador revalida sempre e recebe `304` quando nada mudou, então uma edição do lojista (preço, nome, produto novo, produto desativado) nunca fica atrás de cache. O TTL é configurável por `CACHE_MAX_AGE_SECONDS` (padrão `0`).
+
 `GET /products` aceita `q`, `category`, `min_price_cents`, `max_price_cents`, `sort`
 (`relevance|price_asc|price_desc|newest|rating`), `page`, `page_size` (padrão 12, máximo 48).
 

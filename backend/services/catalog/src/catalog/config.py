@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     postgres_host: str = "localhost"
     postgres_port: int = 5433
     catalog_db: str = "catalog"
-    cache_max_age_seconds: int = 60
+    cache_max_age_seconds: int = 0
     kafka_bootstrap_servers: str = "localhost:9094"
     internal_auth_secret: str = ""
 

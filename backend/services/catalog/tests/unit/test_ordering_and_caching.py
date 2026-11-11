@@ -73,3 +73,40 @@ async def test_ready_returns_503_when_check_fails() -> None:
         response = await c.get("/ready")
         assert response.status_code == 503
         assert (await c.get("/health")).status_code == 200
+
+
+def test_reads_revalidate_by_default_so_a_merchant_edit_is_never_served_stale() -> None:
+    from catalog.config import Settings
+    from catalog.interface.caching import cached_json
+
+    assert Settings.model_fields["cache_max_age_seconds"].default == 0
+
+    from fastapi import FastAPI
+    from pydantic import BaseModel
+    from starlette.requests import Request
+
+    class Item(BaseModel):
+        name: str
+
+    app = FastAPI()
+    app.state.cache_max_age = 0
+    request = Request({"type": "http", "headers": [], "app": app, "method": "GET", "path": "/"})
+    response = cached_json(request, Item(name="x"))
+    assert response.headers["cache-control"] == "public, max-age=0, must-revalidate"
+    assert response.headers["etag"]
+
+
+def test_a_positive_ttl_keeps_the_plain_max_age_form() -> None:
+    from fastapi import FastAPI
+    from pydantic import BaseModel
+    from starlette.requests import Request
+
+    from catalog.interface.caching import cached_json
+
+    class Item(BaseModel):
+        name: str
+
+    app = FastAPI()
+    app.state.cache_max_age = 60
+    request = Request({"type": "http", "headers": [], "app": app, "method": "GET", "path": "/"})
+    assert cached_json(request, Item(name="x")).headers["cache-control"] == "public, max-age=60"
