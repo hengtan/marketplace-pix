@@ -24,6 +24,14 @@ from marketplace_common.resilience.errors import (
     DeadlineExceeded,
     ResilienceError,
 )
+from marketplace_common.resilience.rate_limit import (
+    InMemoryTokenBucket,
+    RateDecision,
+    RatePolicy,
+    RedisFailureMode,
+    RedisTokenBucket,
+    RouteRateLimiter,
+)
 from marketplace_common.resilience.retry import (
     RetryBudget,
     RetryPolicy,
@@ -43,9 +51,15 @@ __all__ = [
     "Deadline",
     "DeadlineExceeded",
     "DeadlineMiddleware",
+    "InMemoryTokenBucket",
+    "RateDecision",
+    "RatePolicy",
+    "RedisFailureMode",
+    "RedisTokenBucket",
     "ResilienceError",
     "RetryBudget",
     "RetryPolicy",
+    "RouteRateLimiter",
     "cap_timeout",
     "check_deadline",
     "current_deadline",
