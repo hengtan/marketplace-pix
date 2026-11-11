@@ -636,7 +636,9 @@ export function createProduct(
   if (!(input.category in CATEGORY_LABELS))
     return { ok: false, status: 422, detail: "unknown category" };
   const slug = slugify(input.name);
-  if (PRODUCTS.some((p) => p.slug === slug) || retiredSlugs.has(slug))
+  const sameName = (p: Product) =>
+    slugify(p.name) === slug || p.name.trim().toLowerCase() === input.name.trim().toLowerCase();
+  if (PRODUCTS.some((p) => p.slug === slug || sameName(p)) || retiredSlugs.has(slug))
     return { ok: false, status: 409, detail: "slug already in use" };
   const product: Product = {
     id: uuid(),

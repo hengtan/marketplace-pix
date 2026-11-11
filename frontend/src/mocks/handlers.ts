@@ -155,9 +155,9 @@ export const handlers = [
     await delay(LATENCY / 2);
     const account = bearer(request);
     if (!account) return unauthorized();
-    const scope = writeScope(account);
-    if (!scope?.merchantId) return forbidden();
-    return HttpResponse.json(db.merchantStock(scope.merchantId));
+    const isMerchant = account.roles.includes("merchant") && account.merchant_id;
+    if (!isMerchant) return forbidden();
+    return HttpResponse.json(db.merchantStock(account.merchant_id as string));
   }),
 
   http.get(url("/api/inventory/stock"), async ({ request }) => {
