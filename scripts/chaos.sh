@@ -87,6 +87,8 @@ PRODUCT=$(uuid5 product corda-pular-speed)
 CUSTOMER=$(python3 -c 'import uuid;print(uuid.uuid4())')
 
 section "0. Linha de base"
+curl -s -m 10 -o /dev/null -X PUT "$G/inventory/stock/$PRODUCT" -H 'content-type: application/json' -d '{"available": 1000}'
+info "estoque do produto de teste reposto (evita falso negativo por falta de estoque)"
 check "gateway responde" "$(status_of "$G/catalog/products")" "200"
 for s in catalog ordering payments; do
   check "breaker de $s começa fechado" "$(breaker_state $s)" "closed"
@@ -118,8 +120,8 @@ start_service catalog-api
 if wait_until "recuperação do catálogo" "status_of $G/catalog/products" "200" "$RECOVERY_TIMEOUT"; then
   ok "catálogo voltou sozinho em ${RECOVERY_SECS}s (sem reiniciar o gateway)"
 else bad "recuperação do catálogo" "não voltou em ${RECOVERY_TIMEOUT}s"; fi
-close_breaker() { probe "$G/catalog/products" >/dev/null; breaker_state catalog; }
-if wait_until "breaker catalog" close_breaker "closed" 30; then ok "breaker do catálogo fechou de novo após as sondas do half-open"; else bad "breaker do catálogo" "$(breaker_state catalog)"; fi
+close_breaker() { probe "$G/$2" >/dev/null; breaker_state "$1"; }
+if wait_until "breaker catalog" "close_breaker catalog catalog/products" "closed" 30; then ok "breaker do catálogo fechou de novo após as sondas do half-open"; else bad "breaker do catálogo" "$(breaker_state catalog)"; fi
 
 section "2. Payments fora do ar (a saga não perde pedidos)"
 ORD_BEFORE=$(post_order "$PRODUCT" "$CUSTOMER" "caos.a.$RUN@example.com" "chaos-pay-a-$RUN")
@@ -145,7 +147,7 @@ if wait_until "payments" "status_of $G/payments/by-order/$ID_B" "200" "$RECOVERY
 else bad "cobrança do pedido B" "não apareceu em ${RECOVERY_TIMEOUT}s"; fi
 wait_until "payments A" "status_of $G/payments/by-order/$ID_A" "200" 30 \
   && ok "cobrança do pedido A existe" || bad "cobrança do pedido A" "ausente"
-check "breaker de payments fechou" "$(breaker_state payments)" "closed"
+if wait_until "breaker payments" "close_breaker payments payments/by-order/$ID_B" "closed" 30; then ok "breaker de payments fechou de novo após as sondas do half-open"; else bad "breaker de payments" "$(breaker_state payments)"; fi
 for ID in "$ID_A" "$ID_B"; do
   CHARGE=$(curl -s -m 5 "$G/payments/by-order/$ID" | jget "d['psp_charge_id']")
   curl -s -m 10 -X POST "$G/payments/dev/psp/charges/$CHARGE/pay" >/dev/null
