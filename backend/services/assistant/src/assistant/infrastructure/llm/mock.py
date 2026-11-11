@@ -9,6 +9,11 @@ _METADATA_SENTENCE = re.compile(r"^(Preço|Avaliação|Vendido por|Palavras-chav
 _SENTENCES = re.compile(r"[^\n]+?[.!?]+(?=\s|$)")
 _STATUS_PT = {"PENDING": "aguardando pagamento", "PAID": "pago", "CANCELLED": "cancelado"}
 
+OUT_OF_SCOPE = (
+    "Só consigo ajudar com produtos do catálogo, estoque, pedidos e políticas da loja. "
+    "Pergunte, por exemplo, por um produto, uma faixa de preço ou o status de um pedido."
+)
+ORDER_NEEDS_CODE = "Para consultar um pedido, me envie o código completo do pedido."
 NOT_FOUND = (
     "Não encontrei no catálogo nada que corresponda a isso. "
     "Tente descrever o tipo de produto, a categoria ou uma faixa de preço."
@@ -27,6 +32,11 @@ class MockLlm:
 
     async def generate(self, prompt: Prompt) -> str:
         question = normalize(prompt.question)
+        if prompt.intent == "out_of_scope":
+            return OUT_OF_SCOPE
+        policies = [o for o in prompt.observations if o.tool == "get_policy" and o.ok]
+        if policies:
+            return policies[-1].summary
         orders = [o for o in prompt.observations if o.tool == "get_order_status"]
         stocks = [o for o in prompt.observations if o.tool == "get_stock"]
         if orders:
@@ -34,6 +44,8 @@ class MockLlm:
         if stocks:
             return self._stock_answer(stocks[-1], prompt.context)
         if not prompt.context:
+            if prompt.intent == "order":
+                return ORDER_NEEDS_CODE
             return self._not_found(question, prompt.observations)
         items = list(prompt.context)
         if _has(question, "mais barato", "menor preco", "mais em conta", "mais baratinho"):
@@ -60,7 +72,7 @@ class MockLlm:
     @staticmethod
     def _not_found(question: str, observations: tuple[Observation, ...]) -> str:
         if "pedido" in question:
-            return "Para consultar um pedido, me envie o código completo do pedido."
+            return ORDER_NEEDS_CODE
         for obs in observations:
             max_price: int | None = (obs.data.get("filters") or {}).get("max_price_cents")
             if max_price:

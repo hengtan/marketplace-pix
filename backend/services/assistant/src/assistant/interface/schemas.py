@@ -78,6 +78,9 @@ class ChatResponse(BaseModel):
     tool_calls: list[ToolCallOut]
     retrieved: list[RetrievedOut]
     latency_ms: int
+    cached: bool = False
+    degraded: bool = False
+    warning: str | None = None
 
     @classmethod
     def from_result(cls, r: ChatResult) -> ChatResponse:
@@ -88,6 +91,9 @@ class ChatResponse(BaseModel):
             tool_calls=[ToolCallOut.from_domain(t) for t in r.tool_calls],
             retrieved=[RetrievedOut.from_domain(p) for p in r.retrieved],
             latency_ms=r.latency_ms,
+            cached=r.cached,
+            degraded=r.degraded,
+            warning=r.warning,
         )
 
 
@@ -115,10 +121,25 @@ class SessionOut(BaseModel):
     messages: list[MessageOut]
 
 
+class CacheStatsOut(BaseModel):
+    enabled: bool
+    entries: int
+    persisted_hits: int
+    persisted_tokens_saved: int
+    lookups: int
+    hits: int
+    misses: int
+    skips: int
+    hit_rate: float
+    tokens_saved: int
+    cost_saved_usd: float
+
+
 class ReindexOut(BaseModel):
     indexed: int
     skipped: int
     removed: int
+    flagged: int = 0
 
 
 class EvalRunOut(BaseModel):

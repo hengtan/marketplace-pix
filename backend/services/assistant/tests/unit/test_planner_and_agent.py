@@ -91,7 +91,11 @@ class ScriptedPlanner:
         self.seen: list[int] = []
 
     async def next_action(
-        self, message: str, history: Any, observations: list[Observation]
+        self,
+        message: str,
+        history: Any,
+        observations: list[Observation],
+        intent: str | None = None,
     ) -> Action | None:
         self.seen.append(len(observations))
         return self._actions.pop(0) if self._actions else Action("echo", {"n": len(observations)})

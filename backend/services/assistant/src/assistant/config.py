@@ -48,7 +48,31 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     retrieval_min_score: float = 0.1
     retrieval_relative_cutoff: float = 0.5
+    retrieval_rewrite: Literal["off", "always", "adaptive"] = "always"
+    retrieval_typo_correction: bool = True
+    retrieval_hyde: bool = False
+    retrieval_decompose: bool = True
+    retrieval_negation: bool = True
+    retrieval_parent_documents: bool = True
 
+    kafka_bootstrap_servers: str = "localhost:9094"
+    cache_enabled: bool = True
+    cache_threshold: float = 0.92
+    cache_ttl_seconds: int = 3600
+    llm_price_prompt_per_1k: float = 0.0005
+    llm_price_completion_per_1k: float = 0.0015
+
+    budget_enabled: bool = True
+    budget_session_tokens: int = 20_000
+    budget_session_cost_usd: float = 0.05
+    budget_user_daily_tokens: int = 100_000
+    budget_user_daily_cost_usd: float = 0.25
+
+    llm_first_token_timeout_seconds: float = 15.0
+    llm_token_idle_timeout_seconds: float = 10.0
+    llm_total_timeout_seconds: float = 60.0
+    tool_timeout_seconds: float = 8.0
+    planner: Literal["rules", "llm"] = "rules"
     agent_max_steps: int = 3
     max_message_chars: int = 1000
     history_window: int = 6

@@ -74,3 +74,21 @@ class RecursiveChunker:
     @staticmethod
     def _length(units: list[str]) -> int:
         return sum(len(u) for u in units) + max(len(units) - 1, 0)
+
+
+def merge_overlapping(chunks: list[str]) -> str:
+    """Rebuilds the parent document from ordered chunks: the contextual header is kept once
+    and sentences repeated by the overlap are dropped."""
+    if not chunks:
+        return ""
+    header = chunks[0].split("\n", 1)[0]
+    seen: set[str] = set()
+    sentences: list[str] = []
+    for chunk in chunks:
+        body = chunk.split("\n", 1)[1] if "\n" in chunk else chunk
+        for sentence in _SENTENCE_END.split(body.replace("\n", " ")):
+            clean = sentence.strip()
+            if clean and clean not in seen:
+                seen.add(clean)
+                sentences.append(clean)
+    return header + "\n" + " ".join(sentences)

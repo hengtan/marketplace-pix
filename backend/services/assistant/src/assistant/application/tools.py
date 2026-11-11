@@ -10,7 +10,8 @@ from assistant.application.ports import (
 from assistant.application.retrieval import HybridRetriever
 from assistant.domain.errors import ToolError, UpstreamUnavailable
 from assistant.domain.models import Filters
-from assistant.domain.text import format_brl
+from assistant.domain.policies import POLICIES
+from assistant.domain.text import format_brl, tokenize
 
 
 def _uuid(arguments: dict[str, Any], key: str) -> UUID:
@@ -126,3 +127,14 @@ class GetOrderStatusTool:
         short_id = str(order.order_id)[:8]
         summary = f"Pedido {short_id}: {order.status}, {format_brl(order.total_cents)}."
         return ToolResult(summary, data)
+
+
+class GetPolicyTool:
+    name = "get_policy"
+
+    async def run(self, arguments: dict[str, Any]) -> ToolResult:
+        tokens = set(tokenize(str(arguments.get("question", ""))))
+        best = max(POLICIES, key=lambda entry: len(tokens & entry.triggers))
+        if not tokens & best.triggers:
+            return ToolResult("Não encontrei uma política sobre isso.", {"topic": None}, ok=False)
+        return ToolResult(best.text, {"topic": best.topic})

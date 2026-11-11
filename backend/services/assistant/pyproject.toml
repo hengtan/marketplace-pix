@@ -7,7 +7,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "marketplace-common[sqlalchemy]",
+    "marketplace-common[kafka,sqlalchemy]",
     "alembic>=1.20.1",
     "asyncpg>=0.32.0",
     "fastapi>=0.162.4",
@@ -50,6 +50,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*" = ["E501"]
+"tests/attacks.py" = ["E501"]
 
 [tool.mypy]
 strict = true

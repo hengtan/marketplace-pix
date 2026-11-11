@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, aclosing
 from typing import Any
 from uuid import UUID
 
@@ -11,8 +11,10 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from assistant.application.budget import BudgetExceeded
 from assistant.domain.errors import MessageTooLong, SessionNotFound, UpstreamUnavailable
 from assistant.interface.schemas import (
+    CacheStatsOut,
     ChatRequest,
     ChatResponse,
     EvalRunOut,
@@ -21,6 +23,7 @@ from assistant.interface.schemas import (
     SessionOut,
     ToolCallOut,
 )
+from assistant.metrics import STREAMS_ACTIVE
 from assistant.wiring import Container
 
 ReadyCheck = Callable[[], Awaitable[bool]]
@@ -32,6 +35,14 @@ def _container(request: Request) -> Container:
     return container
 
 
+def user_key(request: Request) -> str | None:
+    header = request.headers.get("x-user-id", "").strip()
+    if header:
+        return f"user:{header[:64]}"
+    client = request.client.host if request.client else None
+    return f"ip:{client}" if client else None
+
+
 def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -41,26 +52,43 @@ def build_router() -> APIRouter:
 
     @router.post("/chat", response_model=ChatResponse)
     async def chat(body: ChatRequest, request: Request) -> ChatResponse:
-        result = await _container(request).chat.chat(body.session_id, body.message)
+        result = await _container(request).chat.chat(
+            body.session_id, body.message, user_key(request)
+        )
         return ChatResponse.from_result(result)
 
     @router.post("/chat/stream")
     async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
         service = _container(request).chat
         message = service.validate_message(body.message)
+        user = user_key(request)
 
         async def events() -> AsyncIterator[str]:
+            STREAMS_ACTIVE.inc()
             try:
-                async for event in service.stream(body.session_id, message):
-                    if event.kind == "tool_call":
-                        yield _sse("tool_call", ToolCallOut.from_domain(event.payload).model_dump())
-                    elif event.kind == "token":
-                        yield _sse("token", {"text": event.payload})
-                    else:
-                        done = ChatResponse.from_result(event.payload)
-                        yield _sse("done", json.loads(done.model_dump_json()))
+                async with aclosing(
+                    service.stream(body.session_id, message, user_id=user)
+                ) as stream:
+                    async for event in stream:
+                        if await request.is_disconnected():
+                            return
+                        if event.kind == "tool_call":
+                            yield _sse(
+                                "tool_call", ToolCallOut.from_domain(event.payload).model_dump()
+                            )
+                        elif event.kind == "token":
+                            yield _sse("token", {"text": event.payload})
+                        elif event.kind == "warning":
+                            yield _sse("warning", event.payload)
+                        else:
+                            done = ChatResponse.from_result(event.payload)
+                            yield _sse("done", json.loads(done.model_dump_json()))
             except UpstreamUnavailable:
                 yield _sse("error", {"detail": "model unavailable"})
+            except BudgetExceeded as exc:
+                yield _sse("error", {"detail": "budget exceeded", "scope": exc.scope})
+            finally:
+                STREAMS_ACTIVE.dec()
 
         return StreamingResponse(
             events(),
@@ -81,6 +109,25 @@ def build_router() -> APIRouter:
     async def reindex(request: Request) -> ReindexOut:
         report = await _container(request).ingest.execute()
         return ReindexOut(**report.to_dict())
+
+    @router.get("/cache/stats", response_model=CacheStatsOut)
+    async def cache_stats(request: Request) -> CacheStatsOut:
+        cache = _container(request).cache
+        summary = await cache.summary()
+        stats = cache.stats
+        return CacheStatsOut(
+            enabled=cache.enabled,
+            entries=summary.entries,
+            persisted_hits=summary.hits,
+            persisted_tokens_saved=summary.tokens_saved,
+            lookups=stats.lookups,
+            hits=stats.hits,
+            misses=stats.misses,
+            skips=stats.skips,
+            hit_rate=stats.hit_rate,
+            tokens_saved=stats.tokens_saved,
+            cost_saved_usd=round(stats.cost_saved_usd, 6),
+        )
 
     @router.get("/evals/latest", response_model=EvalRunOut)
     async def latest_eval(request: Request) -> EvalRunOut | JSONResponse:
@@ -122,6 +169,14 @@ def create_app(
     @app.exception_handler(MessageTooLong)
     async def too_long(_: Request, exc: MessageTooLong) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=422)
+
+    @app.exception_handler(BudgetExceeded)
+    async def over_budget(_: Request, exc: BudgetExceeded) -> JSONResponse:
+        return JSONResponse(
+            {"detail": "budget exceeded", "scope": exc.scope, "limit": exc.limit},
+            status_code=429,
+            headers={"Retry-After": "3600"},
+        )
 
     @app.exception_handler(UpstreamUnavailable)
     async def upstream(_: Request, exc: UpstreamUnavailable) -> JSONResponse:

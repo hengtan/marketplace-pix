@@ -40,6 +40,7 @@ class Prompt:
     observations: tuple[Observation, ...]
     text: str
     history: tuple[Turn, ...] = field(default_factory=tuple)
+    intent: str | None = None
 
 
 class LlmClient(Protocol):
@@ -52,7 +53,13 @@ class LlmClient(Protocol):
 
 
 class Reranker(Protocol):
-    def rerank(self, query: str, candidates: Sequence[Passage], limit: int) -> list[Passage]: ...
+    def rerank(
+        self,
+        query: str,
+        candidates: Sequence[Passage],
+        limit: int,
+        extra_terms: Sequence[str] = (),
+    ) -> list[Passage]: ...
 
 
 @dataclass(frozen=True)
@@ -63,7 +70,11 @@ class Action:
 
 class Planner(Protocol):
     async def next_action(
-        self, message: str, history: Sequence[Turn], observations: Sequence[Observation]
+        self,
+        message: str,
+        history: Sequence[Turn],
+        observations: Sequence[Observation],
+        intent: str | None = None,
     ) -> Action | None: ...
 
 
@@ -101,6 +112,12 @@ class ChunkStore(Protocol):
     ) -> list[Passage]: ...
 
     async def categories(self, embedder: str) -> dict[str, str]: ...
+
+    async def product_chunks(
+        self, embedder: str, product_ids: Sequence[UUID] | None = None
+    ) -> dict[UUID, list[str]]: ...
+
+    async def embeddings(self, chunk_ids: Sequence[str]) -> dict[str, list[float]]: ...
 
     async def product_names(self, embedder: str) -> list[str]: ...
 

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from assistant.application.ports import Action
 from assistant.domain.models import Observation, Turn
-from assistant.domain.text import content_tokens, tokenize
+from assistant.domain.text import STOPWORDS, tokenize
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
 STOCK_WORDS = frozenset(
@@ -35,10 +35,21 @@ class RuleBasedPlanner:
     would pick tools through function calling; the loop around it does not change."""
 
     async def next_action(
-        self, message: str, history: Sequence[Turn], observations: Sequence[Observation]
+        self,
+        message: str,
+        history: Sequence[Turn],
+        observations: Sequence[Observation],
+        intent: str | None = None,
     ) -> Action | None:
         tokens = set(tokenize(message))
         done = {obs.tool for obs in observations}
+
+        if intent == "out_of_scope":
+            return None
+        if intent == "policy":
+            if "get_policy" in done:
+                return None
+            return Action("get_policy", {"question": message})
 
         order = _UUID.search(message)
         if order:
@@ -46,7 +57,10 @@ class RuleBasedPlanner:
                 return None
             return Action("get_order_status", {"order_id": str(UUID(order.group(0)))})
 
-        remembered = _last_products(history)
+        if intent == "order":
+            return None
+
+        remembered = last_products(history)
         if tokens & STOCK_WORDS:
             return self._stock_step(message, tokens, observations, remembered, done)
 
@@ -78,7 +92,11 @@ class RuleBasedPlanner:
             return Action("get_stock", {"product_id": top["product_id"], "name": top["name"]})
         if remembered and tokens & (_SINGULAR_REFERENCE | _PLURAL_REFERENCE):
             return Action("get_stock", {"product_id": str(remembered[0])})
-        words = [t for t in content_tokens(message) if t not in STOCK_WORDS]
+        words = [
+            t
+            for t in tokenize(message)
+            if t not in STOCK_WORDS and (t not in STOPWORDS or t == "mais")
+        ]
         return Action("search_products", {"query": " ".join(words) or message})
 
 
@@ -86,7 +104,7 @@ def _asks_for_order(tokens: set[str]) -> bool:
     return "pedido" in tokens or "pedidos" in tokens
 
 
-def _last_products(history: Sequence[Turn]) -> list[UUID]:
+def last_products(history: Sequence[Turn]) -> list[UUID]:
     for turn in reversed(history):
         if turn.role == "assistant" and turn.product_ids:
             return list(turn.product_ids)

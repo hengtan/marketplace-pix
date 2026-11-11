@@ -36,8 +36,8 @@ async def test_chat_returns_answer_citations_trace_and_retrieved(client: httpx.A
 
 async def test_chat_without_context_says_it_did_not_find(client: httpx.AsyncClient) -> None:
     body = (await client.post("/chat", json={"message": "qual a capital da França?"})).json()
-    assert body["answer"].startswith("Não encontrei")
-    assert body["citations"] == [] and body["retrieved"] == []
+    assert body["answer"].startswith("Só consigo ajudar")
+    assert body["citations"] == [] and body["retrieved"] == [] and body["tool_calls"] == []
 
 
 async def test_stock_question_uses_two_tools(client: httpx.AsyncClient) -> None:

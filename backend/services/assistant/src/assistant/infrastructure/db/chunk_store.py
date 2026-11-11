@@ -1,6 +1,7 @@
 import json
 from collections.abc import Sequence
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -28,6 +29,9 @@ def _where(embedder: str, filters: Filters) -> tuple[str, dict[str, Any]]:
     if filters.category is not None:
         clauses.append("metadata->>'category' = :category")
         params["category"] = filters.category
+    if filters.min_rating is not None:
+        clauses.append("(metadata->>'rating')::float >= :min_rating")
+        params["min_rating"] = filters.min_rating
     if filters.product_ids is not None:
         clauses.append("product_id = ANY(:product_ids)")
         params["product_ids"] = list(filters.product_ids)
@@ -180,3 +184,34 @@ class PgChunkStore(ChunkStore):
                 {"embedder": embedder},
             )
             return [r.name for r in rows]
+
+    async def product_chunks(
+        self, embedder: str, product_ids: Sequence[UUID] | None = None
+    ) -> dict[UUID, list[str]]:
+        clauses = "metadata->>'embedder' = :embedder"
+        params: dict[str, Any] = {"embedder": embedder}
+        if product_ids is not None:
+            clauses += " AND product_id = ANY(:ids)"
+            params["ids"] = list(product_ids)
+        async with self._factory() as session:
+            rows = await session.execute(
+                text(
+                    f"SELECT product_id, content FROM chunks WHERE {clauses} "
+                    "ORDER BY product_id, chunk_index"
+                ),
+                params,
+            )
+            grouped: dict[UUID, list[str]] = {}
+            for row in rows:
+                grouped.setdefault(row.product_id, []).append(row.content)
+            return grouped
+
+    async def embeddings(self, chunk_ids: Sequence[str]) -> dict[str, list[float]]:
+        if not chunk_ids:
+            return {}
+        async with self._factory() as session:
+            rows = await session.execute(
+                text("SELECT id, embedding::text AS vec FROM chunks WHERE id = ANY(:ids)"),
+                {"ids": list(chunk_ids)},
+            )
+            return {r.id: [float(x) for x in r.vec.strip("[]").split(",")] for r in rows}

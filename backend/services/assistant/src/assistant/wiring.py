@@ -7,9 +7,11 @@ from marketplace_common.resilience import deadline_event_hooks
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from assistant.application.agent import AgentLoop
-from assistant.application.chat import ChatService
+from assistant.application.budget import BudgetConfig, BudgetManager
+from assistant.application.chat import ChatService, StreamTimeouts
 from assistant.application.guardrails import GroundingGuard
 from assistant.application.ingest import IngestCatalog
+from assistant.application.llm_planner import LlmPlanner
 from assistant.application.planner import RuleBasedPlanner
 from assistant.application.ports import (
     CatalogGateway,
@@ -19,18 +21,29 @@ from assistant.application.ports import (
     InventoryGateway,
     LlmClient,
     OrderGateway,
+    Planner,
     Tool,
 )
 from assistant.application.prompt import PromptBuilder
 from assistant.application.rerank import LexicalReranker
 from assistant.application.retrieval import HybridRetriever, RetrievalConfig
-from assistant.application.tools import GetOrderStatusTool, GetStockTool, SearchProductsTool
+from assistant.application.semantic_cache import CacheConfig, SemanticCache
+from assistant.application.tools import (
+    GetOrderStatusTool,
+    GetPolicyTool,
+    GetStockTool,
+    SearchProductsTool,
+)
+from assistant.application.understanding import QueryUnderstanding
 from assistant.config import Settings
 from assistant.domain.chunking import RecursiveChunker
+from assistant.domain.cost import CostModel
+from assistant.infrastructure.db.cache_store import PgCacheStore
 from assistant.infrastructure.db.chunk_store import PgChunkStore
 from assistant.infrastructure.db.eval_store import PgEvalStore
 from assistant.infrastructure.db.session import build_session_factory
 from assistant.infrastructure.db.session_store import PgSessionStore
+from assistant.infrastructure.db.usage_store import PgUsageStore
 from assistant.infrastructure.embedders.hashing import HashingEmbedder
 from assistant.infrastructure.embedders.ollama import OllamaEmbedder
 from assistant.infrastructure.http.gateways import (
@@ -43,6 +56,12 @@ from assistant.infrastructure.llm.ollama import OllamaLlm
 from assistant.infrastructure.resilient import ModelGuard, ResilientEmbedder, ResilientLlm
 
 NAMES_TTL_SECONDS = 60.0
+TOOL_DESCRIPTIONS = {
+    "search_products": 'busca produtos no catálogo; argumentos {"query": texto}',
+    "get_stock": 'consulta o estoque; argumentos {"product_id": uuid}',
+    "get_order_status": 'consulta um pedido; argumentos {"order_id": uuid}',
+    "get_policy": 'responde sobre trocas, entrega, pagamento; argumentos {"question": texto}',
+}
 
 
 @dataclass
@@ -54,6 +73,7 @@ class Container:
     eval_store: EvalStore
     embedder: Embedder
     llm: LlmClient
+    cache: SemanticCache
     clients: list[httpx.AsyncClient] = field(default_factory=list)
 
     async def aclose(self) -> None:
@@ -98,6 +118,23 @@ def _names_provider(store: ChunkStore, embedder: Embedder) -> NamesProvider:
     return provide
 
 
+def retrieval_config(settings: Settings) -> RetrievalConfig:
+    return RetrievalConfig(
+        branch_limit=settings.retrieval_branch_limit,
+        candidates=settings.retrieval_candidates,
+        final=settings.retrieval_final,
+        rrf_k=settings.rrf_k,
+        min_score=settings.retrieval_min_score,
+        relative_cutoff=settings.retrieval_relative_cutoff,
+        rewrite=settings.retrieval_rewrite,
+        typo_correction=settings.retrieval_typo_correction,
+        hyde=settings.retrieval_hyde,
+        decompose=settings.retrieval_decompose,
+        negation=settings.retrieval_negation,
+        parent_documents=settings.retrieval_parent_documents,
+    )
+
+
 def build_container(
     settings: Settings,
     engine: AsyncEngine,
@@ -129,28 +166,41 @@ def build_container(
 
     factory = build_session_factory(engine)
     store = PgChunkStore(factory)
+    understanding = QueryUnderstanding(store, embedder.name)
     retriever = HybridRetriever(
         store,
         embedder,
         LexicalReranker(),
-        RetrievalConfig(
-            branch_limit=settings.retrieval_branch_limit,
-            candidates=settings.retrieval_candidates,
-            final=settings.retrieval_final,
-            rrf_k=settings.rrf_k,
-            min_score=settings.retrieval_min_score,
-            relative_cutoff=settings.retrieval_relative_cutoff,
-        ),
+        retrieval_config(settings),
+        understanding,
     )
     tools: dict[str, Tool] = {
         "search_products": SearchProductsTool(retriever),
         "get_stock": GetStockTool(inventory, catalog),
         "get_order_status": GetOrderStatusTool(orders),
+        "get_policy": GetPolicyTool(),
     }
-    agent = AgentLoop(RuleBasedPlanner(), tools, settings.agent_max_steps)
+    planner: Planner = RuleBasedPlanner()
+    if settings.planner == "llm":
+        planner = LlmPlanner(llm, planner, TOOL_DESCRIPTIONS)
+    agent = AgentLoop(
+        planner,
+        tools,
+        settings.agent_max_steps,
+        understanding,
+        settings.tool_timeout_seconds,
+    )
     delay = token_delay_seconds
     if delay is None:
         delay = settings.stream_token_delay_ms / 1000
+    cost = CostModel(settings.llm_price_prompt_per_1k, settings.llm_price_completion_per_1k)
+    cache = SemanticCache(
+        PgCacheStore(factory),
+        embedder,
+        understanding,
+        CacheConfig(settings.cache_enabled, settings.cache_threshold, settings.cache_ttl_seconds),
+        cost,
+    )
     chat = ChatService(
         agent,
         PromptBuilder(),
@@ -161,6 +211,24 @@ def build_container(
         max_message_chars=settings.max_message_chars,
         history_window=settings.history_window,
         token_delay_seconds=delay,
+        cache=cache,
+        cost=cost,
+        timeouts=StreamTimeouts(
+            settings.llm_first_token_timeout_seconds,
+            settings.llm_token_idle_timeout_seconds,
+            settings.llm_total_timeout_seconds,
+        ),
+        budget=BudgetManager(
+            PgUsageStore(factory),
+            BudgetConfig(
+                settings.budget_enabled,
+                settings.budget_session_tokens,
+                settings.budget_session_cost_usd,
+                settings.budget_user_daily_tokens,
+                settings.budget_user_daily_cost_usd,
+            ),
+            cost,
+        ),
     )
     ingest = IngestCatalog(
         catalog,
@@ -168,4 +236,6 @@ def build_container(
         embedder,
         RecursiveChunker(settings.chunk_size, settings.chunk_overlap),
     )
-    return Container(settings, chat, ingest, retriever, PgEvalStore(factory), embedder, llm, owned)
+    return Container(
+        settings, chat, ingest, retriever, PgEvalStore(factory), embedder, llm, cache, owned
+    )
