@@ -80,3 +80,21 @@ def test_invalid_request_id_is_replaced():
     response = client.get("/items/1", headers={"X-Request-Id": "x" * 100})
 
     assert len(response.headers["x-request-id"]) == 32
+
+
+async def test_install_api_observability_enforces_the_deadline_header() -> None:
+    import httpx
+    from fastapi import FastAPI
+
+    from marketplace_common.observability import install_api_observability
+
+    app = FastAPI()
+    install_api_observability(app, "deadline-test")
+
+    @app.get("/ping")
+    async def ping() -> dict[str, bool]:
+        return {"ok": True}
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        assert (await c.get("/ping")).status_code == 200
+        assert (await c.get("/ping", headers={"X-Request-Deadline": "0"})).status_code == 504

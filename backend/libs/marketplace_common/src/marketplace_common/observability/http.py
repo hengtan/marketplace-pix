@@ -12,6 +12,7 @@ from marketplace_common.observability.context import set_request_id
 from marketplace_common.observability.logs import setup_logging
 from marketplace_common.observability.metrics import HTTP_DURATION, HTTP_REQUESTS
 from marketplace_common.observability.tracing import instrument_fastapi, setup_tracing
+from marketplace_common.resilience.deadline import install_deadline
 
 REQUEST_ID_HEADER = b"x-request-id"
 METRICS_PATH = "/metrics"
@@ -87,11 +88,18 @@ class MetricsMiddleware:
             HTTP_DURATION.labels(method, route).observe(time.perf_counter() - started)
 
 
-def install_api_observability(app: FastAPI, service_name: str) -> None:
-    """Liga logs JSON, tracing (se configurado), request id e /metrics em uma API FastAPI."""
+def install_api_observability(
+    app: FastAPI,
+    service_name: str,
+    *,
+    deadline_default_seconds: float | None = None,
+    deadline_max_seconds: float | None = None,
+) -> None:
+    """Liga logs JSON, tracing, deadline, request id e /metrics em uma API FastAPI."""
     setup_logging(service_name)
     setup_tracing(service_name)
     instrument_fastapi(app)
+    install_deadline(app, deadline_default_seconds, deadline_max_seconds)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestIdMiddleware)
 
