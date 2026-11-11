@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { buildUrl, request } from "./client";
+import * as z from "zod/mini";
+import { ApiError, authedFetch, buildUrl, parseRetryAfter, request, toError } from "./client";
 import {
   categorySchema,
   createOrderResponseSchema,
@@ -8,6 +8,7 @@ import {
   notificationPageSchema,
   orderPageSchema,
   orderSchema,
+  type Payment,
   paymentSchema,
   productPageSchema,
   productSchema,
@@ -42,6 +43,14 @@ export interface RegisterInput {
   password: string;
 }
 
+export interface PaymentPending {
+  pending: true;
+  retryAfter?: number;
+}
+
+export const isPaymentPending = (p: Payment | PaymentPending | undefined): p is PaymentPending =>
+  p !== undefined && "pending" in p;
+
 export const api = {
   register: (input: RegisterInput) =>
     request("/api/auth/register", {
@@ -55,6 +64,13 @@ export const api = {
       schema: tokenResponseSchema,
       method: "POST",
       body: input,
+      auth: false,
+    }),
+  logout: (refreshToken: string) =>
+    request("/api/auth/logout", {
+      schema: z.null(),
+      method: "POST",
+      body: { refresh_token: refreshToken },
       auth: false,
     }),
   me: () => request("/api/auth/me", { schema: userSchema }),
@@ -90,8 +106,18 @@ export const api = {
       query: { customer_id: customerId, page, page_size: pageSize },
     }),
 
-  paymentByOrder: (orderId: string) =>
-    request(`/api/payments/by-order/${orderId}`, { schema: paymentSchema }),
+  paymentByOrder: async (orderId: string): Promise<Payment | PaymentPending> => {
+    const res = await authedFetch(buildUrl(`/api/payments/by-order/${orderId}`), {
+      headers: { Accept: "application/json" },
+    });
+    if (res.status === 202) {
+      return { pending: true, retryAfter: parseRetryAfter(res.headers.get("Retry-After")) };
+    }
+    if (!res.ok) throw await toError(res);
+    const parsed = paymentSchema.safeParse(await res.json());
+    if (!parsed.success) throw new ApiError("Resposta inesperada do servidor.", res.status);
+    return parsed.data;
+  },
   devPay: (chargeId: string) =>
     request(`/api/payments/dev/psp/charges/${chargeId}/pay`, {
       schema: z.unknown(),

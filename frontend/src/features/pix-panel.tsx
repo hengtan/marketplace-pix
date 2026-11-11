@@ -1,5 +1,5 @@
 import { Check, Clock, Copy, FlaskConical, QrCode } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,7 @@ export function PixPanel({
             title="QR Code do PIX"
           />
           {!expired && !reduce && (
-            <motion.span
+            <m.span
               aria-hidden
               className="pointer-events-none absolute inset-x-3 top-0 h-10 bg-gradient-to-b from-transparent via-[oklch(0.74_0.175_165/0.45)] to-transparent"
               initial={{ y: -40 }}

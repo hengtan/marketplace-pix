@@ -6,18 +6,23 @@ import {
   lazyRouteComponent,
   redirect,
 } from "@tanstack/react-router";
-import { z } from "zod";
+import * as z from "zod/mini";
 import { AppShell } from "@/components/layout/app-shell";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { restoreSession } from "@/features/session";
+import { beginExit, shouldAnimateExit } from "@/lib/route-transition";
+import { setSessionExpiredHandler } from "@/lib/session";
+import { toast } from "@/lib/toast";
 import { isSignedIn } from "@/store/auth";
 import HomePage from "./pages/home";
+import ProductPage from "./pages/product";
 
 const homeSearch = z.object({
-  q: z.string().optional(),
-  categoria: z.string().optional(),
-  preco: z.enum(["ate-100", "100-300", "300-mais"]).optional(),
-  ordem: z.enum(["relevance", "price_asc", "price_desc", "newest", "rating"]).optional(),
+  q: z.optional(z.string()),
+  categoria: z.optional(z.string()),
+  preco: z.optional(z.enum(["ate-100", "100-300", "300-mais"])),
+  ordem: z.optional(z.enum(["relevance", "price_asc", "price_desc", "newest", "rating"])),
 });
 
 function NotFound() {
@@ -37,7 +42,15 @@ function NotFound() {
   );
 }
 
-const rootRoute = createRootRoute({ component: AppShell, notFoundComponent: NotFound });
+const rootRoute = createRootRoute({
+  component: AppShell,
+  notFoundComponent: NotFound,
+  beforeLoad: ({ location, preload }) => {
+    if (preload) return;
+    const from = router.state.resolvedLocation?.pathname;
+    if (shouldAnimateExit(from, location.pathname)) return beginExit();
+  },
+});
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -48,7 +61,7 @@ const indexRoute = createRoute({
 const productRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/produto/$slug",
-  component: lazyRouteComponent(() => import("./pages/product")),
+  component: ProductPage,
 });
 const checkoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -65,9 +78,10 @@ const ordersRoute = createRoute({
   path: "/pedidos",
   component: lazyRouteComponent(() => import("./pages/orders")),
 });
-const authSearch = z.object({ redirect: z.string().optional() });
+const authSearch = z.object({ redirect: z.optional(z.string()) });
 
-function requireSession({ location }: { location: { href: string } }) {
+async function requireSession({ location }: { location: { href: string } }) {
+  await restoreSession();
   if (!isSignedIn()) throw redirect({ to: "/entrar", search: { redirect: location.href } });
 }
 
@@ -112,7 +126,16 @@ export const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   scrollRestoration: true,
-  defaultViewTransition: true,
+});
+
+const PROTECTED_PREFIXES = ["/conta", "/lojista"];
+
+setSessionExpiredHandler(() => {
+  const { pathname, href } = router.state.location;
+  void toast.message("Sua sessão expirou", { description: "Entre de novo para continuar." });
+  if (PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))) {
+    void router.navigate({ to: "/entrar", search: { redirect: href } });
+  }
 });
 
 declare module "@tanstack/react-router" {

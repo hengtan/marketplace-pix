@@ -1,9 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/bricolage-grotesque/wdth.css";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "@fontsource/instrument-serif/latin-400-italic.css";
+
+@font-face {
+  font-family: "Bricolage Grotesque Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("./assets/fonts/bricolage-grotesque-wdth90-latin.woff2") format("woff2-variations");
+}
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -27,7 +34,7 @@
   --sun-soft: oklch(0.95 0.05 60);
   --warn: oklch(0.45 0.13 55);
   --warn-soft: oklch(0.95 0.06 80);
-  --danger: oklch(0.52 0.2 25);
+  --danger: oklch(0.48 0.2 25);
   --danger-soft: oklch(0.95 0.035 25);
   --star: oklch(0.78 0.16 80);
   --glass: oklch(0.994 0.003 85 / 0.72);
@@ -297,6 +304,20 @@
 @keyframes float {
   0%, 100% { transform: translate3d(0, 0, 0); }
   50% { transform: translate3d(0, -10px, 0); }
+}
+@keyframes mark-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+}
+@keyframes bob {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -7px, 0); }
+}
+@keyframes check-draw {
+  0% { stroke-dashoffset: 1; }
+  17% { stroke-dashoffset: 0; }
+  72% { stroke-dashoffset: 0; }
+  87%, 100% { stroke-dashoffset: 1; }
 }
 @keyframes blink {
   50% { opacity: 0.25; }

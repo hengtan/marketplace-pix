@@ -7,10 +7,18 @@
     <meta name="theme-color" content="#f3f5fb" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0c0f1d" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2" />
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wdth-normal.woff2" />
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2" />
     <title>Praça</title>
+    <script>
+      (function () {
+        var m = location.pathname.match(/^\/produto\/([^/]+)\/?$/);
+        if (!m || "%VITE_USE_MOCKS%" === "true") return;
+        var base = "%VITE_API_URL%";
+        if (base.charAt(0) === "%") base = "http://localhost:8000";
+        var url = new URL(base.replace(/\/$/, "") + "/api/catalog/products/slug/" + m[1], location.origin).toString();
+        window.__early = {};
+        window.__early[url] = fetch(url, { headers: { Accept: "application/json" } }).catch(function () {});
+      })();
+    </script>
     <script>
       (function () {
         try {
@@ -22,7 +30,17 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot-shell" aria-hidden="true" hidden>
+      <div class="h-[113px] md:h-[69px]"></div>
+      <div class="mx-auto grid max-w-7xl gap-8 px-4 pt-8 pb-16 sm:px-6 md:pt-14 lg:grid-cols-[1.1fr_1fr] lg:pb-24">
+        <div>
+          <p class="glass inline-flex items-center gap-2.5 rounded-full py-1.5 pr-4 pl-2 text-sm font-medium"><span class="grid size-6 place-items-center rounded-full bg-pix text-[oklch(0.2_0.06_165)]"><span class="size-2 rounded-full bg-current"></span></span>PIX com confirmação em tempo real</p>
+          <h1 class="text-display mt-6"><span class="inline-block overflow-hidden pb-[0.14em] align-bottom">Compre&nbsp;</span><span class="inline-block overflow-hidden pb-[0.14em] align-bottom">hoje.</span><br /><span class="inline-block overflow-hidden pb-[0.14em] align-bottom">Pague&nbsp;</span><span class="inline-block overflow-hidden pb-[0.14em] align-bottom">em</span> <span class="inline-block overflow-hidden pb-[0.14em] align-bottom"><span class="serif pr-[0.06em] font-normal text-primary">segundos.</span></span></h1>
+          <p class="mt-7 max-w-[36ch] text-lg text-muted sm:text-xl">Produtos de lojistas independentes, estoque conferido em tempo real e pagamento por PIX que confirma na hora.</p>
+        </div>
+      </div>
+    </div></div>
+    <script>if (location.pathname === "/") document.getElementById("boot-shell").hidden = false;</script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

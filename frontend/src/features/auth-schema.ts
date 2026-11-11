@@ -1,18 +1,20 @@
-import { z } from "zod";
+import * as z from "zod/mini";
 
 export const loginSchema = z.object({
   email: z.email("Informe um e-mail válido"),
-  password: z.string().min(1, "Informe sua senha"),
+  password: z.string().check(z.minLength(1, "Informe sua senha")),
 });
 export type LoginForm = z.infer<typeof loginSchema>;
 
 export const registerSchema = z.object({
-  name: z.string().trim().min(2, "Informe seu nome completo"),
+  name: z.string().check(z.trim(), z.minLength(2, "Informe seu nome completo")),
   email: z.email("Informe um e-mail válido"),
   password: z
     .string()
-    .min(8, "Use 8 caracteres ou mais")
-    .regex(/\d/, "Inclua pelo menos um número"),
+    .check(
+      z.minLength(8, "Use 8 caracteres ou mais"),
+      z.regex(/\d/, "Inclua pelo menos um número"),
+    ),
 });
 export type RegisterForm = z.infer<typeof registerSchema>;
 

@@ -1,6 +1,6 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowDownUp, ArrowRight, Search, X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProductFilters, ProductSort } from "@/api/endpoints";
 import { Marquee } from "@/components/motion/marquee";
@@ -162,7 +162,7 @@ export default function HomePage() {
                     )}
                   >
                     {active && (
-                      <motion.span
+                      <m.span
                         layoutId="cat-ring"
                         className="pointer-events-none absolute inset-0 rounded-[1.75rem] border-2 border-primary bg-primary-soft/60"
                         transition={SPRING}
@@ -289,7 +289,7 @@ export default function HomePage() {
 
         <AnimatePresence>
           {hasFilters && (
-            <motion.div
+            <m.div
               className="mt-3"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -298,7 +298,7 @@ export default function HomePage() {
               <Button variant="ghost" size="sm" onClick={clear}>
                 <X /> Limpar filtros
               </Button>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 

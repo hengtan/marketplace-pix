@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { useEffect } from "react";
 import { useUi } from "@/store/ui";
 import { Orb } from "./orb";
@@ -26,7 +26,7 @@ export function AssistantLauncher() {
   }, []);
 
   return (
-    <motion.button
+    <m.button
       type="button"
       id={LAUNCHER_ID}
       onClick={() => setOpen(true)}
@@ -50,6 +50,6 @@ export function AssistantLauncher() {
       >
         {isMacLike() ? "⌘/" : "Ctrl /"}
       </kbd>
-    </motion.button>
+    </m.button>
   );
 }

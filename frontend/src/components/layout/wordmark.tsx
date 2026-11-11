@@ -1,9 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 export function Mark({ className }: { className?: string }) {
-  const reduce = useReducedMotion();
   return (
     <svg viewBox="0 0 32 32" className={cn("size-9", className)} aria-hidden>
       <defs>
@@ -22,14 +20,12 @@ export function Mark({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <motion.circle
+      <circle
         cx="23"
         cy="22.5"
         r="2.4"
-        className="fill-pix"
-        animate={reduce ? undefined : { scale: [1, 1.35, 1] }}
-        transition={{ duration: 2.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
-        style={{ transformOrigin: "23px 22.5px" }}
+        className="fill-pix [animation:mark-pulse_2.4s_ease-in-out_infinite]"
+        style={{ transformBox: "fill-box", transformOrigin: "center" }}
       />
     </svg>
   );

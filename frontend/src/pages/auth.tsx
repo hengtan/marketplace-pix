@@ -2,10 +2,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, LogIn, ShieldCheck, Sparkles, UserPlus, Zap } from "lucide-react";
-import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
+import { m, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { api } from "@/api/endpoints";
 import { Mark } from "@/components/layout/wordmark";
 import { Magnetic } from "@/components/motion/magnetic";
@@ -22,6 +21,7 @@ import {
 } from "@/features/auth-schema";
 import { usePageTitle } from "@/hooks/utils";
 import { EASE, finePointer } from "@/lib/motion";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 
@@ -89,7 +89,7 @@ function ParallaxCard({
   const x = useTransform(sx, (v) => v * depth * -2);
   const y = useTransform(sy, (v) => v * depth * -2);
   return (
-    <motion.div
+    <m.div
       className={cn("absolute", cls)}
       style={{ x, y }}
       initial={{ opacity: 0, scale: 0.9 }}
@@ -104,7 +104,7 @@ function ParallaxCard({
         className="rounded-3xl shadow-lift ring-1 ring-white/30"
         float
       />
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -157,7 +157,7 @@ function AuthFrame({
         </aside>
         <section className="grid place-items-center px-4 py-10 sm:px-8">
           <div className="w-full max-w-md">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, ease: EASE }}
@@ -166,7 +166,7 @@ function AuthFrame({
                 {title} <span className="serif gradient-text pr-1 font-normal">{accent}</span>
               </h1>
               <p className="mt-3 text-muted">{subtitle}</p>
-            </motion.div>
+            </m.div>
             <div className="panel hairline-top mt-8 rounded-3xl p-6 sm:p-8">{children}</div>
             <p className="mt-6 text-center text-sm text-muted">{footer}</p>
             <p className="mt-6 text-center text-xs text-muted">
@@ -224,7 +224,7 @@ function Strength({ value }: { value: string }) {
       <div className="flex gap-1.5" aria-hidden>
         {[0, 1, 2, 3].map((i) => (
           <span key={i} className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
-            <motion.span
+            <m.span
               className={cn(
                 "block h-full origin-left rounded-full",
                 score <= 1 ? "bg-danger" : score === 2 ? "bg-sun" : "bg-pix",
@@ -245,7 +245,7 @@ function ServerError({ message }: { message: string | null }) {
   const reduce = useReducedMotion();
   if (!message) return null;
   return (
-    <motion.p
+    <m.p
       role="alert"
       key={message}
       initial={reduce ? false : { x: 0 }}
@@ -254,7 +254,7 @@ function ServerError({ message }: { message: string | null }) {
       className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger"
     >
       {message}
-    </motion.p>
+    </m.p>
   );
 }
 

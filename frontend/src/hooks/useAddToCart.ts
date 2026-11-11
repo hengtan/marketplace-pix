@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { toast } from "sonner";
 import type { Product } from "@/api/schemas";
 import { flyToCart } from "@/lib/fly";
+import { toast } from "@/lib/toast";
 import { MAX_PER_ITEM, useCart } from "@/store/cart";
 import { useUi } from "@/store/ui";
 

@@ -1,6 +1,7 @@
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import type { ComponentProps, ElementType, ReactNode } from "react";
 import { EASE, rise, stagger } from "@/lib/motion";
+import { bootedFromShell } from "@/lib/shell";
 import { cn } from "@/lib/utils";
 
 export function Reveal({
@@ -17,7 +18,7 @@ export function Reveal({
   as?: "div" | "section" | "li" | "p" | "span";
 }) {
   const reduce = useReducedMotion();
-  const Comp = motion[as] as ElementType;
+  const Comp = m[as] as ElementType;
   return (
     <Comp
       className={className}
@@ -48,7 +49,7 @@ export function Stagger({
   inView?: boolean;
 } & Omit<ComponentProps<"div">, "children" | "className">) {
   const reduce = useReducedMotion();
-  const Comp = motion[as] as ElementType;
+  const Comp = m[as] as ElementType;
   const trigger = inView
     ? { whileInView: "show", viewport: { once: true, margin: "0px 0px -6% 0px" } }
     : { animate: "show" };
@@ -74,7 +75,7 @@ export function StaggerItem({
   className?: string;
   as?: "div" | "li" | "article" | "dd";
 }) {
-  const Comp = motion[as] as ElementType;
+  const Comp = m[as] as ElementType;
   return (
     <Comp className={className} variants={rise}>
       {children}
@@ -105,18 +106,18 @@ export function SplitWords({
       <span aria-hidden className="inline">
         {words.map((w, i) => (
           <span key={`${w}-${i}`} className="inline-block overflow-hidden pb-[0.14em] align-bottom">
-            <motion.span
+            <m.span
               className={cn(
                 "inline-block will-change-transform",
                 italicFrom !== undefined && i >= italicFrom && "serif pr-[0.06em] font-normal",
               )}
-              initial={reduce ? false : { y: "112%", rotate: 4 }}
+              initial={reduce || bootedFromShell ? false : { y: "112%", rotate: 4 }}
               animate={{ y: 0, rotate: 0 }}
               transition={{ duration: 1, delay: delay + i * step, ease: EASE }}
             >
               {w}
               {i < words.length - 1 ? " " : ""}
-            </motion.span>
+            </m.span>
           </span>
         ))}
       </span>

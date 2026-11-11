@@ -1,5 +1,5 @@
 import { Check, CircleDashed, X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import type { Order, Payment } from "@/api/schemas";
 import { formatDateTime } from "@/lib/format";
 import { EASE, SPRING_POP } from "@/lib/motion";
@@ -53,7 +53,7 @@ export function OrderTimeline({ order, payment }: { order: Order; payment: Payme
     <ol aria-label="Linha do tempo do pedido" className="grid gap-0">
       <AnimatePresence initial>
         {steps.map((s, i) => (
-          <motion.li
+          <m.li
             key={s.id}
             layout
             initial={{ opacity: 0, x: -16 }}
@@ -67,7 +67,7 @@ export function OrderTimeline({ order, payment }: { order: Order; payment: Payme
                 aria-hidden
                 className="absolute top-8 bottom-0 left-4 w-px -translate-x-1/2 overflow-hidden bg-border"
               >
-                <motion.span
+                <m.span
                   className="absolute inset-0 origin-top bg-pix"
                   initial={false}
                   animate={{ scaleY: s.state === "done" ? 1 : 0 }}
@@ -75,7 +75,7 @@ export function OrderTimeline({ order, payment }: { order: Order; payment: Payme
                 />
               </span>
             )}
-            <motion.span
+            <m.span
               key={s.state}
               initial={{ scale: 0.5 }}
               animate={{ scale: 1 }}
@@ -97,12 +97,12 @@ export function OrderTimeline({ order, payment }: { order: Order; payment: Payme
               )}
               {s.state === "pending" && <CircleDashed className="size-4" />}
               {s.state === "failed" && <X className="size-4" strokeWidth={3} />}
-            </motion.span>
+            </m.span>
             <div className="pt-1">
               <p className="font-medium">{s.label}</p>
               {s.detail && <p className="text-sm text-muted">{s.detail}</p>}
             </div>
-          </motion.li>
+          </m.li>
         ))}
       </AnimatePresence>
     </ol>

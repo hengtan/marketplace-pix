@@ -1,5 +1,5 @@
 import {
-  motion,
+  m,
   useMotionTemplate,
   useMotionValue,
   useReducedMotion,
@@ -40,7 +40,7 @@ export function TiltCard({
 
   return (
     <div style={{ perspective: 900 }} className="h-full">
-      <motion.div
+      <m.div
         ref={ref}
         className={cn("group/tilt relative h-full", className)}
         style={enabled ? { rotateX, rotateY, transformStyle: "preserve-3d" } : undefined}
@@ -62,13 +62,13 @@ export function TiltCard({
       >
         {children}
         {spotlight && enabled && (
-          <motion.div
+          <m.div
             aria-hidden
             className="pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity duration-300"
             style={{ backgroundImage: bg, opacity }}
           />
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

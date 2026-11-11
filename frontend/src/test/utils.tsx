@@ -7,6 +7,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
+import { domMax, LazyMotion } from "motion/react";
 import type { ReactElement, ReactNode } from "react";
 
 export function makeClient() {
@@ -30,9 +31,11 @@ export async function renderWithRouter(ui: ReactElement, client = makeClient()) 
   });
   await router.load();
   const utils = render(
-    <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
+    <LazyMotion features={domMax} strict>
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </LazyMotion>,
   );
   return { ...utils, router };
 }

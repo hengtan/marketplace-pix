@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, LogOut, Package } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { api } from "@/api/endpoints";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/misc";
+import { signOut } from "@/features/session";
 import { usePageTitle } from "@/hooks/utils";
 import { EASE } from "@/lib/motion";
 import { useAuth } from "@/store/auth";
@@ -20,7 +21,6 @@ export default function AccountPage() {
   const navigate = useNavigate();
   const stored = useAuth((s) => s.user);
   const setUser = useAuth((s) => s.setUser);
-  const clear = useAuth((s) => s.clear);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: async () => {
@@ -35,7 +35,7 @@ export default function AccountPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.8, ease: EASE }}
@@ -74,14 +74,14 @@ export default function AccountPage() {
           <Button
             variant="ghost"
             onClick={() => {
-              clear();
+              void signOut();
               navigate({ to: "/" });
             }}
           >
             <LogOut /> Sair
           </Button>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

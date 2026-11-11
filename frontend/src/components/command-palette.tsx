@@ -45,7 +45,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const debounced = useDebounced(query, 220);
   const search = useProductSearch(debounced);
-  const orders = useOrders(getCustomerId(), 1);
+  const orders = useOrders(getCustomerId(), 1, open);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

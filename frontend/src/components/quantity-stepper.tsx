@@ -1,5 +1,5 @@
 import { Minus, Plus } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +48,7 @@ export function QuantityStepper({
         aria-live="polite"
       >
         <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
+          <m.span
             key={value}
             initial={{ y: 14, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -56,7 +56,7 @@ export function QuantityStepper({
             transition={SPRING}
           >
             {value}
-          </motion.span>
+          </m.span>
         </AnimatePresence>
       </output>
       <button

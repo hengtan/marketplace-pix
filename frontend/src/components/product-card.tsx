@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Check, Plus } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { Product } from "@/api/schemas";
 import { prefetchProduct } from "@/hooks/queries";
@@ -53,6 +53,7 @@ export function ProductCard({ product, available, priority }: Props) {
         <Link
           to="/produto/$slug"
           params={{ slug: product.slug }}
+          viewTransition
           onMouseEnter={() => prefetchProduct(client, product.slug)}
           onFocus={() => prefetchProduct(client, product.slug)}
           onClick={open}
@@ -92,6 +93,7 @@ export function ProductCard({ product, available, priority }: Props) {
               <Link
                 to="/produto/$slug"
                 params={{ slug: product.slug }}
+                viewTransition
                 onMouseEnter={() => prefetchProduct(client, product.slug)}
                 onFocus={() => prefetchProduct(client, product.slug)}
                 onClick={open}
@@ -105,7 +107,7 @@ export function ProductCard({ product, available, priority }: Props) {
               {formatMoney(product.price_cents)}
             </p>
           </div>
-          <motion.button
+          <m.button
             type="button"
             onClick={onAdd}
             disabled={soldOut}
@@ -121,7 +123,7 @@ export function ProductCard({ product, available, priority }: Props) {
                 : "border-border-strong/60 bg-surface hover:border-primary hover:bg-primary hover:text-primary-foreground hover:shadow-glow",
             )}
           >
-            <motion.span
+            <m.span
               key={added ? "ok" : "add"}
               initial={{ scale: 0.3, rotate: -90, opacity: 0 }}
               animate={{ scale: 1, rotate: 0, opacity: 1 }}
@@ -129,8 +131,8 @@ export function ProductCard({ product, available, priority }: Props) {
               className="grid place-items-center"
             >
               {added ? <Check className="size-5" strokeWidth={3} /> : <Plus className="size-5" />}
-            </motion.span>
-          </motion.button>
+            </m.span>
+          </m.button>
         </div>
       </article>
     </TiltCard>

@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { m, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { type ReactNode, useRef } from "react";
 import { finePointer } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ export function Magnetic({
   const enabled = !reduce && finePointer();
 
   return (
-    <motion.span
+    <m.span
       ref={ref}
       className={cn("inline-flex", className)}
       style={enabled ? { x: sx, y: sy } : undefined}
@@ -41,6 +41,6 @@ export function Magnetic({
       }}
     >
       {children}
-    </motion.span>
+    </m.span>
   );
 }

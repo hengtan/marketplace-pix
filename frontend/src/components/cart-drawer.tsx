@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Trash2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import { useStock } from "@/hooks/queries";
 import { formatMoney, pluralize } from "@/lib/format";
@@ -26,7 +26,7 @@ export function CartLines({ compact = false }: { compact?: boolean }) {
           const available = stock?.[line.productId];
           const max = Math.min(MAX_PER_ITEM, available ?? MAX_PER_ITEM);
           return (
-            <motion.li
+            <m.li
               key={line.productId}
               layout="position"
               initial={{ opacity: 0, x: 40 }}
@@ -86,7 +86,7 @@ export function CartLines({ compact = false }: { compact?: boolean }) {
                   </p>
                 )}
               </div>
-            </motion.li>
+            </m.li>
           );
         })}
       </AnimatePresence>

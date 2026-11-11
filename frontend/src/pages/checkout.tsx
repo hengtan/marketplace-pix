@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Lock, QrCode } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { api } from "@/api/endpoints";
 import { CartLines } from "@/components/cart-drawer";
 import { AnimatedNumber } from "@/components/motion/animated-number";
@@ -15,6 +14,7 @@ import { type ContactForm, contactSchema } from "@/features/checkout-schema";
 import { Stepper } from "@/features/stepper";
 import { usePageTitle } from "@/hooks/utils";
 import { formatMoney } from "@/lib/format";
+import { toast } from "@/lib/toast";
 import { useAuth } from "@/store/auth";
 import { selectCount, selectSubtotal, useCart } from "@/store/cart";
 import {

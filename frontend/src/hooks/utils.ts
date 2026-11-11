@@ -55,3 +55,12 @@ export function usePageTitle(title: string) {
     document.title = title ? `${title} · Praça` : "Praça";
   }, [title]);
 }
+
+export function useAfterDelay(ms: number): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), ms);
+    return () => clearTimeout(t);
+  }, [ms]);
+  return ready;
+}
