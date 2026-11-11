@@ -28,3 +28,16 @@ async def test_inventory_reserves_from_every_order_created_version(version: int)
     assert await handler.handle(incoming("OrderCreated", version)) is Outcome.PROCESSED
 
     assert (db.stocks[product].available, db.stocks[product].reserved) == (8, 2)
+
+
+async def test_inventory_registers_stock_from_the_real_product_created_payload() -> None:
+    from inventory.application.event_handlers import HandleCatalogEvent
+
+    payload = golden_payload("ProductCreated", 1)
+    db = FakeDatabase()
+    event = IncomingEvent(uuid4(), "ProductCreated", payload["product_id"], payload, 1)
+
+    assert await HandleCatalogEvent(lambda: FakeUow(db)).handle(event) is Outcome.PROCESSED
+
+    stock = db.stocks[UUID(payload["product_id"])]
+    assert (stock.available, str(stock.merchant_id)) == (0, payload["merchant_id"])

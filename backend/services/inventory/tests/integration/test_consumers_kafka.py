@@ -214,3 +214,59 @@ async def test_expired_payment_releases_the_stock_via_kafka(uow_factory, session
 
 def _inbox():
     return select(InboxMessageModel)
+
+
+@pytest.fixture
+async def catalog_topic():
+    name = f"test.catalog.events.{uuid4().hex[:8]}"
+    admin = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP)
+    await admin.start()
+    await admin.create_topics([NewTopic(name, num_partitions=3, replication_factor=1)])
+    yield name
+    await admin.delete_topics([name])
+    await admin.close()
+
+
+async def send_product_created(topic: str, product_id, merchant_id, event_id) -> None:
+    producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP)
+    await producer.start()
+    try:
+        await producer.send_and_wait(
+            topic,
+            key=str(product_id).encode(),
+            value=json.dumps(
+                {"product_id": str(product_id), "merchant_id": str(merchant_id)}
+            ).encode(),
+            headers=[
+                ("event_id", str(event_id).encode()),
+                ("event_type", b"ProductCreated"),
+            ],
+        )
+    finally:
+        await producer.stop()
+
+
+async def test_product_created_on_kafka_registers_one_empty_stock_owned_by_the_merchant(
+    uow_factory, session_factory, catalog_topic
+):
+    from inventory.application.event_handlers import HandleCatalogEvent
+    from inventory.infrastructure.db.models import StockModel
+
+    product, merchant, event_id = uuid4(), uuid4(), uuid4()
+    await send_product_created(catalog_topic, product, merchant, event_id)
+    await send_product_created(catalog_topic, product, merchant, event_id)
+    consumer = KafkaEventConsumer(
+        BOOTSTRAP, catalog_topic, f"test-{uuid4().hex[:8]}", HandleCatalogEvent(uow_factory)
+    )
+
+    async def registered() -> bool:
+        async with session_factory() as session:
+            return await session.get(StockModel, product) is not None
+
+    await run_until([consumer], registered)
+
+    async with session_factory() as session:
+        row = await session.get(StockModel, product)
+        assert row is not None
+        assert (row.available, row.reserved, row.merchant_id) == (0, 0, merchant)
+    assert await count(session_factory, InboxMessageModel) == 1

@@ -11,6 +11,7 @@ from inventory.application.clock import Clock, utcnow
 from inventory.application.commit_stock import CommitStock
 from inventory.application.common import Delivery, Outcome
 from inventory.application.ports import UnitOfWork
+from inventory.application.register_product import RegisterProduct
 from inventory.application.release_stock import ReleaseStock
 from inventory.application.reserve_stock import ReserveStock
 from inventory.domain.reservation import ReservationItem
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 ORDERS_CONSUMER = "inventory-orders"
 PAYMENTS_CONSUMER = "inventory-payments"
+CATALOG_CONSUMER = "inventory-catalog"
 
 
 def _parse_items(payload: dict[str, object]) -> list[ReservationItem]:
@@ -51,6 +53,24 @@ class HandleOrderEvent:
         if event.type == "OrderCancelled":
             return await self._release.execute(_order_id(event), "order_cancelled", delivery)
         return Outcome.IGNORED
+
+
+class HandleCatalogEvent:
+    def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
+        self._register = RegisterProduct(uow_factory)
+
+    async def handle(self, event: IncomingEvent) -> Outcome:
+        if event.type != "ProductCreated":
+            return Outcome.IGNORED
+        try:
+            product_id = UUID(str(event.payload["product_id"]))
+            merchant_id = UUID(str(event.payload["merchant_id"]))
+        except (KeyError, ValueError, TypeError):
+            logger.error("invalid ProductCreated payload skipped (event %s)", event.id)
+            return Outcome.IGNORED
+        return await self._register.execute(
+            product_id, merchant_id, Delivery(event.id, CATALOG_CONSUMER)
+        )
 
 
 class HandlePaymentEvent:

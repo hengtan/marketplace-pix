@@ -126,7 +126,7 @@ Edição sem mudança real (mesmos valores) não publica nada. O `assistant` tam
 |---|---|---|
 | payments | `OrderCreated`, `OrderCancelled`, `PaymentRefundRequested` | cria cobrança; cancela cobrança pendente; reembolsa no PSP um pagamento confirmado |
 | ordering | `PaymentConfirmed`, `PaymentExpired`, `StockRejected` | marca pago; cancela (`payment expired`); cancela (`out of stock`); se o pedido já estava cancelado, audita e pede reembolso |
-| inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `PaymentRefunded`, `OrderCancelled` | reserva; confirma a venda; libera; devolve ao estoque a venda reembolsada |
+| inventory | `OrderCreated`, `PaymentConfirmed`, `PaymentExpired`, `PaymentCancelled`, `PaymentRefunded`, `OrderCancelled`, `ProductCreated` (de `catalog.events`, grupo `inventory-catalog`) | reserva; confirma a venda; libera; devolve ao estoque a venda reembolsada; cria a linha de estoque do produto novo com `available=0` e o `merchant_id` dono (ou adota o dono de uma linha sem dono), sem nunca mexer na quantidade nem trocar um dono existente |
 | ledger | `OrderCreated`, `PaymentConfirmed`, `PaymentRefunded` | guarda a projeção do pedido; lança a transação; lança o estorno |
 | notifications | `OrderCreated`, `PaymentCreated`, `OrderPaid`, `OrderCancelled` | envia e-mails (Celery) |
 | assistant | `ProductCreated`, `ProductUpdated`, `ProductPriceChanged`, `ProductDeactivated` (de `catalog.events`) | reindexa só o que mudou e invalida respostas em cache (`python -m assistant.worker_main`, grupo `assistant`) |

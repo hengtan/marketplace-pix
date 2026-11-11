@@ -15,8 +15,10 @@ from marketplace_common.messaging import KafkaEventConsumer
 from marketplace_common.observability import instrument_sqlalchemy, setup_worker_observability
 
 from inventory.application.event_handlers import (
+    CATALOG_CONSUMER,
     ORDERS_CONSUMER,
     PAYMENTS_CONSUMER,
+    HandleCatalogEvent,
     HandleOrderEvent,
     HandlePaymentEvent,
 )
@@ -27,6 +29,7 @@ from inventory.infrastructure.db.uow import SqlAlchemyUnitOfWork
 
 ORDERS_TOPIC = "orders.events"
 PAYMENTS_TOPIC = "payments.events"
+CATALOG_TOPIC = "catalog.events"
 
 
 async def main() -> None:
@@ -52,6 +55,12 @@ async def main() -> None:
         PAYMENTS_CONSUMER,
         HandlePaymentEvent(uow_factory),
     )
+    catalog_consumer = KafkaEventConsumer(
+        settings.kafka_bootstrap_servers,
+        CATALOG_TOPIC,
+        CATALOG_CONSUMER,
+        HandleCatalogEvent(uow_factory),
+    )
     expirer = ExpireReservations(uow_factory)
 
     policy = RetentionPolicy.from_env()
@@ -64,17 +73,20 @@ async def main() -> None:
 
     await orders_consumer.start()
     await payments_consumer.start()
+    await catalog_consumer.start()
     try:
         logging.getLogger(__name__).info("inventory worker started")
         await asyncio.gather(
             orders_consumer.run(stop),
             payments_consumer.run(stop),
+            catalog_consumer.run(stop),
             expirer.run_forever(stop, interval=settings.expiry_interval_seconds),
             cleanup.run_forever(stop),
         )
     finally:
         await orders_consumer.stop()
         await payments_consumer.stop()
+        await catalog_consumer.stop()
         await engine.dispose()
 
 
