@@ -1,10 +1,11 @@
-import { AlertCircle, Check, Loader2, RotateCcw } from "lucide-react";
-import { motion } from "motion/react";
+import { AlertCircle, Check, Info, Loader2, RotateCcw } from "lucide-react";
+import { m } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { CitedProducts } from "./cited-products";
-import { toolDoneLabel, toolRunningLabel } from "./copy";
+import { formatWait, toolDoneLabel, toolRunningLabel } from "./copy";
 import { Orb } from "./orb";
 import { RichText } from "./rich-text";
 import type { ChatMessage } from "./store";
@@ -12,6 +13,34 @@ import { Trace } from "./trace";
 
 export function Avatar({ className, thinking }: { className?: string; thinking?: boolean }) {
   return <Orb className={className} thinking={thinking} />;
+}
+
+function RetryButton({ retryAfter, onRetry }: { retryAfter?: number; onRetry: () => void }) {
+  const until = useRef(Date.now() + (retryAfter ?? 0) * 1000);
+  const [remaining, setRemaining] = useState(retryAfter ?? 0);
+
+  useEffect(() => {
+    if (!retryAfter) return;
+    const id = setInterval(() => {
+      const left = Math.ceil((until.current - Date.now()) / 1000);
+      setRemaining(Math.max(0, left));
+      if (left <= 0) clearInterval(id);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [retryAfter]);
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={onRetry}
+      disabled={remaining > 0}
+      className="bg-surface"
+    >
+      <RotateCcw aria-hidden />
+      {remaining > 0 ? `Tentar de novo em ${formatWait(remaining)}` : "Tentar de novo"}
+    </Button>
+  );
 }
 
 export function TypingDots({ label }: { label: string }) {
@@ -33,7 +62,7 @@ export function TypingDots({ label }: { label: string }) {
 
 export function UserMessage({ message }: { message: ChatMessage }) {
   return (
-    <motion.div
+    <m.div
       className="flex justify-end"
       data-testid="user-message"
       initial={{ opacity: 0, y: 14, scale: 0.96 }}
@@ -43,7 +72,7 @@ export function UserMessage({ message }: { message: ChatMessage }) {
       <p className="max-w-[85%] rounded-2xl rounded-br-md bg-[linear-gradient(160deg,color-mix(in_oklab,var(--primary),white_12%),var(--primary))] px-4 py-2.5 text-[0.95rem] leading-relaxed break-words whitespace-pre-wrap text-primary-foreground shadow-soft">
         {message.content}
       </p>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -64,7 +93,7 @@ export function AssistantMessage({
   const showSteps = message.toolCalls.length > 0 && (hasText || !streaming);
 
   return (
-    <motion.div
+    <m.div
       className="flex gap-3"
       data-testid="assistant-message"
       data-status={message.status}
@@ -101,6 +130,17 @@ export function AssistantMessage({
           />
         )}
 
+        {message.notice && message.status !== "error" && (
+          <p
+            role="status"
+            data-testid="degraded-notice"
+            className="mt-3 flex items-start gap-2 rounded-lg bg-warn-soft px-3.5 py-2.5 text-sm text-warn"
+          >
+            <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{message.notice}</span>
+          </p>
+        )}
+
         {message.status === "stopped" && (
           <p className="mt-2 text-sm text-muted">
             {hasText ? "Resposta interrompida." : "Você interrompeu a resposta."}
@@ -121,10 +161,9 @@ export function AssistantMessage({
                 <span>{message.error}</span>
               </p>
             )}
-            <Button size="sm" variant="outline" onClick={onRetry} className="bg-surface">
-              <RotateCcw aria-hidden />
-              Tentar de novo
-            </Button>
+            {(message.status === "stopped" || message.retryable !== false) && (
+              <RetryButton retryAfter={message.retryAfter} onRetry={onRetry} />
+            )}
           </div>
         )}
 
@@ -139,7 +178,7 @@ export function AssistantMessage({
           </>
         )}
       </div>
-    </motion.div>
+    </m.div>
   );
 }
 

@@ -300,6 +300,35 @@ interface ChatBody {
   message?: string;
 }
 
+function blocked(message: string) {
+  const text = norm(message);
+  if (/simular limite da sessao/i.test(text)) {
+    return HttpResponse.json(
+      { detail: "budget exceeded", scope: "session", limit: "tokens" },
+      { status: 429, headers: { "Retry-After": "1800" } },
+    );
+  }
+  if (/simular limite/i.test(text)) {
+    return HttpResponse.json(
+      { detail: "budget exceeded", scope: "user", limit: "cost" },
+      { status: 429, headers: { "Retry-After": "7200" } },
+    );
+  }
+  if (/simular muitas/i.test(text)) {
+    return HttpResponse.json(
+      { detail: "rate limit exceeded" },
+      { status: 429, headers: { "Retry-After": "20" } },
+    );
+  }
+  if (/simular indisponivel/i.test(text)) {
+    return HttpResponse.json(
+      { detail: "model unavailable", code: "circuit_open", retry_after_seconds: 30 },
+      { status: 503, headers: { "Retry-After": "30" } },
+    );
+  }
+  return null;
+}
+
 function prepare(body: ChatBody) {
   const message = (body.message ?? "").trim();
   if (message.length < 1 || message.length > 1000) {
@@ -310,6 +339,8 @@ function prepare(body: ChatBody) {
       ),
     } as const;
   }
+  const refused = blocked(message);
+  if (refused) return { error: refused } as const;
   const sessions = load();
   if (body.session_id && !sessions[body.session_id]) {
     return { error: HttpResponse.json({ detail: "session not found" }, { status: 404 }) } as const;
@@ -334,6 +365,7 @@ export const assistantHandlers = [
     if ("error" in prepared) return prepared.error;
     const { message, sessionId, history, reply } = prepared;
     const failing = /simular erro/i.test(message);
+    const degraded = /simular degradado/i.test(norm(message));
     const slow = /resposta lenta/i.test(message);
     const encoder = new TextEncoder();
     let cancelled = false;
@@ -358,6 +390,9 @@ export const assistantHandlers = [
           if (!cancelled) controller.close();
           return;
         }
+        if (degraded) {
+          await emit("warning", { detail: "model unavailable", reason: "llm_error" });
+        }
         for (const piece of reply.answer.split(/(?<=\s)/)) {
           await emit("token", { text: piece }, slow ? SLOW_TICK : TICK);
         }
@@ -366,6 +401,7 @@ export const assistantHandlers = [
           session_id: sessionId,
           ...reply,
           latency_ms: Math.max(1, Date.now() - started),
+          ...(degraded ? { degraded: true, warning: "model unavailable" } : {}),
         });
         if (!cancelled) controller.close();
       },
