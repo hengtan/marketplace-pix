@@ -84,6 +84,14 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 | Kafka UI | http://localhost:8081 |
 | Redis | localhost:6380 |
 
+### Atalhos (scripts)
+
+```bash
+scripts/up.sh      # cria o .env se faltar, sobe tudo (com build) e espera ficar saudável
+scripts/e2e.sh     # teste de ponta a ponta pelo gateway (23 verificações), repetível
+scripts/reset.sh   # apaga containers e volumes para recomeçar do zero
+```
+
 ### Subindo os serviços
 
 ```bash
