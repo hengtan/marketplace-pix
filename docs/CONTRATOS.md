@@ -406,7 +406,7 @@ Matriz de acesso no gateway (`401` sem token válido, `403` sem o escopo):
 | `GET /api/ledger/**` | `ledger:read:own` ou `ledger:read:any` (o serviço confere o lojista) |
 | `GET /api/ledger/reconciliation` | `ledger:reconcile` |
 | `GET /api/notifications**` | `notifications:read:own` (o gateway força `customer_id` do token; `admin` pode escolher) |
-| `POST /api/payments/dev/**` | token (e só com `ENABLE_DEV_ROUTES`) |
+| `POST /api/payments/dev/**` | opcional (o convidado também simula o próprio PIX; só existe com `ENABLE_DEV_ROUTES`, em produção é `404`) |
 | `POST /api/assistant/admin/**` | `assistant:admin` |
 | `GET\|POST /api/assistant/**` | anônimo ou autenticado |
 

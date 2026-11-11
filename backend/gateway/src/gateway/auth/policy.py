@@ -77,7 +77,7 @@ def build_rules(guest_checkout: bool) -> tuple[Rule, ...]:
         ),
         _rule("GET", r"^/api/orders(/[^/]+)?$", Access.OPTIONAL),
         _rule("GET", r"^/api/payments/by-order/[^/]+$", Access.OPTIONAL, object_guard=True),
-        _rule("POST", r"^/api/payments/dev/.*$", Access.REQUIRED),
+        _rule("POST", r"^/api/payments/dev/.*$", Access.OPTIONAL),
         _rule(
             "GET",
             r"^/api/notifications$",

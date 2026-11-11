@@ -197,7 +197,6 @@ async def test_public_routes_work_without_a_token_and_ignore_a_bad_one(world: Wo
         ("GET", "/api/auth/me"),
         ("POST", "/api/auth/admin/users"),
         ("POST", "/api/assistant/admin/reindex"),
-        ("POST", "/api/payments/dev/psp/charges/ch/pay"),
         ("POST", "/api/catalog/products"),
         ("PATCH", "/api/catalog/products/abc"),
         ("DELETE", "/api/catalog/products/abc"),
@@ -208,6 +207,16 @@ async def test_protected_routes_require_authentication(
 ) -> None:
     response = await call(world, method, path, make_settings(enable_dev_routes=True), json={})
     assert response.status_code == 401
+
+
+async def test_dev_payment_simulator_works_for_guest_checkout_when_dev_routes_are_on(
+    world: World,
+) -> None:
+    path = "/api/payments/dev/psp/charges/ch/pay"
+    on = await call(world, "POST", path, make_settings(enable_dev_routes=True), json={})
+    off = await call(world, "POST", path, make_settings(enable_dev_routes=False), json={})
+    assert on.status_code != 401
+    assert off.status_code == 404
 
 
 @pytest.mark.parametrize(
