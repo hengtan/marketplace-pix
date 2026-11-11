@@ -43,20 +43,27 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [ ] Orquestrador explícito (hoje a saga é coreografada por eventos) e timeout no próprio pedido
 - [ ] Teste automatizado ponta a ponta entre os dois serviços (hoje só manual)
 
-## Fase 4: `ledger`
-- [ ] Dupla entrada (soma de débitos = soma de créditos)
-- [ ] Split lojista e plataforma
-- [ ] Teste de concorrência
+## Fase 4: `ledger` (FEITA)
+- [x] Dupla entrada (débitos iguais a créditos, transação desbalanceada é rejeitada)
+- [x] Split lojista e plataforma (10% por lojista, arredondamento que sempre fecha)
+- [x] Concorrência: 50 pagamentos simultâneos mantêm o saldo exato; teste de propriedade (hypothesis)
+- [x] Conciliação (`/reconciliation`) e resumo do lojista com série diária
 
 ## Fase 5: `inventory` e `notifications`
-- [ ] Reserva de estoque com TTL e compensação
-- [ ] Celery para e-mail e conciliação diária
+- [x] `inventory`: reserva tudo ou nada, sem overselling (100 reservas para 10 unidades aceitam 10), TTL, liberação
+- [x] Falta de estoque cancela o pedido e a cobrança (saga completa)
+- [ ] `notifications`: e-mails via Celery + Mailpit, retry, varredor, resumo diário (em construção)
 
 ## Fase 6: `catalog`, gateway e frontend
-- [ ] Catálogo e busca
-- [ ] Gateway
-- [ ] Front: listagem, carrinho, checkout PIX, status do pedido em tempo real (SSE), painel do lojista
-- [ ] Cliente TypeScript gerado do OpenAPI
+- [x] `catalog`: busca sem acento, filtros, ordenação, ETag/304, seed de 24 produtos
+- [x] Preço e lojista do pedido vêm do catálogo (o cliente só envia produto e quantidade)
+- [x] Gateway: rotas do contrato, CORS, `Idempotency-Key`, `X-Request-Id`, limite de requisições, saúde agregada
+- [ ] Frontend premium (React, Tailwind v4, shadcn, Motion, ⌘K, PIX ao vivo, painel do lojista) (em construção)
+
+## Resiliência (FEITA)
+- [x] Retentativas limitadas e DLQ (`<tópico>.dlq`) em todos os consumidores
+- [ ] Ferramenta para reprocessar mensagens da DLQ
+- [ ] Extrair o consumidor, o outbox e o relay (hoje 4 cópias iguais) para `backend/libs`
 
 ## Fase 7: IA
 - [ ] RAG sobre o catálogo (pgvector)

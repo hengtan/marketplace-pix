@@ -95,6 +95,10 @@ docker compose -f infra/docker-compose.yml --env-file .env --profile services up
 | ordering-api | FastAPI: `POST /orders` (exige `Idempotency-Key`), `GET /orders/{id}`, `/health`, `/ready` | http://localhost:8001/docs |
 | ordering-relay | publica o outbox no Kafka | (sem porta) |
 | ordering-worker | consome `payments.events` (com inbox): marca pago ou cancela o pedido | (sem porta) |
+| gateway | ponto de entrada único da API (`/api/...`), CORS, limite de requisições | http://localhost:8000/docs |
+| catalog-api | produtos, busca, categorias | http://localhost:8003/docs |
+| inventory-api / -worker / -relay | estoque, reservas e liberação por eventos | http://localhost:8004/docs |
+| ledger-api / -worker / -relay | livro-razão, split e conciliação | http://localhost:8005/docs |
 | payments-api | webhook do PSP (HMAC), `GET /payments/by-order/{id}`, rota dev do PSP simulado | http://localhost:8002/docs |
 | payments-worker | consome `orders.events` (com inbox) e expira cobranças | (sem porta) |
 | payments-relay | publica o outbox do payments em `payments.events` | (sem porta) |
