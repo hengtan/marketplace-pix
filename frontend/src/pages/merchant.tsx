@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { CircleAlert, Keyboard, ShieldCheck } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton } from "@/components/ui/misc";
@@ -14,6 +14,7 @@ import {
 import { useStockRows } from "@/features/merchant/data";
 import { useLiveOrders } from "@/features/merchant/live";
 import { TAB_VIEWS } from "@/features/merchant/registry";
+import { ShortcutsHelp, useMerchantShortcuts } from "@/features/merchant/shortcuts";
 import { panelId, TabBar, tabId } from "@/features/merchant/tab-bar";
 import { Segmented } from "@/features/merchant/ui";
 import { useOwnsStore } from "@/hooks/merchant";
@@ -83,6 +84,8 @@ function Panel({ scopeIds }: { scopeIds: string[] }) {
   const { rows, orders } = useStockRows();
   const fresh = useLiveOrders(orders.data?.items, nav.openOrder);
   const full = { ...ctx, fresh };
+  const [helpOpen, setHelpOpen] = useState(false);
+  useMerchantShortcuts(() => setHelpOpen(true));
 
   const badges = useMemo(() => {
     const pending = (orders.data?.items ?? []).filter(
@@ -143,6 +146,14 @@ function Panel({ scopeIds }: { scopeIds: string[] }) {
           </m.div>
         </AnimatePresence>
       </div>
+      <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
+      <button
+        type="button"
+        onClick={() => setHelpOpen(true)}
+        className="mx-auto mt-10 flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-xs text-muted transition-colors hover:text-foreground"
+      >
+        <Keyboard className="size-3.5" aria-hidden /> Pressione ? para ver os atalhos do painel
+      </button>
     </MerchantProvider>
   );
 }
@@ -194,9 +205,6 @@ function Shell() {
         <MerchantProvider value={ctx}>
           <Panel scopeIds={scope.ids} />
         </MerchantProvider>
-        <p className="mt-10 flex items-center justify-center gap-2 text-xs text-muted">
-          <Keyboard className="size-3.5" aria-hidden /> Pressione ? para ver os atalhos do painel
-        </p>
       </div>
     </div>
   );
