@@ -52,13 +52,13 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 ## Fase 5: `inventory` e `notifications`
 - [x] `inventory`: reserva tudo ou nada, sem overselling (100 reservas para 10 unidades aceitam 10), TTL, liberação
 - [x] Falta de estoque cancela o pedido e a cobrança (saga completa)
-- [ ] `notifications`: e-mails via Celery + Mailpit, retry, varredor, resumo diário (em construção)
+- [x] `notifications`: e-mails via Celery + Mailpit, retry, varredor, resumo diário
 
 ## Fase 6: `catalog`, gateway e frontend
 - [x] `catalog`: busca sem acento, filtros, ordenação, ETag/304, seed de 24 produtos
 - [x] Preço e lojista do pedido vêm do catálogo (o cliente só envia produto e quantidade)
 - [x] Gateway: rotas do contrato, CORS, `Idempotency-Key`, `X-Request-Id`, limite de requisições, saúde agregada
-- [ ] Frontend premium (React, Tailwind v4, shadcn, Motion, ⌘K, PIX ao vivo, painel do lojista) (em construção)
+- [x] Frontend "Praça" (React 19, Tailwind v4, Radix, Motion, ⌘K, PIX ao vivo, painel do lojista), servido em http://localhost:5173 e verificado no navegador contra o backend real
 
 ## Resiliência (FEITA)
 - [x] Retentativas limitadas e DLQ (`<tópico>.dlq`) em todos os consumidores

@@ -452,6 +452,20 @@ services:
       timeout: 5s
       retries: 6
 
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        VITE_ENABLE_DEV_TOOLS: "true"
+    image: marketplace-pix/frontend:dev
+    profiles: ["services"]
+    environment:
+      API_UPSTREAM: http://gateway:8000
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - gateway
+
 volumes:
   pgdata:
   pgvectordata:

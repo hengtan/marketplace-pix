@@ -1,7 +1,7 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { Moon, Search, ShoppingBag, Sun } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { CartDrawer } from "@/components/cart-drawer";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
@@ -151,17 +151,23 @@ function Footer() {
 export function AppShell() {
   const toastTheme = useTheme((s) => s.theme);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
 
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    window.scrollTo({ top: 0 });
-    mainRef.current?.focus({ preventScroll: true });
-  }, []);
+  useEffect(
+    () =>
+      router.subscribe("onResolved", () => {
+        if (first.current) {
+          first.current = false;
+          return;
+        }
+        toast.dismiss();
+        window.scrollTo({ top: 0 });
+        mainRef.current?.focus({ preventScroll: true });
+      }),
+    [router],
+  );
 
   return (
     <>
@@ -180,7 +186,7 @@ export function AppShell() {
       <Footer />
       <CartDrawer />
       <CommandPalette />
-      <Toaster position="top-center" offset={72} theme={toastTheme} />
+      <Toaster position="bottom-right" offset={24} theme={toastTheme} />
     </>
   );
 }

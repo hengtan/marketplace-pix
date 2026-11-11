@@ -97,7 +97,7 @@ export default function HomePage() {
           Categorias
         </h2>
         <ul className="grid gap-3 sm:grid-cols-3">
-          {(categories ?? []).map((c, i) => {
+          {(categories ?? []).map((c) => {
             const active = search.categoria === c.slug;
             return (
               <li key={c.slug}>
@@ -130,7 +130,7 @@ export default function HomePage() {
                       "font-display text-5xl font-bold opacity-20 transition-opacity group-hover:opacity-40",
                     )}
                   >
-                    {["T", "C", "E"][i]}
+                    {c.label.charAt(0).toUpperCase()}
                   </span>
                 </button>
               </li>
