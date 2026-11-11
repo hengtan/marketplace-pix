@@ -25,6 +25,7 @@ x-payments: &payments
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     PSP_WEBHOOK_SECRET: ${PSP_WEBHOOK_SECRET}
     ENABLE_DEV_PSP: "true"
+    PIX_TTL_MINUTES: ${PIX_TTL_MINUTES:-30}
 
 services:
   postgres:
@@ -127,6 +128,15 @@ services:
   ordering-relay:
     <<: *ordering
     command: ["python", "-m", "ordering.relay_main"]
+    depends_on:
+      ordering-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+
+  ordering-worker:
+    <<: *ordering
+    command: ["python", "-m", "ordering.worker_main"]
     depends_on:
       ordering-migrate:
         condition: service_completed_successfully

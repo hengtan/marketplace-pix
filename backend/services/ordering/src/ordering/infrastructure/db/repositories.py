@@ -35,12 +35,14 @@ class SqlAlchemyOrderRepository:
             )
         )
 
-    async def get(self, order_id: UUID) -> Order | None:
+    async def get(self, order_id: UUID, lock: bool = False) -> Order | None:
         stmt = (
             select(OrderModel)
             .where(OrderModel.id == order_id)
             .options(selectinload(OrderModel.items))
         )
+        if lock:
+            stmt = stmt.with_for_update(of=OrderModel)
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         if model is None:
             return None
@@ -53,3 +55,9 @@ class SqlAlchemyOrderRepository:
             ),
             status=OrderStatus(model.status),
         )
+
+    async def save(self, order: Order) -> None:
+        model = await self._session.get(OrderModel, order.id)
+        if model is None:
+            raise LookupError(f"order {order.id} not found")
+        model.status = order.status.value

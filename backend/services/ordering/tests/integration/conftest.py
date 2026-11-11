@@ -40,7 +40,10 @@ async def engine():
     yield engine
     async with engine.begin() as conn:
         await conn.execute(
-            text("truncate orders, order_items, outbox_events, idempotency_keys cascade")
+            text(
+                "truncate orders, order_items, outbox_events, idempotency_keys, "
+                "inbox_messages cascade"
+            )
         )
     await engine.dispose()
 

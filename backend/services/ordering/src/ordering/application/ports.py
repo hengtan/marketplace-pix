@@ -12,7 +12,21 @@ from ordering.domain.order import Order
 class OrderRepository(Protocol):
     async def add(self, order: Order) -> None: ...
 
-    async def get(self, order_id: UUID) -> Order | None: ...
+    async def get(self, order_id: UUID, lock: bool = False) -> Order | None: ...
+
+    async def save(self, order: Order) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class IncomingEvent:
+    id: UUID
+    type: str
+    key: str
+    payload: dict[str, Any]
+
+
+class InboxStore(Protocol):
+    async def claim(self, message_id: UUID, consumer: str) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +55,9 @@ class UnitOfWork(Protocol):
 
     @property
     def idempotency(self) -> IdempotencyStore: ...
+
+    @property
+    def inbox(self) -> InboxStore: ...
 
     async def __aenter__(self) -> Self: ...
 

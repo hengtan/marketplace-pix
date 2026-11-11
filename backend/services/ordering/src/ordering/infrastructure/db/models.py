@@ -71,3 +71,13 @@ class IdempotencyKeyModel(Base):
     request_hash: Mapped[str] = mapped_column(String(64))
     order_id: Mapped[UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class InboxMessageModel(Base):
+    __tablename__ = "inbox_messages"
+
+    message_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    consumer: Mapped[str] = mapped_column(String(100), primary_key=True)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

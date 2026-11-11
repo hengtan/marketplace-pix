@@ -35,9 +35,13 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [ ] Cancelar a cobrança no PSP quando expira; reembolso de pagamento tardio
 - [ ] Extrair outbox, relay e inbox para `backend/libs` (hoje copiados do ordering)
 
-## Fase 3: Saga completa (ordering + payments)
-- [ ] Orquestrador no ordering, com compensação e timeout
-- [ ] Testes de falha: serviço fora do ar, evento duplicado, PIX expirado
+## Fase 3: Saga completa (ordering + payments) (FEITA)
+- [x] `ordering` consome `payments.events` com inbox: `PaymentConfirmed` marca o pedido como pago, `PaymentExpired` cancela
+- [x] Pedido bloqueado com `FOR UPDATE`: confirmação e expiração concorrentes têm um vencedor só (o outro vira CONFLICT)
+- [x] Teste ponta a ponta nos containers: pedido pago e pedido com PIX expirado
+- [ ] Conflito (pagamento confirmado para pedido já cancelado) hoje só é registrado em log: falta reembolso
+- [ ] Orquestrador explícito (hoje a saga é coreografada por eventos) e timeout no próprio pedido
+- [ ] Teste automatizado ponta a ponta entre os dois serviços (hoje só manual)
 
 ## Fase 4: `ledger`
 - [ ] Dupla entrada (soma de débitos = soma de créditos)

@@ -15,6 +15,12 @@ class FakeDatabase:
         self.inbox: set[tuple[UUID, str]] = set()
 
 
+def persisted(payment: Payment) -> Payment:
+    clone = copy.deepcopy(payment)
+    clone._events = []
+    return clone
+
+
 class FakePayments:
     def __init__(self, uow: "FakeUow") -> None:
         self._uow = uow
@@ -24,7 +30,7 @@ class FakePayments:
         return [copy.deepcopy(p) for p in merged.values()]
 
     async def add(self, payment: Payment) -> None:
-        self._uow.staged_payments[payment.id] = copy.deepcopy(payment)
+        self._uow.staged_payments[payment.id] = persisted(payment)
 
     async def get_by_order(self, order_id: UUID) -> Payment | None:
         return next((p for p in self._all() if p.order_id == order_id), None)
@@ -33,7 +39,7 @@ class FakePayments:
         return next((p for p in self._all() if p.psp_charge_id == charge_id), None)
 
     async def save(self, payment: Payment) -> None:
-        self._uow.staged_payments[payment.id] = copy.deepcopy(payment)
+        self._uow.staged_payments[payment.id] = persisted(payment)
 
     async def fetch_expired(self, now: datetime, limit: int) -> list[Payment]:
         due = [p for p in self._all() if p.status is PaymentStatus.PENDING and p.expires_at <= now]

@@ -6,6 +6,7 @@ from typing import Self
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ordering.infrastructure.db.idempotency import SqlAlchemyIdempotencyStore
+from ordering.infrastructure.db.inbox import SqlAlchemyInboxStore
 from ordering.infrastructure.db.outbox import SqlAlchemyOutbox
 from ordering.infrastructure.db.outbox_store import SqlAlchemyOutboxStore
 from ordering.infrastructure.db.repositories import SqlAlchemyOrderRepository
@@ -19,6 +20,7 @@ class SqlAlchemyUnitOfWork:
         self._outbox: SqlAlchemyOutbox | None = None
         self._outbox_store: SqlAlchemyOutboxStore | None = None
         self._idempotency: SqlAlchemyIdempotencyStore | None = None
+        self._inbox: SqlAlchemyInboxStore | None = None
 
     @property
     def orders(self) -> SqlAlchemyOrderRepository:
@@ -36,6 +38,11 @@ class SqlAlchemyUnitOfWork:
         return self._idempotency
 
     @property
+    def inbox(self) -> SqlAlchemyInboxStore:
+        assert self._inbox is not None, "use inside 'async with'"
+        return self._inbox
+
+    @property
     def outbox_store(self) -> SqlAlchemyOutboxStore:
         assert self._outbox_store is not None, "use inside 'async with'"
         return self._outbox_store
@@ -46,6 +53,7 @@ class SqlAlchemyUnitOfWork:
         self._outbox = SqlAlchemyOutbox(self._session)
         self._outbox_store = SqlAlchemyOutboxStore(self._session)
         self._idempotency = SqlAlchemyIdempotencyStore(self._session)
+        self._inbox = SqlAlchemyInboxStore(self._session)
         return self
 
     async def __aexit__(
