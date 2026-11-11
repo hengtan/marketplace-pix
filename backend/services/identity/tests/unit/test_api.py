@@ -134,3 +134,19 @@ def test_jwks_is_public(client: TestClient) -> None:
     response = client.get("/.well-known/jwks.json")
     assert response.status_code == 200
     assert response.json() == {"keys": []}
+
+
+def test_register_ignores_a_client_supplied_role(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "sneaky@example.com",
+            "name": "Sneaky",
+            "password": PASSWORD,
+            "roles": ["admin"],
+            "merchant_id": str(uuid4()),
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["user"]["roles"] == ["customer"]
+    assert response.json()["user"]["merchant_id"] is None
