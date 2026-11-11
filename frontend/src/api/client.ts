@@ -33,7 +33,7 @@ export function buildUrl(path: string, query?: Query): string {
   return url.toString();
 }
 
-async function toError(res: Response): Promise<ApiError> {
+export async function toError(res: Response): Promise<ApiError> {
   let message = "Algo deu errado. Tente novamente em instantes.";
   try {
     const parsed = errorSchema.safeParse(await res.json());
