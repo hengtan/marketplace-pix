@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     retrieval_final: int = 4
     rrf_k: int = 60
     retrieval_min_score: float = 0.1
+    retrieval_relative_cutoff: float = 0.5
 
     agent_max_steps: int = 3
     max_message_chars: int = 1000

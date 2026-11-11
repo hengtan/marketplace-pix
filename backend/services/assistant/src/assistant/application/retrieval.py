@@ -18,6 +18,7 @@ class RetrievalConfig:
     final: int = 4
     rrf_k: int = 60
     min_score: float = 0.1
+    relative_cutoff: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,9 @@ class HybridRetriever:
         candidates = _one_per_product(ordered)[: cfg.candidates]
         reranked = self._reranker.rerank(query_text, candidates, cfg.final)
         final = [p for p in reranked if p.score >= cfg.min_score]
+        if final:
+            floor = final[0].score * cfg.relative_cutoff
+            final = [p for p in final if p.score >= floor]
         if sort == "price_asc":
             final.sort(key=lambda p: (p.price_cents, -p.rating))
         elif sort == "rating_desc":

@@ -127,6 +127,7 @@ def build_container(
             final=settings.retrieval_final,
             rrf_k=settings.rrf_k,
             min_score=settings.retrieval_min_score,
+            relative_cutoff=settings.retrieval_relative_cutoff,
         ),
     )
     tools: dict[str, Tool] = {
