@@ -26,16 +26,16 @@ export function DialogContent({
 }: ContentProps) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-[oklch(0.15_0.04_268/0.55)] backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+      <D.Overlay className="fixed inset-0 z-50 bg-[oklch(0.12_0.04_275/0.5)] backdrop-blur-sm data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
       <D.Content
         className={cn(
-          "fixed z-50 flex flex-col bg-surface text-foreground shadow-lift outline-none duration-300 data-[state=closed]:animate-out data-[state=open]:animate-in",
+          "fixed z-50 flex flex-col border border-border bg-surface text-foreground shadow-lift outline-none duration-500 ease-out data-[state=closed]:animate-out data-[state=open]:animate-in",
           side === "center" &&
-            "top-1/2 left-1/2 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+            "top-1/2 left-1/2 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           side === "right" &&
-            "inset-y-0 right-0 h-dvh w-full max-w-md data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:rounded-l-xl",
+            "inset-y-0 right-0 h-dvh w-full max-w-md data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:rounded-l-2xl",
           side === "top" &&
-            "top-[10dvh] left-1/2 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-lg data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-4",
+            "top-[10dvh] left-1/2 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-4",
           className,
         )}
         {...props}

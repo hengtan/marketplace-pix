@@ -1,20 +1,12 @@
-import { Armchair, Cpu, Mountain, Package } from "lucide-react";
 import { type CSSProperties, useState } from "react";
 import { cn } from "@/lib/utils";
+import { hashOf, kindFor, ProductArt } from "./product-art";
 
-const CATEGORY_HUE: Record<string, number> = { tecnologia: 268, casa: 55, esporte: 165 };
+const CATEGORY_HUE: Record<string, number> = { tecnologia: 272, casa: 48, esporte: 168 };
 
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function Glyph({ category, className }: { category: string; className?: string }) {
-  if (category === "tecnologia") return <Cpu className={className} strokeWidth={1.25} />;
-  if (category === "casa") return <Armchair className={className} strokeWidth={1.25} />;
-  if (category === "esporte") return <Mountain className={className} strokeWidth={1.25} />;
-  return <Package className={className} strokeWidth={1.25} />;
+function firstParty(src: string | null): src is string {
+  if (!src) return false;
+  return src.startsWith("/") && !src.startsWith("//");
 }
 
 interface Props {
@@ -23,9 +15,22 @@ interface Props {
   category: string;
   seed: string;
   className?: string;
-  glyphClassName?: string;
   priority?: boolean;
   size?: number;
+  float?: boolean;
+}
+
+export function artStyle(category: string, seed: string): CSSProperties {
+  const h = hashOf(seed);
+  const hue = (CATEGORY_HUE[category] ?? 272) + (h % 36) - 18;
+  return {
+    "--art-bg1": `oklch(var(--art-l1) 0.1 ${hue})`,
+    "--art-bg2": `oklch(var(--art-l2) 0.19 ${hue + 28})`,
+    "--art-hi": "oklch(0.985 0.01 90)",
+    "--art-mid": `oklch(0.86 0.06 ${hue})`,
+    "--art-lo": `oklch(0.3 0.09 ${hue + 10})`,
+    "--art-acc": `oklch(0.78 0.17 ${(hue + 150) % 360})`,
+  } as CSSProperties;
 }
 
 export function ProductImage({
@@ -34,26 +39,20 @@ export function ProductImage({
   category,
   seed,
   className,
-  glyphClassName,
   priority,
   size = 640,
+  float,
 }: Props) {
   const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const showImage = src && !failed;
-  const h = hash(seed);
-  const hue = (CATEGORY_HUE[category] ?? 268) + (h % 40) - 20;
-  const style = {
-    "--h": hue,
-    backgroundImage: `radial-gradient(120% 90% at ${20 + (h % 60)}% 0%, oklch(0.9 0.09 var(--h)), transparent 60%), linear-gradient(155deg, oklch(0.84 0.1 var(--h)), oklch(0.6 0.16 calc(var(--h) + 24)))`,
-  } as CSSProperties;
+  const useImage = firstParty(src) && !failed;
+  const h = hashOf(seed);
 
   return (
     <div
       className={cn("relative aspect-square overflow-hidden bg-surface-2", className)}
-      style={showImage && loaded ? undefined : style}
+      style={artStyle(category, seed)}
     >
-      {showImage ? (
+      {useImage ? (
         <img
           src={src}
           alt={alt}
@@ -61,23 +60,15 @@ export function ProductImage({
           height={size}
           loading={priority ? "eager" : "lazy"}
           decoding="async"
-          fetchPriority={priority ? "high" : "auto"}
-          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={cn(
-            "absolute inset-0 size-full object-cover transition-opacity duration-500",
-            loaded ? "opacity-100" : "opacity-0",
-          )}
+          className="absolute inset-0 size-full object-cover"
         />
       ) : (
         <div
           {...(alt ? { role: "img", "aria-label": alt } : { "aria-hidden": true })}
-          className="absolute inset-0 grid place-items-center"
+          className="absolute inset-0"
         >
-          <Glyph
-            category={category}
-            className={cn("size-1/3 text-white/85 drop-shadow-sm", glyphClassName)}
-          />
+          <ProductArt kind={kindFor(seed, category)} seed={h} float={float} />
         </div>
       )}
     </div>

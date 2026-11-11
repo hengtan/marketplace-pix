@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export default function OrdersPage() {
           <ErrorState message={error.message} onRetry={() => refetch()} />
         ) : data.items.length === 0 ? (
           <EmptyState
-            icon={<ClipboardList className="size-7" />}
+            art="orders"
             title="Você ainda não fez pedidos"
             description="Quando você pagar um PIX, o pedido aparece aqui."
             action={

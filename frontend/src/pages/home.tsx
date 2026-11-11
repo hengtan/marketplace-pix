@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { ArrowDownUp, Search, SearchX, X } from "lucide-react";
+import { ArrowDownUp, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProductFilters, ProductSort } from "@/api/endpoints";
 import { ProductCard, ProductCardSkeleton } from "@/components/product-card";
@@ -249,7 +249,7 @@ export default function HomePage() {
             </ul>
           ) : products.length === 0 ? (
             <EmptyState
-              icon={<SearchX className="size-7" />}
+              art="search"
               title="Nenhum produto encontrado"
               description="Tente outra palavra, outra faixa de preço ou remova os filtros."
               action={

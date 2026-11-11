@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Lock, QrCode, ShoppingBag } from "lucide-react";
+import { Lock, QrCode } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api } from "@/api/endpoints";
@@ -68,7 +68,7 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <EmptyState
-          icon={<ShoppingBag className="size-7" />}
+          art="cart"
           title="Seu carrinho está vazio"
           description="Adicione produtos para ver o resumo e pagar com PIX."
           action={

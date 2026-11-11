@@ -21,6 +21,7 @@ function NotFound() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <EmptyState
+        art="lost"
         title="Página não encontrada"
         description="O endereço não existe ou foi movido."
         action={
