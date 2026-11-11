@@ -1,8 +1,10 @@
+[English](../SECURITY.md) | **Português (Brasil)**
+
 # Segurança
 
 Modelo de ameaças resumido (STRIDE), mapa do OWASP API Security Top 10 (2023) para o que foi feito, limitações
 conhecidas e um roteiro de fala para entrevista. A decisão de arquitetura da identidade está em
-`docs/adr/0001-identidade-como-servico.md`, e os contratos das rotas em `docs/CONTRATOS.md`.
+`docs/pt-BR/adr/0001-identidade-como-servico.md`, e os contratos das rotas em `docs/pt-BR/CONTRATOS.md`.
 
 ## 1. Fronteiras de confiança
 
@@ -66,7 +68,7 @@ recusa a subir sem `INTERNAL_AUTH_SECRET`.
 | API6 | Acesso irrestrito a fluxos de negócio sensíveis | Idempotência no pedido, reserva de estoque com TTL e cancelamento por timeout da saga (sem acaparar estoque), pagamento tardio reembolsado, cobrança vencida cancelada no PSP, checkout de convidado desligável (`ALLOW_GUEST_CHECKOUT=false`), cadastro em massa freado por limite e espera progressiva | Sem captcha nem prova de trabalho: um atacante com muitos IPs ainda cria contas devagar |
 | API7 | SSRF | O gateway só fala com a lista fixa de upstreams da configuração; nenhum endpoint recebe URL do cliente | O assistente tem ferramentas que chamam outros serviços, mas só com URLs fixas da configuração |
 | API8 | Configuração incorreta de segurança | CORS por origem, cabeçalhos de segurança em toda resposta do gateway (`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Resource-Policy`; HSTS atrás da flag `HSTS_ENABLED`, desligado em desenvolvimento), rotas de desenvolvimento desligadas por padrão e, quando ligadas, autenticadas, o gateway se recusa a subir sem segredo interno, a produção exige chave de assinatura, segredos só por ambiente, erros sem detalhes internos | Sem CSP (o gateway só serve JSON; a CSP é do servidor do frontend); portas dos serviços publicadas no host em desenvolvimento (por isso a identidade é assinada) |
-| API9 | Gestão inadequada de inventário | Uma única tabela de rotas e portas (`docs/CONTRATOS.md`), eventos com versão e arquivos golden, matriz de acesso documentada, rotas de desenvolvimento marcadas | Sem descoberta automática de rotas expostas (um `openapi` consolidado) |
+| API9 | Gestão inadequada de inventário | Uma única tabela de rotas e portas (`docs/pt-BR/CONTRATOS.md`), eventos com versão e arquivos golden, matriz de acesso documentada, rotas de desenvolvimento marcadas | Sem descoberta automática de rotas expostas (um `openapi` consolidado) |
 | API10 | Consumo inseguro de APIs | Preço e lojista vêm do catálogo e não do cliente, webhook do PSP com HMAC e reconsulta, eventos validados por modelo e com retry e DLQ, contrato de evento testado dos dois lados | O catálogo e o PSP simulado são confiáveis por construção neste estudo |
 
 ## 4. Como a autorização está montada

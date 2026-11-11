@@ -1,3 +1,5 @@
+[English](../EVENT-EVOLUTION.md) | **Português (Brasil)**
+
 # Evolução de eventos
 
 Como mudar o formato de um evento do Kafka sem quebrar quem produz, quem consome e as mensagens que já
