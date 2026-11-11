@@ -40,6 +40,32 @@ x-catalog: &catalog
     POSTGRES_PORT: 5432
     CATALOG_DB: catalog
 
+x-ledger: &ledger
+  build:
+    context: ../backend/services/ledger
+  image: marketplace-pix/ledger:dev
+  profiles: ["services"]
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    LEDGER_DB: ledger
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
+x-inventory: &inventory
+  build:
+    context: ../backend/services/inventory
+  image: marketplace-pix/inventory:dev
+  profiles: ["services"]
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    INVENTORY_DB: inventory
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
 services:
   postgres:
     image: postgres:17
@@ -102,7 +128,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        for t in orders.events payments.events inventory.events ledger.events; do
+        for t in orders.events payments.events inventory.events ledger.events orders.events.dlq payments.events.dlq inventory.events.dlq; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic $$t --partitions 3 --replication-factor 1
         done
 
@@ -229,6 +255,92 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+
+  ledger-migrate:
+    <<: *ledger
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  ledger-api:
+    <<: *ledger
+    ports:
+      - "${LEDGER_PORT:-8005}:8000"
+    depends_on:
+      ledger-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  ledger-worker:
+    <<: *ledger
+    command: ["python", "-m", "ledger.worker_main"]
+    depends_on:
+      ledger-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+
+  ledger-relay:
+    <<: *ledger
+    command: ["python", "-m", "ledger.relay_main"]
+    depends_on:
+      ledger-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+
+  inventory-migrate:
+    <<: *inventory
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  inventory-seed:
+    <<: *inventory
+    command: ["python", "-m", "inventory.seed"]
+    depends_on:
+      inventory-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  inventory-api:
+    <<: *inventory
+    ports:
+      - "${INVENTORY_PORT:-8004}:8000"
+    depends_on:
+      inventory-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  inventory-worker:
+    <<: *inventory
+    command: ["python", "-m", "inventory.worker_main"]
+    depends_on:
+      inventory-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+
+  inventory-relay:
+    <<: *inventory
+    command: ["python", "-m", "inventory.relay_main"]
+    depends_on:
+      inventory-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
 
   gateway:
     build:
