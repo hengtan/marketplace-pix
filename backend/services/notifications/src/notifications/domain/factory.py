@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -29,6 +29,10 @@ def order_ref(order_id: UUID) -> str:
 
 def subject_for(kind: NotificationKind, order_id: UUID) -> str:
     return SUBJECTS[kind].format(ref=order_ref(order_id))
+
+
+def daily_summary_subject(day: date) -> str:
+    return f"Resumo de vendas de {day.strftime('%d/%m/%Y')}"
 
 
 def notification_id_for(event_id: UUID, kind: NotificationKind) -> UUID:
