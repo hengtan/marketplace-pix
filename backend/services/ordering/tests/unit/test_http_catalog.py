@@ -77,3 +77,25 @@ async def test_accepts_the_paginated_envelope_returned_by_the_real_catalog():
     (found,) = await gateway(lambda r: httpx.Response(200, json=envelope)).get_products([pid])
 
     assert found.id == pid and found.price_cents == 12990
+
+
+async def test_forwards_the_remaining_deadline_to_the_catalog():
+    from marketplace_common.resilience import Deadline, DeadlineExceeded, deadline_scope
+
+    pid = uuid4()
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=[product(pid)])
+
+    catalog = gateway(handler)
+    await catalog.get_products([pid])
+    with deadline_scope(Deadline.after(2.0)):
+        await catalog.get_products([pid])
+    with deadline_scope(Deadline.after(0.0)), pytest.raises(DeadlineExceeded):
+        await catalog.get_products([pid])
+
+    assert "x-request-deadline" not in seen[0].headers
+    assert 1000 < int(seen[1].headers["x-request-deadline"]) <= 2000
+    assert len(seen) == 2
