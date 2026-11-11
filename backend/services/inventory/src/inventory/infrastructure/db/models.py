@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Uuid, func, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Integer, String, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -20,6 +20,7 @@ class StockModel(Base):
     available: Mapped[int] = mapped_column(Integer)
     reserved: Mapped[int] = mapped_column(Integer, server_default="0")
     merchant_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, server_default="true", default=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

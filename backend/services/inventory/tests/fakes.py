@@ -50,7 +50,7 @@ class FakeStocks:
 
     async def list_by_merchant(self, merchant_id: UUID, limit: int) -> list[Stock]:
         merged = {**self._uow.db.stocks, **self._uow.staged_stocks}
-        mine = [s for s in merged.values() if s.merchant_id == merchant_id]
+        mine = [s for s in merged.values() if s.merchant_id == merchant_id and s.active]
         return [copy.deepcopy(s) for s in mine][:limit]
 
 

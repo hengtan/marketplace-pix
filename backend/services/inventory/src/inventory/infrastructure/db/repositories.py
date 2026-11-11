@@ -4,7 +4,7 @@ from collections.abc import Collection
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +38,7 @@ class SqlAlchemyStockRepository:
             available=stock.available,
             reserved=stock.reserved,
             merchant_id=stock.merchant_id,
+            active=stock.active,
         )
         await self._session.execute(
             stmt.on_conflict_do_update(
@@ -45,6 +46,8 @@ class SqlAlchemyStockRepository:
                 set_={
                     "available": stmt.excluded.available,
                     "reserved": stmt.excluded.reserved,
+                    "active": stmt.excluded.active,
+                    "merchant_id": func.coalesce(StockModel.merchant_id, stmt.excluded.merchant_id),
                     "updated_at": stmt.excluded.updated_at,
                 },
             )
@@ -58,7 +61,7 @@ class SqlAlchemyStockRepository:
     async def list_by_merchant(self, merchant_id: UUID, limit: int) -> list[Stock]:
         stmt = (
             select(StockModel)
-            .where(StockModel.merchant_id == merchant_id)
+            .where(StockModel.merchant_id == merchant_id, StockModel.active.is_(True))
             .order_by(StockModel.product_id)
             .limit(limit)
         )
@@ -67,7 +70,7 @@ class SqlAlchemyStockRepository:
 
 
 def _stock(row: StockModel) -> Stock:
-    return Stock(row.product_id, row.available, row.reserved, row.merchant_id)
+    return Stock(row.product_id, row.available, row.reserved, row.merchant_id, row.active)
 
 
 def _to_domain(row: ReservationModel) -> Reservation:

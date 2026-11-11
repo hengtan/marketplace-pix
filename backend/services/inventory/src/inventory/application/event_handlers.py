@@ -60,17 +60,18 @@ class HandleCatalogEvent:
         self._register = RegisterProduct(uow_factory)
 
     async def handle(self, event: IncomingEvent) -> Outcome:
-        if event.type != "ProductCreated":
+        if event.type not in {"ProductCreated", "ProductDeactivated"}:
             return Outcome.IGNORED
         try:
             product_id = UUID(str(event.payload["product_id"]))
             merchant_id = UUID(str(event.payload["merchant_id"]))
         except (KeyError, ValueError, TypeError):
-            logger.error("invalid ProductCreated payload skipped (event %s)", event.id)
+            logger.error("invalid %s payload skipped (event %s)", event.type, event.id)
             return Outcome.IGNORED
-        return await self._register.execute(
-            product_id, merchant_id, Delivery(event.id, CATALOG_CONSUMER)
-        )
+        delivery = Delivery(event.id, CATALOG_CONSUMER)
+        if event.type == "ProductDeactivated":
+            return await self._register.deactivate(product_id, delivery)
+        return await self._register.execute(product_id, merchant_id, delivery)
 
 
 class HandlePaymentEvent:

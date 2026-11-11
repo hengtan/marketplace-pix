@@ -166,4 +166,45 @@ check "lojista de outra loja não altera o preço (403)" "$(status -X PATCH "$G/
 curl -s -o /dev/null -X PATCH "$G/catalog/products/$CORDA" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d "{\"price_cents\":$OLD}"
 wait_for "preço volta ao original no assistente" "chat 'quanto custa a corda de pular speed?' | grep -c '49,90'" "1" 40
 
+echo "== 12. Ciclo de vida do lojista: do produto novo ao dinheiro no painel"
+LN=$RANDOM$RANDOM
+LNAME="Ciclo Teste $LN"
+LCREATE=$(curl -s -w '\n%{http_code}' -X POST "$G/catalog/products" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" \
+  -d "{\"name\":\"$LNAME\",\"description\":\"Produto criado pelo teste de ciclo de vida do lojista\",\"category\":\"esporte\",\"price_cents\":4990}")
+check "lojista cria um produto (201)" "$(echo "$LCREATE" | tail -n1)" "201"
+LPID=$(echo "$LCREATE" | sed '$d' | jget "d['id']"); LSLUG=$(echo "$LCREATE" | sed '$d' | jget "d['slug']")
+wait_for "o inventário cria a linha de estoque sozinha, vazia" "curl -s '$G/inventory/stock/$LPID' | jget \"d['available']\"" "0" 40
+L0=$(post_order "$LPID" 1 "$(python3 -c 'import uuid;print(uuid.uuid4())')" "ciclo0.$LN@example.com" "ciclo0-$LN"); L0CODE=$(cat "$CODE_FILE")
+check "pedido de produto ainda sem estoque é aceito (201)" "$L0CODE" "201"
+L0ID=$(echo "$L0" | jget "d['id']")
+wait_for "e a saga o cancela por falta de estoque, antes de qualquer cobrança" "curl -s '$G/orders/$L0ID' | jget \"d['status']\"" "CANCELLED" 40
+check "outro lojista não define o estoque do produto (403)" "$(status -X PUT "$G/inventory/stock/$LPID" -H 'content-type: application/json' -H "$(auth "$(login "aurora-tech@marketplace-pix.local" "$SEED_PASSWORD")")" -d '{"available":99}')" "403"
+check "dono define o estoque em 30 (200)" "$(status -X PUT "$G/inventory/stock/$LPID" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d '{"available":30}')" "200"
+check "o produto aparece na vitrine por slug" "$(status "$G/catalog/products/slug/$LSLUG")" "200"
+check "o produto aparece na busca" "$(curl -s "$G/catalog/products?q=Ciclo+Teste+$LN" | jget "len([p for p in d['items'] if p['slug']=='$LSLUG'])")" "1"
+GROSS0=$(curl -s "$G/ledger/merchants/$TRILHA/summary?days=1" -H "$(auth "$MERCHANT_TOKEN")" | jget "d['gross_sales_cents']")
+LCUST=$(python3 -c 'import uuid;print(uuid.uuid4())')
+LORDER_BODY=$(post_order "$LPID" 2 "$LCUST" "ciclo.$LN@example.com" "ciclo-$LN")
+check "convidado compra 2 unidades (201)" "$(cat "$CODE_FILE")" "201"
+LORDER=$(echo "$LORDER_BODY" | jget "d['id']")
+wait_for "o estoque reserva as 2 unidades" "curl -s '$G/inventory/stock/$LPID' | jget \"d['available']\"" "28" 30
+wait_for "a cobrança PIX é criada" "curl -s '$G/payments/by-order/$LORDER' | jget \"d['status']\"" "PENDING" 30
+LCHARGE=$(curl -s "$G/payments/by-order/$LORDER" | jget "d['psp_charge_id']")
+check "convidado paga o próprio PIX sem login (200)" "$(status -X POST "$G/payments/dev/psp/charges/$LCHARGE/pay")" "200"
+wait_for "o pedido fica PAID" "curl -s '$G/orders/$LORDER' | jget \"d['status']\"" "PAID" 40
+wait_for "o pedido aparece na fila do lojista como PAID" "curl -s '$G/orders/merchant?page_size=50' -H '$(auth "$MERCHANT_TOKEN")' | jget \"[o['status'] for o in d['items'] if o['id']=='$LORDER'][0]\"" "PAID" 30
+wait_for "o livro-razão credita a venda ao lojista (2 x R\$ 49,90)" "curl -s '$G/ledger/merchants/$TRILHA/summary?days=1' -H '$(auth "$MERCHANT_TOKEN")' | jget \"d['gross_sales_cents']-$GROSS0\"" "9980" 40
+check "a venda definitiva mantém 28 em estoque" "$(curl -s "$G/inventory/stock/$LPID" | jget "d['available']")" "28"
+check "dono altera o preço (200)" "$(status -X PATCH "$G/catalog/products/$LPID" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d '{"price_cents":5990}')" "200"
+check "o preço novo vale na hora na vitrine" "$(curl -s "$G/catalog/products/slug/$LSLUG" | jget "d['price_cents']")" "5990"
+check "dono desativa o produto (204)" "$(status -X DELETE "$G/catalog/products/$LPID" -H "$(auth "$MERCHANT_TOKEN")")" "204"
+check "o produto desativado some da vitrine (404)" "$(status "$G/catalog/products/slug/$LSLUG")" "404"
+check "não dá para comprar um produto desativado (422)" "$(post_order "$LPID" 1 "$LCUST" "ciclo2.$LN@example.com" "ciclo2-$LN" >/dev/null; cat "$CODE_FILE")" "422"
+check "outro lojista não reativa o produto (403)" "$(status -X POST "$G/catalog/products/$LPID/reactivate" -H "$(auth "$(login "aurora-tech@marketplace-pix.local" "$SEED_PASSWORD")")")" "403"
+check "dono reativa o produto (200)" "$(status -X POST "$G/catalog/products/$LPID/reactivate" -H "$(auth "$MERCHANT_TOKEN")")" "200"
+check "o produto reativado volta à vitrine com o preço novo" "$(curl -s "$G/catalog/products/slug/$LSLUG" | jget "d['price_cents']")" "5990"
+check "reativar mantém o estoque que já existia" "$(curl -s "$G/inventory/stock/$LPID" | jget "d['available']")" "28"
+wait_for "o assistente volta a conhecer o produto reativado" "curl -s -X POST '$G/assistant/chat' -H 'content-type: application/json' -d '{\"message\":\"$LNAME\"}' | grep -c 'Ciclo Teste $LN'" "1" 40
+curl -s -o /dev/null -X DELETE "$G/catalog/products/$LPID" -H "$(auth "$MERCHANT_TOKEN")"
+
 summary_result

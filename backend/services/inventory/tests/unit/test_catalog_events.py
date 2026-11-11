@@ -91,3 +91,40 @@ async def test_other_catalog_events_do_not_touch_stock(db, handler) -> None:
 
 def test_the_consumer_group_name_is_stable() -> None:
     assert CATALOG_CONSUMER == "inventory-catalog"
+
+
+def deactivated(product_id, merchant_id) -> IncomingEvent:
+    return IncomingEvent(
+        id=uuid4(),
+        type="ProductDeactivated",
+        key=str(product_id),
+        payload={"product_id": str(product_id), "merchant_id": str(merchant_id)},
+    )
+
+
+async def test_a_deactivated_product_leaves_the_merchant_list_but_keeps_its_quantity(
+    db, handler
+) -> None:
+    product_id, merchant_id = uuid4(), uuid4()
+    db.stocks[product_id] = Stock(product_id, 12, merchant_id=merchant_id)
+
+    assert await handler.handle(deactivated(product_id, merchant_id)) is Outcome.PROCESSED
+
+    async with FakeUow(db) as uow:
+        assert await uow.stocks.list_by_merchant(merchant_id, 10) == []
+    assert db.stocks[product_id].available == 12
+
+
+async def test_reactivation_brings_the_stock_back_without_touching_the_quantity(
+    db, handler
+) -> None:
+    product_id, merchant_id = uuid4(), uuid4()
+    db.stocks[product_id] = Stock(product_id, 12, merchant_id=merchant_id, active=False)
+
+    await handler.handle(created(product_id, merchant_id))
+
+    assert (db.stocks[product_id].active, db.stocks[product_id].available) == (True, 12)
+
+
+async def test_deactivating_an_unknown_product_is_ignored(db, handler) -> None:
+    assert await handler.handle(deactivated(uuid4(), uuid4())) is Outcome.IGNORED
