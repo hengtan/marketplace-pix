@@ -63,9 +63,7 @@ def _to_domain(row: ReservationModel) -> Reservation:
 
 
 def _items_json(reservation: Reservation) -> list[dict[str, str | int]]:
-    return [
-        {"product_id": str(i.product_id), "quantity": i.quantity} for i in reservation.items
-    ]
+    return [{"product_id": str(i.product_id), "quantity": i.quantity} for i in reservation.items]
 
 
 class SqlAlchemyReservationRepository:
