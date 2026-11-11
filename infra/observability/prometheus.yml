@@ -1,0 +1,136 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["gateway:8000"]
+        labels:
+          service: gateway
+          component: api
+
+  - job_name: catalog-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["catalog-api:8000"]
+        labels:
+          service: catalog
+          component: api
+
+  - job_name: ordering-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ordering-api:8000"]
+        labels:
+          service: ordering
+          component: api
+
+  - job_name: ordering-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ordering-worker:9100"]
+        labels:
+          service: ordering
+          component: worker
+
+  - job_name: ordering-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ordering-relay:9100"]
+        labels:
+          service: ordering
+          component: relay
+
+  - job_name: payments-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["payments-api:8000"]
+        labels:
+          service: payments
+          component: api
+
+  - job_name: payments-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["payments-worker:9100"]
+        labels:
+          service: payments
+          component: worker
+
+  - job_name: payments-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["payments-relay:9100"]
+        labels:
+          service: payments
+          component: relay
+
+  - job_name: inventory-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["inventory-api:8000"]
+        labels:
+          service: inventory
+          component: api
+
+  - job_name: inventory-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["inventory-worker:9100"]
+        labels:
+          service: inventory
+          component: worker
+
+  - job_name: inventory-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["inventory-relay:9100"]
+        labels:
+          service: inventory
+          component: relay
+
+  - job_name: ledger-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ledger-api:8000"]
+        labels:
+          service: ledger
+          component: api
+
+  - job_name: ledger-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ledger-worker:9100"]
+        labels:
+          service: ledger
+          component: worker
+
+  - job_name: ledger-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ledger-relay:9100"]
+        labels:
+          service: ledger
+          component: relay
+
+  - job_name: notifications-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["notifications-api:8000"]
+        labels:
+          service: notifications
+          component: api
+
+  - job_name: notifications-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["notifications-worker:9100"]
+        labels:
+          service: notifications
+          component: worker

@@ -1,0 +1,95 @@
+name: marketplace-pix
+
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      MEMORY_MAX_TRACES: "5000"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+    mem_limit: 256m
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=3d
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    mem_limit: 384m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.6.1
+    depends_on:
+      - prometheus
+      - jaeger
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: light
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    mem_limit: 256m
+    restart: unless-stopped
+
+  gateway:
+    environment: *otel
+
+  ordering-api:
+    environment: *otel
+  ordering-worker:
+    environment: *otel
+  ordering-relay:
+    environment: *otel
+
+  payments-api:
+    environment: *otel
+  payments-worker:
+    environment: *otel
+  payments-relay:
+    environment: *otel
+
+  inventory-api:
+    environment: *otel
+  inventory-worker:
+    environment: *otel
+  inventory-relay:
+    environment: *otel
+
+  ledger-api:
+    environment: *otel
+  ledger-worker:
+    environment: *otel
+  ledger-relay:
+    environment: *otel
+
+  notifications-api:
+    environment: *otel
+  notifications-worker:
+    environment: *otel
+
+  catalog-api:
+    environment: *otel
+
+volumes:
+  promdata:
+  grafanadata:
