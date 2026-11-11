@@ -569,7 +569,9 @@ function ownedBy(productId: string, merchantId: string | null): boolean {
 }
 
 export function merchantStock(merchantId: string) {
-  return PRODUCTS.filter((p) => p.merchant.id === merchantId).map((p) => getStock(p.id));
+  return PRODUCTS.filter((p) => p.merchant.id === merchantId && state.stock.has(p.id)).map((p) =>
+    getStock(p.id),
+  );
 }
 
 export function merchantOrders(merchantId: string): MerchantOrder[] {
@@ -658,7 +660,6 @@ export function createProduct(
   const op: CatalogOp = { op: "create", product };
   applyOp(op);
   state.catalogLog.push(op);
-  state.stock.set(product.id, { available: 0, reserved: 0 });
   persist();
   return { ok: true, value: product };
 }
@@ -694,4 +695,8 @@ export function deactivateProduct(id: string) {
   applyOp(op);
   state.catalogLog.push(op);
   persist();
+}
+
+export function hasStockRow(productId: string): boolean {
+  return state.stock.has(productId);
 }

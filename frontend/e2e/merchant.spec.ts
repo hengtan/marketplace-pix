@@ -215,7 +215,10 @@ test("products: create with validation, edit the price and deactivate", async ({
   await dialog.getByLabel("Categoria").selectOption("esporte");
   await dialog.getByLabel("Estoque inicial").fill("12");
   await dialog.getByRole("button", { name: "Criar produto" }).click();
-  await expect(page.getByText("Produto criado")).toBeVisible();
+  await expect(page.getByText("Produto criado, ainda sem estoque")).toBeVisible();
+  await expect(page.getByTestId("merchant-product").first()).toContainText(
+    "Sem estoque cadastrado",
+  );
   await expect(page.getByTestId("merchant-product")).toHaveCount(before + 1);
   await expect(page.getByTestId("merchant-product").first()).toContainText("R$ 59,90");
 

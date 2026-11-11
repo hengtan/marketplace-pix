@@ -3,10 +3,23 @@ import { api } from "@/api/endpoints";
 import { merchantApi, type NewProductInput, type ProductPatch } from "@/api/merchant";
 import type { Product, Stock } from "@/api/schemas";
 import { writeErrorMessage } from "@/lib/merchant-errors";
+import {
+  applyRecentWrites,
+  forgetRemoved,
+  rememberCreated,
+  rememberPatched,
+  rememberRemoved,
+} from "@/lib/recent-writes";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/store/auth";
 
 export const ORDERS_POLL_MS = 10_000;
+
+const CATALOG_SETTLE_MS = 3_000;
+
+function settleLater(run: () => void) {
+  setTimeout(run, CATALOG_SETTLE_MS);
+}
 
 export const mk = {
   orders: ["merchant-orders"] as const,
@@ -28,7 +41,10 @@ export function useMerchantOrders(enabled: boolean) {
 export function useMerchantProducts(merchantId: string) {
   return useQuery({
     queryKey: mk.products(merchantId),
-    queryFn: ({ signal }) => merchantApi.merchantProducts(merchantId, signal),
+    queryFn: ({ signal }) =>
+      merchantApi
+        .merchantProducts(merchantId, signal)
+        .then((list) => applyRecentWrites(list, merchantId)),
     staleTime: 15_000,
   });
 }
@@ -94,10 +110,14 @@ export function useCreateProduct(merchantId: string) {
   return useMutation({
     mutationFn: (input: NewProductInput) => merchantApi.createProduct(input),
     onSuccess: (product) => {
+      rememberCreated(product);
       client.setQueryData<Product[]>(mk.products(merchantId), (rows) => [product, ...(rows ?? [])]);
-      void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
-      void client.invalidateQueries({ queryKey: ["products"] });
-      void client.invalidateQueries({ queryKey: ["categories"] });
+      settleLater(() => {
+        void client.invalidateQueries({ queryKey: mk.products(merchantId) });
+        void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
+        void client.invalidateQueries({ queryKey: ["products"] });
+        void client.invalidateQueries({ queryKey: ["categories"] });
+      });
     },
   });
 }
@@ -116,13 +136,21 @@ export function useUpdateProduct(merchantId: string) {
       );
       return { previous };
     },
+    onSuccess: (product) => {
+      rememberPatched(product);
+      client.setQueryData<Product[]>(key, (rows) =>
+        rows?.map((p) => (p.id === product.id ? product : p)),
+      );
+    },
     onError: (_e, _v, ctx) => {
       if (ctx?.previous) client.setQueryData(key, ctx.previous);
     },
     onSettled: () => {
-      void client.invalidateQueries({ queryKey: key });
-      void client.invalidateQueries({ queryKey: ["products"] });
-      void client.invalidateQueries({ queryKey: ["product"] });
+      settleLater(() => {
+        void client.invalidateQueries({ queryKey: key });
+        void client.invalidateQueries({ queryKey: ["products"] });
+        void client.invalidateQueries({ queryKey: ["product"] });
+      });
     },
   });
 }
@@ -133,21 +161,25 @@ export function useDeactivateProduct(merchantId: string) {
   return useMutation({
     mutationFn: (id: string) => merchantApi.deactivateProduct(id),
     onMutate: async (id) => {
+      rememberRemoved(id);
       await client.cancelQueries({ queryKey: key });
       const previous = client.getQueryData<Product[]>(key);
       client.setQueryData<Product[]>(key, (rows) => rows?.filter((p) => p.id !== id));
       return { previous };
     },
-    onError: (error, _id, ctx) => {
+    onError: (error, id, ctx) => {
+      forgetRemoved(id);
       if (ctx?.previous) client.setQueryData(key, ctx.previous);
       void toast.error("Produto não desativado", {
         description: writeErrorMessage(error, "catálogo"),
       });
     },
     onSettled: () => {
-      void client.invalidateQueries({ queryKey: key });
-      void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
-      void client.invalidateQueries({ queryKey: ["products"] });
+      settleLater(() => {
+        void client.invalidateQueries({ queryKey: key });
+        void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
+        void client.invalidateQueries({ queryKey: ["products"] });
+      });
     },
   });
 }

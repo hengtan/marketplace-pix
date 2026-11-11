@@ -180,6 +180,7 @@ export const handlers = [
     const scope = writeScope(account);
     const id = String(params.id);
     if (!scope || !db.canWriteProduct(id, scope.merchantId)) return forbidden();
+    if (scope.merchantId !== null && !db.hasStockRow(id)) return forbidden();
     const body = (await request.json()) as { available?: unknown };
     if (!Number.isInteger(body.available) || (body.available as number) < 0)
       return HttpResponse.json(

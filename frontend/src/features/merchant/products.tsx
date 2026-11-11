@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { PackagePlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Badge, Skeleton } from "@/components/ui/misc";
-import { useCreateProduct, useDeactivateProduct, useUpdateProduct } from "@/hooks/merchant";
+import { mk, useCreateProduct, useDeactivateProduct, useUpdateProduct } from "@/hooks/merchant";
 import { useCategories } from "@/hooks/queries";
 import { formatMoney } from "@/lib/format";
 import { writeErrorMessage } from "@/lib/merchant-errors";
@@ -41,6 +42,7 @@ function ProductDialog({
 }) {
   const { merchantId, isAdmin } = useMerchant();
   const categories = useCategories();
+  const client = useQueryClient();
   const create = useCreateProduct(merchantId);
   const update = useUpdateProduct(merchantId);
   const [formError, setFormError] = useState<string | null>(null);
@@ -72,16 +74,26 @@ function ProductDialog({
           toNewProduct(values, isAdmin ? merchantId : undefined),
         );
         const stock = parseStockInput(values.stock.trim() === "" ? "0" : values.stock);
+        let stockSaved = true;
         if (stock.ok && stock.value > 0) {
-          await merchantApi.setStock(created.id, stock.value).catch(() => {
-            void toast.error("Produto criado, estoque não definido", {
-              description: "Defina as unidades na aba Estoque.",
-            });
+          stockSaved = await merchantApi
+            .setStock(created.id, stock.value)
+            .then(() => {
+              void client.invalidateQueries({ queryKey: mk.stock(merchantId) });
+              return true;
+            })
+            .catch(() => false);
+        }
+        if (stockSaved) {
+          void toast.success("Produto criado", {
+            description: `${created.name} já está na vitrine.`,
+          });
+        } else {
+          void toast.message("Produto criado, ainda sem estoque", {
+            description:
+              "O serviço de estoque ainda não reconhece produtos novos. Defina as unidades na aba Estoque quando ele aparecer por lá.",
           });
         }
-        void toast.success("Produto criado", {
-          description: `${created.name} já está na vitrine.`,
-        });
       }
       onClose();
     } catch (error) {
@@ -345,8 +357,12 @@ export function Products() {
                       </p>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                         <Badge tone="primary">{p.category}</Badge>
-                        {available !== undefined && (
+                        {available !== undefined ? (
                           <span className="tabular text-muted">{available} em estoque</span>
+                        ) : (
+                          rows !== undefined && (
+                            <span className="text-muted">Sem estoque cadastrado</span>
+                          )
                         )}
                       </div>
                       <div className="mt-3 flex gap-2">
