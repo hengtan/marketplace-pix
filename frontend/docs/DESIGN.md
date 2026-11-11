@@ -97,9 +97,9 @@ The real contract as observed on the gateway, and how the dashboard handles it:
 - An `admin` account has no store: `orders/merchant` and `stock/mine` respond 403. The Orders tab explains this without calling the API, and Stock uses the public read with `reserved`.
 - Maximum `page_size` of 50 for orders. The dashboard warns when it is showing only the most recent ones.
 - A write without scope or on someone else's product returns 403, and the dashboard shows the message instead of failing silently: stock errors become a toast and a rollback, catalog errors appear in the form. A duplicate name (409) becomes a field error.
-- The API has no product reactivation: deactivating is permanent in the dashboard, and the confirmation says so.
-- A new product has no inventory row yet (the merchant's `PUT` responds 403 until one exists): the dashboard tries to set the initial stock, and if that fails it warns that the product was created without stock.
-- The public catalog list is cached for a while after an edit or deactivation. `src/lib/recent-writes.ts` overlays what the merchant just did for 2 minutes, so the screen does not "go back in time".
+- Deactivation is reversible. The Products tab lists the owner's deactivated products in a "Desativados" (deactivated) section, fed by `GET /catalog/products/mine`, each with a Reactivate button. The stock quantity is preserved. If an account can read but not write, the dashboard falls back to the public list, which shows active products only.
+- A new product gets its inventory row asynchronously, from the `ProductCreated` event (usually within a fraction of a second). The dashboard waits briefly and retries the initial stock `PUT` (`retryUntilReady`), and only warns "Produto criado, ainda sem estoque" if it still cannot save it.
+- Catalog reads revalidate on every request (ETag, `Cache-Control: max-age=0, must-revalidate`) and the owner list is `no-store`, so an edit, a new product or a deactivation shows up immediately and the screen never "goes back in time".
 
 Shortcuts (outside text fields and with no dialog open): `g` then `v`, `p`, `e`, `r` (products) or `x`; `n` new product; `/` tab search; `?` help. The ⌘K palette gains "Ir para ..." (go to) for each tab and "Novo produto" (new product) for merchant and admin accounts, keeping the period and store when already on the dashboard.
 
