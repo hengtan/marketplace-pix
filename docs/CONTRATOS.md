@@ -24,6 +24,7 @@ documento. Se precisar mudar algo, registre a mudança no relatório final em ve
 | inventory | 8004 | `inventory-api` |
 | ledger | 8005 | `ledger-api` |
 | notifications | 8006 | `notifications-api` |
+| assistant | 8007 | `assistant-api` |
 | frontend (dev) | 5173 | n/a |
 | Mailpit (SMTP / UI) | 1025 / 8025 | `mailpit` |
 
@@ -110,6 +111,7 @@ no gateway e o caminho real no serviço. O gateway implementa exatamente estas r
 - `/api/payments/by-order/<resto>` → payments `/payments/by-order/<resto>`
 - `/api/payments/dev/<resto>` → payments `/dev/<resto>`
 - `/api/notifications` e `/api/notifications/<resto>` → notifications `/notifications` e `/notifications/<resto>`
+- `/api/assistant/<resto>` → assistant `/<resto>`
 - `GET /api/health` → agrega o `/health` de todos os serviços
 
 Listas paginadas: `{ "items": [...], "total": 0, "page": 1, "page_size": 20 }`. Dinheiro sempre em centavos
@@ -193,6 +195,28 @@ centavo mais próximo; o lojista recebe o restante. Em cada transação, débito
 
 Notificação: `id`, `kind` (`ORDER_CREATED|PIX_READY|ORDER_PAID|ORDER_CANCELLED`), `subject`, `status`
 (`QUEUED|SENT|FAILED`), `order_id`, `created_at`, `sent_at`.
+
+### assistant (porta 8007)
+
+Assistente de compras com RAG e agente com ferramentas. **Todo o "modelo" é simulado por padrão**
+(`EMBEDDER=hashing`, `LLM=mock`), com portas e adaptadores para trocar por Ollama depois. Banco `assistant` na
+instância com pgvector: `localhost:5434` no host, `pgvector:5432` na rede do Docker (usuário e senha do `.env`).
+
+| Gateway | Serviço |
+|---|---|
+| `POST /api/assistant/chat` | `POST /chat` |
+| `POST /api/assistant/chat/stream` | `POST /chat/stream` (SSE) |
+| `GET /api/assistant/sessions/{id}` | `GET /sessions/{id}` |
+| `POST /api/assistant/admin/reindex` | `POST /admin/reindex` |
+| `GET /api/assistant/evals/latest` | `GET /evals/latest` |
+
+`POST /chat` corpo: `session_id` (opcional), `message` (1 a 1000 caracteres). Resposta: `session_id`, `answer`,
+`citations[]` (`product_id`, `slug`, `name`, `score`), `tool_calls[]` (`name`, `arguments`, `result_summary`,
+`duration_ms`), `retrieved[]` (os trechos recuperados com `score`), `latency_ms`. Sem contexto suficiente a
+resposta diz que não encontrou, em vez de inventar. O stream emite eventos SSE `token`, `tool_call` e `done`.
+
+Ferramentas do agente (chamam os outros serviços por HTTP): `search_products`, `get_stock`
+(inventory) e `get_order_status` (ordering).
 
 ### gateway (porta 8000)
 

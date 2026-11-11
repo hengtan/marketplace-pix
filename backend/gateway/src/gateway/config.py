@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     payments_url: str = "http://localhost:8002"
     ledger_url: str = "http://localhost:8005"
     notifications_url: str = "http://localhost:8006"
+    assistant_url: str = "http://localhost:8007"
 
     allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     upstream_timeout: float = 10.0
@@ -34,4 +35,5 @@ class Settings(BaseSettings):
             "payments": self.payments_url,
             "ledger": self.ledger_url,
             "notifications": self.notifications_url,
+            "assistant": self.assistant_url,
         }

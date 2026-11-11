@@ -13,6 +13,7 @@ UPSTREAMS = {
     "payments": "http://payments",
     "ledger": "http://ledger",
     "notifications": "http://notifications",
+    "assistant": "http://assistant",
 }
 
 
@@ -58,6 +59,9 @@ async def call(recorder, method, url, app_kwargs=None, **kwargs):
         ("/api/payments/dev/psp/charges/ch_1/pay", "payments", "/dev/psp/charges/ch_1/pay"),
         ("/api/notifications", "notifications", "/notifications"),
         ("/api/notifications/5/preview", "notifications", "/notifications/5/preview"),
+        ("/api/assistant/chat", "assistant", "/chat"),
+        ("/api/assistant/chat/stream", "assistant", "/chat/stream"),
+        ("/api/assistant/evals/latest", "assistant", "/evals/latest"),
     ],
 )
 def test_route_table_follows_the_contract(path, service, upstream_path):
@@ -199,9 +203,10 @@ async def test_rate_limit_returns_429_with_retry_after():
     ticks = {"now": 0.0}
     limiter = RateLimiter(2, window_seconds=60, clock=lambda: ticks["now"])
     app = create_app(settings(), transport=httpx.MockTransport(Recorder()), rate_limiter=limiter)
-    async with app.router.lifespan_context(app), httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://gw"
-    ) as c:
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://gw") as c,
+    ):
         codes = [(await c.get("/api/catalog/products")).status_code for _ in range(3)]
         blocked = await c.get("/api/catalog/products")
         ticks["now"] = 61.0

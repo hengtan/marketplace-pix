@@ -19,6 +19,7 @@ ROUTES: tuple[Route, ...] = (
     Route("/api/payments/by-order", "payments", "/api"),
     Route("/api/payments/dev", "payments", "/api/payments", dev_only=True),
     Route("/api/notifications", "notifications", "/api"),
+    Route("/api/assistant", "assistant", "/api/assistant"),
 )
 
 

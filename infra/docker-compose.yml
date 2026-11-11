@@ -370,6 +370,7 @@ services:
       PAYMENTS_URL: http://payments-api:8000
       LEDGER_URL: http://ledger-api:8000
       NOTIFICATIONS_URL: http://notifications-api:8000
+      ASSISTANT_URL: http://assistant-api:8000
       ENABLE_DEV_ROUTES: "true"
     ports:
       - "${GATEWAY_PORT:-8000}:8000"
