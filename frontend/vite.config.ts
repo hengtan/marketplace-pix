@@ -13,6 +13,11 @@ export default defineConfig({
       ? { "/api": { target: process.env.VITE_PROXY_TARGET, changeOrigin: true } }
       : undefined,
   },
+  preview: {
+    proxy: process.env.VITE_PROXY_TARGET
+      ? { "/api": { target: process.env.VITE_PROXY_TARGET, changeOrigin: true } }
+      : undefined,
+  },
   test: {
     environment: "jsdom",
     globals: true,
