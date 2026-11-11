@@ -1,8 +1,13 @@
 import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Minus } from "lucide-react";
 import { m, useReducedMotion } from "motion/react";
 import type { ComponentProps, ReactNode } from "react";
-import { Skeleton } from "@/components/ui/misc";
-import { formatPct } from "@/lib/merchant-metrics";
+import { Badge, Skeleton } from "@/components/ui/misc";
+import {
+  formatPct,
+  ORDER_STATUS_LABEL,
+  type OrderStatusKey,
+  orderStatus,
+} from "@/lib/merchant-metrics";
 import { EASE, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -224,4 +229,15 @@ export function Pager({
       )}
     </nav>
   );
+}
+
+export const STATUS_TONE: Record<OrderStatusKey, "warn" | "pix" | "danger"> = {
+  PENDING: "warn",
+  PAID: "pix",
+  CANCELLED: "danger",
+};
+
+export function StatusBadge({ status }: { status: string }) {
+  const key = orderStatus(status);
+  return <Badge tone={STATUS_TONE[key]}>{ORDER_STATUS_LABEL[key]}</Badge>;
 }
