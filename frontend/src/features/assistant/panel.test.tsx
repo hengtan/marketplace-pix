@@ -63,7 +63,8 @@ describe("assistant panel", () => {
       "quero um fone com cancelamento de ruído{Enter}",
     );
 
-    expect(await screen.findByText("quero um fone com cancelamento de ruído")).toBeVisible();
+    const sent = await screen.findByText("quero um fone com cancelamento de ruído");
+    await waitFor(() => expect(sent).toBeVisible());
     const cards = await screen.findAllByTestId("cited-product", undefined, { timeout: 4000 });
     expect(cards.length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("citation-chip")[0]).toHaveAttribute(
@@ -75,7 +76,7 @@ describe("assistant panel", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("Busca no catálogo")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Busca no catálogo")).toBeVisible());
     expect(screen.getAllByTestId("retrieved-chunk").length).toBeGreaterThan(0);
 
     const add = await screen.findByRole("button", {
