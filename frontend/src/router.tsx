@@ -4,11 +4,13 @@ import {
   createRouter,
   Link,
   lazyRouteComponent,
+  redirect,
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/app-shell";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { isSignedIn } from "@/store/auth";
 
 const homeSearch = z.object({
   q: z.string().optional(),
@@ -62,9 +64,34 @@ const ordersRoute = createRoute({
   path: "/pedidos",
   component: lazyRouteComponent(() => import("./pages/orders")),
 });
+const authSearch = z.object({ redirect: z.string().optional() });
+
+function requireSession({ location }: { location: { href: string } }) {
+  if (!isSignedIn()) throw redirect({ to: "/entrar", search: { redirect: location.href } });
+}
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/entrar",
+  validateSearch: authSearch,
+  component: lazyRouteComponent(() => import("./pages/auth"), "LoginPage"),
+});
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cadastro",
+  validateSearch: authSearch,
+  component: lazyRouteComponent(() => import("./pages/auth"), "RegisterPage"),
+});
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/conta",
+  beforeLoad: requireSession,
+  component: lazyRouteComponent(() => import("./pages/account")),
+});
 const merchantRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/lojista",
+  beforeLoad: requireSession,
   component: lazyRouteComponent(() => import("./pages/merchant")),
 });
 
@@ -75,12 +102,16 @@ const routeTree = rootRoute.addChildren([
   orderRoute,
   ordersRoute,
   merchantRoute,
+  loginRoute,
+  registerRoute,
+  accountRoute,
 ]);
 
 export const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   scrollRestoration: true,
+  defaultViewTransition: true,
 });
 
 declare module "@tanstack/react-router" {

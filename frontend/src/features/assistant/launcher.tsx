@@ -1,7 +1,8 @@
 import { Sparkles } from "lucide-react";
 import { useEffect } from "react";
 import { useUi } from "@/store/ui";
-import { LAUNCHER_ID } from "./panel";
+
+export const LAUNCHER_ID = "assistente-botao";
 
 export const isMacLike = () =>
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);

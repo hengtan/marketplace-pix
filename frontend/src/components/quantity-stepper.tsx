@@ -1,4 +1,6 @@
 import { Minus, Plus } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -41,8 +43,21 @@ export function QuantityStepper({
       >
         <Minus className="size-4" />
       </button>
-      <output className="tabular min-w-8 text-center text-sm font-semibold" aria-live="polite">
-        {value}
+      <output
+        className="tabular relative grid h-6 min-w-8 place-items-center overflow-hidden text-center text-sm font-semibold"
+        aria-live="polite"
+      >
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={value}
+            initial={{ y: 14, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -14, opacity: 0 }}
+            transition={SPRING}
+          >
+            {value}
+          </motion.span>
+        </AnimatePresence>
       </output>
       <button
         type="button"

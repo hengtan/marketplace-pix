@@ -4,10 +4,9 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { cn } from "@/lib/utils";
 import { useUi } from "@/store/ui";
 import { MAX_MESSAGE_LENGTH, SUGGESTIONS, toolRunningLabel } from "./copy";
+import { LAUNCHER_ID } from "./launcher";
 import { AssistantMessage, Avatar, HistorySkeleton, UserMessage } from "./message";
 import { useAssistantChat } from "./store";
-
-export const LAUNCHER_ID = "assistente-botao";
 
 function announcement(
   last: ReturnType<typeof useAssistantChat.getState>["messages"][number] | undefined,

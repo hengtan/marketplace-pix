@@ -134,3 +134,27 @@ export type Notification = z.infer<typeof notificationSchema>;
 export const notificationPageSchema = paged(notificationSchema);
 
 export const errorSchema = z.object({ detail: z.union([z.string(), z.array(z.unknown())]) });
+
+export const userSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string(),
+  roles: z.array(z.string()),
+});
+export type User = z.infer<typeof userSchema>;
+
+export const tokenResponseSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string(),
+  token_type: z.string(),
+  expires_in: z.number(),
+  user: userSchema,
+});
+export type TokenResponse = z.infer<typeof tokenResponseSchema>;
+
+export const refreshResponseSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string().optional(),
+  token_type: z.string(),
+  expires_in: z.number(),
+});
