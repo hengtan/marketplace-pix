@@ -327,7 +327,7 @@ Decisão e justificativa em `docs/adr/0001-identidade-como-servico.md`. O fronte
 | `POST /api/auth/register` | anônimo | `{ email, name, password }` → `201` com tokens (cria sempre um `customer`) |
 | `POST /api/auth/login` | anônimo | `{ email, password }` → `200` com tokens |
 | `POST /api/auth/refresh` | anônimo | `{ refresh_token }` → `200` com tokens novos (o antigo morre) |
-| `POST /api/auth/logout` | anônimo | `{ refresh_token }` → `204` (revoga a sessão; idempotente) |
+| `POST /api/auth/logout` | anônimo | `{ refresh_token }` → `204` (revoga a sessão e os access tokens dela, que passam a receber `401` em até 1 s; idempotente) |
 | `GET /api/auth/me` | token | perfil do usuário do token |
 | `POST /api/auth/admin/users` | `admin` | `{ email, name, password, roles[], merchant_id ou merchant_slug }` → `201` (cria lojista ou admin) |
 
@@ -337,6 +337,11 @@ Resposta de `register`, `login` e `refresh`: `access_token` (JWT), `refresh_toke
 desativada), `401 invalid refresh token`, `409 email already registered`, `422` (e-mail ou senha fora da
 política: mínimo de 10 caracteres). Respostas de token vêm com `Cache-Control: no-store`.
 
+Revogação do access token: o logout, a detecção de reuso do refresh e a conta desativada colocam o `jti` dos access tokens
+ainda vivos da sessão em uma lista no Redis (TTL = vida restante do token, mais 10 s de folga). O gateway consulta a lista
+(cache de 0,5 s) e responde `401` ao token revogado. Com o Redis fora, `REVOCATION_FAIL_OPEN=true` (padrão) aceita o token
+(ele ainda expira sozinho em 10 min) e `false` responde `503` a quem tem token.
+
 Uso no frontend:
 
 1. Guardar `access_token` em memória e mandar `Authorization: Bearer <token>` em toda chamada autenticada.
@@ -344,7 +349,7 @@ Uso no frontend:
 3. Ao receber `401` com token que deveria valer, chamar `/api/auth/refresh` **uma única vez** e repetir a
    chamada. Se o refresh também der `401`, a sessão acabou: voltar ao login. Nunca reutilizar um refresh antigo
    (reapresentar um token já usado revoga a sessão inteira nos dois dispositivos).
-4. O `access_token` é um JWT `EdDSA`; as claims úteis para a UI são `roles`, `scope` e `merchant_id`
+4. O `access_token` é um JWT `EdDSA` com `jti` e `sid`; as claims úteis para a UI são `roles`, `scope` e `merchant_id`
    (decodificar para exibir, nunca para decidir segurança: o servidor revalida tudo).
 5. `Authorization` precisa estar em `Access-Control-Allow-Headers` (o gateway já permite).
 

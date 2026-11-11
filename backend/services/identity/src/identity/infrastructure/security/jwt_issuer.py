@@ -21,6 +21,7 @@ class JwtAccessTokenIssuer:
         self._ttl = ttl
 
     def issue(self, user: User, session_id: UUID, now: datetime) -> IssuedAccessToken:
+        jti = uuid4().hex
         claims: dict[str, object] = {
             "iss": self._issuer,
             "aud": self._audience,
@@ -28,7 +29,7 @@ class JwtAccessTokenIssuer:
             "iat": int(now.timestamp()),
             "nbf": int(now.timestamp()),
             "exp": int((now + self._ttl).timestamp()),
-            "jti": uuid4().hex,
+            "jti": jti,
             "sid": str(session_id),
             "roles": sorted(user.roles),
             "scope": " ".join(sorted(scopes_for_roles(user.roles))),
@@ -41,4 +42,4 @@ class JwtAccessTokenIssuer:
             algorithm="EdDSA",
             headers={"kid": self._keys.kid, "typ": "at+jwt"},
         )
-        return IssuedAccessToken(token, int(self._ttl.total_seconds()))
+        return IssuedAccessToken(token, int(self._ttl.total_seconds()), jti, now + self._ttl)

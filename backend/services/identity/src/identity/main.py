@@ -9,6 +9,8 @@ from fastapi import FastAPI
 from marketplace_common.maintenance import CleanupJob, CleanupTarget, RetentionPolicy
 from marketplace_common.observability import install_api_observability, instrument_sqlalchemy
 from marketplace_common.security import PrincipalResolver
+from marketplace_common.security.revocation import RedisAccessTokenRevocations
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -47,6 +49,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.identity_retired_public_keys,
         allow_ephemeral=not settings.is_production,
     )
+    redis = (
+        Redis.from_url(
+            settings.redis_url,
+            socket_timeout=settings.redis_timeout_seconds,
+            socket_connect_timeout=settings.redis_timeout_seconds,
+        )
+        if settings.redis_url
+        else None
+    )
     app.state.auth = AuthService(
         lambda: SqlAlchemyUnitOfWork(factory),
         Argon2idHasher(
@@ -63,7 +74,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             session_max=timedelta(days=settings.session_max_days),
             max_failed_logins=settings.max_failed_logins,
             lockout=timedelta(minutes=settings.lockout_minutes),
+            access_ttl=timedelta(seconds=settings.access_ttl_seconds),
         ),
+        revocations=None if redis is None else RedisAccessTokenRevocations(redis),
     )
     app.state.jwks = keys.jwks()
     app.state.principal_resolver = PrincipalResolver(settings.internal_auth_secret)
@@ -82,6 +95,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     stop.set()
     await cleanup
+    if redis is not None:
+        await redis.aclose()
     await engine.dispose()
 
 

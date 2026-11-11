@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     bulkhead_max_queue: int = 50
     bulkhead_queue_timeout: float = 1.0
     auth_enabled: bool = True
+    revocation_cache_seconds: float = 0.5
+    revocation_fail_open: bool = True
     allow_guest_checkout: bool = True
     internal_auth_secret: str = ""
     jwt_issuer: str = "marketplace-identity"

@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     identity_signing_key: str = ""
     identity_retired_public_keys: list[str] = []
     identity_seed_password: str = ""
+    redis_url: str = ""
+    redis_timeout_seconds: float = 0.5
 
     issuer: str = "marketplace-identity"
     audience: str = "marketplace-api"

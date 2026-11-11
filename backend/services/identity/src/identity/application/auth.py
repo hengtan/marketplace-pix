@@ -17,11 +17,16 @@ from identity.application.errors import (
     RefreshTokenReuse,
     UserNotFound,
 )
-from identity.application.ports import AccessTokenIssuer, PasswordHasher, UnitOfWork
+from identity.application.ports import (
+    AccessTokenIssuer,
+    AccessTokenRevocations,
+    PasswordHasher,
+    UnitOfWork,
+)
 from identity.domain.errors import DomainError
 from identity.domain.tokens import RefreshTokenRecord
 from identity.domain.user import User, normalize_email, validate_password
-from identity.metrics import LOGINS, REFRESHES, REGISTRATIONS
+from identity.metrics import ACCESS_REVOCATIONS, LOGINS, REFRESHES, REGISTRATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +34,7 @@ Clock = Callable[[], datetime]
 UowFactory = Callable[[], UnitOfWork]
 
 DUMMY_PASSWORD = "dummy-password-for-timing-equalisation"
+ACCESS_REVOCATION_LEEWAY_SECONDS = 10
 
 
 def utcnow() -> datetime:
@@ -45,6 +51,7 @@ class AuthPolicy:
     session_max: timedelta = timedelta(days=30)
     max_failed_logins: int = 5
     lockout: timedelta = timedelta(minutes=15)
+    access_ttl: timedelta = timedelta(minutes=10)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,12 +70,14 @@ class AuthService:
         issuer: AccessTokenIssuer,
         policy: AuthPolicy | None = None,
         clock: Clock = utcnow,
+        revocations: AccessTokenRevocations | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._hasher = hasher
         self._issuer = issuer
         self._policy = policy or AuthPolicy()
         self._clock = clock
+        self._revocations = revocations
         self._dummy_hash: str | None = None
 
     async def register_customer(self, email: str, name: str, password: str) -> TokenPair:
@@ -152,7 +161,9 @@ class AuthService:
                 raise InvalidRefreshToken
             if record.used_at is not None:
                 await uow.refresh_tokens.revoke_family(record.family_id, now)
+                jtis = await self._live_access_tokens(uow, record.family_id, now)
                 await uow.commit()
+                await self._revoke_access_tokens(jtis, now)
                 REFRESHES.labels(result="reuse").inc()
                 logger.warning(
                     "refresh token reuse detected, session family revoked",
@@ -162,7 +173,9 @@ class AuthService:
             user = await uow.users.get_by_id(record.user_id)
             if user is None or user.disabled:
                 await uow.refresh_tokens.revoke_family(record.family_id, now)
+                jtis = await self._live_access_tokens(uow, record.family_id, now)
                 await uow.commit()
+                await self._revoke_access_tokens(jtis, now)
                 REFRESHES.labels(result="disabled").inc()
                 raise InvalidRefreshToken
             await uow.refresh_tokens.mark_used(record.id, now)
@@ -179,7 +192,32 @@ class AuthService:
             )
             if record is not None:
                 await uow.refresh_tokens.revoke_family(record.family_id, now)
+                jtis = await self._live_access_tokens(uow, record.family_id, now)
                 await uow.commit()
+                await self._revoke_access_tokens(jtis, now)
+
+    async def _live_access_tokens(
+        self, uow: UnitOfWork, family_id: UUID, now: datetime
+    ) -> list[tuple[str, datetime]]:
+        issued = await uow.refresh_tokens.access_tokens_since(
+            family_id, now - self._policy.access_ttl
+        )
+        return [(jti, issued_at + self._policy.access_ttl) for jti, issued_at in issued]
+
+    async def _revoke_access_tokens(
+        self, tokens: list[tuple[str, datetime]], now: datetime
+    ) -> None:
+        if self._revocations is None:
+            return
+        for jti, expires_at in tokens:
+            ttl = (expires_at - now).total_seconds() + ACCESS_REVOCATION_LEEWAY_SECONDS
+            try:
+                await self._revocations.revoke(jti, ttl)
+            except Exception:
+                ACCESS_REVOCATIONS.labels(result="error").inc()
+                logger.exception("could not revoke an access token", extra={"jti": jti})
+            else:
+                ACCESS_REVOCATIONS.labels(result="revoked").inc()
 
     async def get_user(self, user_id: UUID) -> User:
         async with self._uow_factory() as uow:
@@ -211,6 +249,7 @@ class AuthService:
         family_expires_at: datetime,
     ) -> TokenPair:
         refresh_token = secrets.token_urlsafe(48)
+        access = self._issuer.issue(user, family_id, now)
         await uow.refresh_tokens.add(
             RefreshTokenRecord(
                 id=uuid4(),
@@ -220,9 +259,9 @@ class AuthService:
                 issued_at=now,
                 expires_at=min(now + self._policy.refresh_ttl, family_expires_at),
                 family_expires_at=family_expires_at,
+                access_jti=access.jti,
             )
         )
-        access = self._issuer.issue(user, family_id, now)
         return TokenPair(access.token, refresh_token, access.expires_in, user)
 
     async def _burn_time(self, password: str) -> None:

@@ -14,6 +14,8 @@ from identity.domain.user import User
 class IssuedAccessToken:
     token: str
     expires_in: int
+    jti: str
+    expires_at: datetime
 
 
 class PasswordHasher(Protocol):
@@ -26,6 +28,10 @@ class PasswordHasher(Protocol):
 
 class AccessTokenIssuer(Protocol):
     def issue(self, user: User, session_id: UUID, now: datetime) -> IssuedAccessToken: ...
+
+
+class AccessTokenRevocations(Protocol):
+    async def revoke(self, jti: str, ttl_seconds: float) -> None: ...
 
 
 class UserRepository(Protocol):
@@ -46,6 +52,10 @@ class RefreshTokenRepository(Protocol):
     ) -> RefreshTokenRecord | None: ...
 
     async def mark_used(self, record_id: UUID, at: datetime) -> None: ...
+
+    async def access_tokens_since(
+        self, family_id: UUID, since: datetime
+    ) -> list[tuple[str, datetime]]: ...
 
     async def revoke_family(self, family_id: UUID, at: datetime) -> int: ...
 

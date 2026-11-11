@@ -43,6 +43,7 @@ class Issuer:
             "iss": ISSUER,
             "aud": AUDIENCE,
             "sub": str(user_id or uuid4()),
+            "jti": uuid4().hex,
             "iat": now,
             "nbf": now,
             "exp": now + 600,

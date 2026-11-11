@@ -24,9 +24,11 @@ from marketplace_common.resilience import (
 )
 from marketplace_common.resilience.clock import Sleeper, sleep
 from marketplace_common.security import strip_identity_headers
+from marketplace_common.security.revocation import RevocationChecker
 from starlette.background import BackgroundTask
 
 from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
+from gateway.auth.guard import Revocations
 from gateway.client_ip import ClientIpResolver
 from gateway.config import Settings
 from gateway.rate_limit import Limiter, build_limiter, build_redis
@@ -95,7 +97,9 @@ def _service_deadline_factory(settings: Settings) -> Callable[[Request, str], De
     return resolve_deadline
 
 
-def _build_auth(settings: Settings, client: httpx.AsyncClient) -> GatewayAuth | None:
+def _build_auth(
+    settings: Settings, client: httpx.AsyncClient, revocations: Revocations | None
+) -> GatewayAuth | None:
     if not settings.auth_enabled:
         return None
     jwks = JwksCache(f"{settings.identity_url}/.well-known/jwks.json", client)
@@ -105,6 +109,7 @@ def _build_auth(settings: Settings, client: httpx.AsyncClient) -> GatewayAuth | 
         settings.internal_auth_secret,
         guest_checkout=settings.allow_guest_checkout,
         ordering_url=settings.ordering_url,
+        revocations=revocations,
     )
 
 
@@ -114,12 +119,19 @@ def create_app(
     rate_limiter: Limiter | None = None,
     sleeper: Sleeper = sleep,
     rng: random.Random | None = None,
+    revocations: Revocations | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     upstreams = settings.upstreams()
     redis = None if rate_limiter is not None else build_redis(settings)
     limiter: Limiter = rate_limiter or build_limiter(settings, redis)
     _service_deadline = _service_deadline_factory(settings)
+    if revocations is None and redis is not None:
+        revocations = RevocationChecker(
+            redis,
+            cache_seconds=settings.revocation_cache_seconds,
+            fail_open=settings.revocation_fail_open,
+        )
     guard = UpstreamGuard(settings, list(upstreams), sleeper=sleeper, rng=rng)
     client_ips = ClientIpResolver(settings.trusted_proxies)
 
@@ -130,7 +142,7 @@ def create_app(
             transport=transport,
             event_hooks=deadline_event_hooks(),
         )
-        app.state.auth = _build_auth(settings, app.state.client)
+        app.state.auth = _build_auth(settings, app.state.client, revocations)
         yield
         await app.state.client.aclose()
         if redis is not None:

@@ -2,17 +2,23 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 from urllib.parse import parse_qsl, urlencode
 
 import httpx
 from fastapi import Request
 from marketplace_common.security import Principal, sign_principal, strip_identity_headers
+from marketplace_common.security.revocation import RevocationUnavailable
 
 from gateway.auth.jwks import JwksUnavailable
 from gateway.auth.policy import Access, build_rules, match
 from gateway.auth.verifier import InvalidToken, TokenVerifier
 
 logger = logging.getLogger(__name__)
+
+
+class Revocations(Protocol):
+    async def is_revoked(self, jti: str) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +41,7 @@ class GatewayAuth:
         internal_secret: str,
         guest_checkout: bool = True,
         ordering_url: str = "",
+        revocations: Revocations | None = None,
     ) -> None:
         if not internal_secret:
             raise RuntimeError("INTERNAL_AUTH_SECRET is required when auth is enabled")
@@ -42,6 +49,7 @@ class GatewayAuth:
         self._secret = internal_secret
         self._rules = build_rules(guest_checkout)
         self._ordering_url = ordering_url
+        self._revocations = revocations
 
     async def authorize(
         self, request: Request, client: httpx.AsyncClient, request_id: str
@@ -96,11 +104,17 @@ class GatewayAuth:
         if scheme.lower() != "bearer" or not token:
             return None, Denied(401, "invalid authorization header", challenge=True)
         try:
-            return await self._verifier.verify(token.strip()), None
+            verified = await self._verifier.verify_token(token.strip())
+            if self._revocations is not None and await self._revocations.is_revoked(verified.jti):
+                return None, Denied(401, "invalid or expired token", challenge=True)
+            return verified.principal, None
         except InvalidToken:
             return None, Denied(401, "invalid or expired token", challenge=True)
         except JwksUnavailable:
             logger.error("identity JWKS unavailable, rejecting authenticated request")
+            return None, Denied(503, "authentication unavailable")
+        except RevocationUnavailable:
+            logger.error("revocation list unavailable, rejecting authenticated request")
             return None, Denied(503, "authentication unavailable")
 
     @staticmethod
