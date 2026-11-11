@@ -1,9 +1,14 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import {
+  Boxes,
+  CirclePlus,
   ClipboardList,
   CornerDownLeft,
+  Landmark,
+  LayoutDashboard,
   Moon,
+  Package,
   Search,
   ShoppingBag,
   Sparkles,
@@ -16,6 +21,8 @@ import { useAssistantChat } from "@/features/assistant/store";
 import { useOrders, useProductSearch } from "@/hooks/queries";
 import { useDebounced } from "@/hooks/utils";
 import { formatMoney, shortId } from "@/lib/format";
+import { MERCHANT_TABS, type MerchantTab } from "@/lib/merchant-metrics";
+import { useAuth } from "@/store/auth";
 import { useCustomerId } from "@/store/customer";
 import { useTheme } from "@/store/theme";
 import { useUi } from "@/store/ui";
@@ -43,6 +50,10 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const [query, setQuery] = useState("");
+  const isMerchant = useAuth(
+    (s) => s.user?.roles.some((r) => r === "merchant" || r === "admin") ?? false,
+  );
+  const location = useRouterState({ select: (st) => st.location });
   const debounced = useDebounced(query, 220);
   const search = useProductSearch(debounced);
   const orders = useOrders(useCustomerId(), 1, open);
@@ -67,43 +78,73 @@ export function CommandPalette() {
     fn();
   };
 
-  const actions = useMemo(
-    () =>
-      [
-        { id: "loja", label: "Ir para a loja", icon: <Store />, run: () => navigate({ to: "/" }) },
-        {
-          id: "assistente",
-          label: "Perguntar ao assistente",
-          icon: <Sparkles />,
-          run: () => setAssistantOpen(true),
-        },
-        {
-          id: "carrinho",
-          label: "Abrir carrinho",
-          icon: <ShoppingBag />,
-          run: () => setCartOpen(true),
-        },
-        {
-          id: "pedidos",
-          label: "Meus pedidos",
-          icon: <ClipboardList />,
-          run: () => navigate({ to: "/pedidos" }),
-        },
-        {
-          id: "lojista",
-          label: "Painel do lojista",
-          icon: <Tag />,
-          run: () => navigate({ to: "/lojista" }),
-        },
-        {
-          id: "tema",
-          label: theme === "dark" ? "Mudar para o tema claro" : "Mudar para o tema escuro",
-          icon: theme === "dark" ? <Sun /> : <Moon />,
-          run: toggle,
-        },
-      ].filter((a) => !query || norm(a.label).includes(norm(query))),
-    [navigate, setCartOpen, setAssistantOpen, theme, toggle, query],
-  );
+  const actions = useMemo(() => {
+    const keep: Record<string, unknown> = {};
+    if (location.pathname.startsWith("/lojista")) {
+      const current = location.search as Record<string, unknown>;
+      if (current.dias !== undefined) keep.dias = current.dias;
+      if (current.loja !== undefined) keep.loja = current.loja;
+    }
+    const goTab = (aba: MerchantTab, extra: Record<string, unknown> = {}) =>
+      navigate({ to: "/lojista", search: { ...keep, aba, ...extra } });
+    const tabIcons = {
+      "visao-geral": <LayoutDashboard />,
+      pedidos: <ClipboardList />,
+      estoque: <Boxes />,
+      produtos: <Package />,
+      extrato: <Landmark />,
+    } as const;
+    const merchantActions = isMerchant
+      ? [
+          ...MERCHANT_TABS.map((t) => ({
+            id: `lojista-${t.id}`,
+            label: `Ir para ${t.label}`,
+            icon: tabIcons[t.id],
+            run: () => goTab(t.id),
+          })),
+          {
+            id: "lojista-novo-produto",
+            label: "Novo produto",
+            icon: <CirclePlus />,
+            run: () => goTab("produtos", { novo: true }),
+          },
+        ]
+      : [];
+    return [
+      { id: "loja", label: "Ir para a loja", icon: <Store />, run: () => navigate({ to: "/" }) },
+      {
+        id: "assistente",
+        label: "Perguntar ao assistente",
+        icon: <Sparkles />,
+        run: () => setAssistantOpen(true),
+      },
+      {
+        id: "carrinho",
+        label: "Abrir carrinho",
+        icon: <ShoppingBag />,
+        run: () => setCartOpen(true),
+      },
+      {
+        id: "pedidos",
+        label: "Meus pedidos",
+        icon: <ClipboardList />,
+        run: () => navigate({ to: "/pedidos" }),
+      },
+      {
+        id: "lojista",
+        label: "Painel do lojista",
+        icon: <Tag />,
+        run: () => navigate({ to: "/lojista" }),
+      },
+      {
+        id: "tema",
+        label: theme === "dark" ? "Mudar para o tema claro" : "Mudar para o tema escuro",
+        icon: theme === "dark" ? <Sun /> : <Moon />,
+        run: toggle,
+      },
+      ...merchantActions,
+    ].filter((a) => !query || norm(a.label).includes(norm(query)));
+  }, [navigate, setCartOpen, setAssistantOpen, theme, toggle, query, isMerchant, location]);
 
   const products = query.trim() ? (search.data?.items ?? []) : [];
   const recentOrders = query.trim() ? [] : (orders.data?.items.slice(0, 3) ?? []);

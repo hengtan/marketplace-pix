@@ -85,7 +85,6 @@ export const api = {
       query: { ids: ids.join(",") },
     }).then((page) => page.items),
   categories: () => request("/api/catalog/categories", { schema: z.array(categorySchema) }),
-
   stock: (productIds: string[]) =>
     request("/api/inventory/stock", {
       schema: z.array(stockSchema),

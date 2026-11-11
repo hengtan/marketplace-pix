@@ -332,12 +332,13 @@ export function AppShell() {
 
   useEffect(
     () =>
-      router.subscribe("onResolved", () => {
+      router.subscribe("onResolved", (event) => {
         endTransition();
         if (first.current) {
           first.current = false;
           return;
         }
+        if (!event.pathChanged) return;
         toast.dismiss();
         window.scrollTo({ top: 0 });
         mainRef.current?.focus({ preventScroll: true });
