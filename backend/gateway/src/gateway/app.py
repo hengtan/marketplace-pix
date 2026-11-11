@@ -31,6 +31,7 @@ from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
 from gateway.auth.guard import Revocations
 from gateway.client_ip import ClientIpResolver
 from gateway.config import Settings
+from gateway.hardening import BodyLimitMiddleware, SecurityHeadersMiddleware, security_headers
 from gateway.rate_limit import Limiter, build_limiter, build_redis
 from gateway.routes import resolve
 from gateway.upstream import UpstreamGuard
@@ -156,6 +157,7 @@ def create_app(
         default_seconds=settings.request_deadline_seconds,
         max_seconds=settings.max_request_deadline_seconds,
     )
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_request_body_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -177,6 +179,15 @@ def create_app(
             "RateLimit-Remaining",
             "RateLimit-Reset",
         ],
+    )
+
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        headers=security_headers(
+            settings.hsts_enabled,
+            settings.hsts_max_age_seconds,
+            settings.cross_origin_resource_policy,
+        ),
     )
 
     @app.get("/health")

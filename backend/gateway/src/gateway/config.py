@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     rate_limit_redis_timeout: float = 0.25
     redis_url: str = ""
 
+    max_request_body_bytes: int = 1_048_576
+    hsts_enabled: bool = False
+    hsts_max_age_seconds: int = 31_536_000
+    cross_origin_resource_policy: str = "same-site"
     trusted_proxies: Annotated[list[str], NoDecode] = []
 
     request_deadline_seconds: float = 8.0

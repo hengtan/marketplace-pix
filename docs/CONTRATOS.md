@@ -328,6 +328,14 @@ Resiliência (detalhes em `docs/RESILIENCIA.md`):
   `{ "detail": "...", "code": "circuit_open" | "overloaded", "service": "catalog", "retry_after_seconds": 10 }`.
   Deadline estourado responde `504`. O campo `detail` continua sendo o texto de sempre.
 - Só `GET` e `HEAD` são retentados pelo gateway (backoff exponencial com jitter e orçamento de retentativas).
+- Toda resposta do gateway (inclusive `401`, `413`, `429`, `5xx` e pré-voo de CORS) traz `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: no-referrer`, `Permissions-Policy` restritiva e `Cross-Origin-Resource-Policy: same-site` (o que o serviço
+  mandar com esses nomes é sobrescrito). `Strict-Transport-Security` só com `HSTS_ENABLED=true` (desligado em desenvolvimento).
+- Corpo de requisição acima de `MAX_REQUEST_BODY_BYTES` (1 MiB por padrão) responde `413` com `{ "detail": "request body too large" }`,
+  decidido pelo `Content-Length` ou, em corpo sem tamanho declarado, quando a soma passa do limite; o serviço não é chamado.
+- O cliente é identificado pelo IP da conexão ou, só quando a conexão vem de um proxy listado em `TRUSTED_PROXIES` (CIDR separados por
+  vírgula), pelo primeiro endereço não confiável de `X-Forwarded-For` lido da direita para a esquerda (`X-Real-IP` na falta dele).
+  O serviço recebe `X-Forwarded-For` com o endereço resolvido.
 
 ### identity (porta 8008): autenticação e autorização
 
