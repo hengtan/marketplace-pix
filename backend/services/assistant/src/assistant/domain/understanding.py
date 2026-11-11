@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from assistant.domain.lexicon import CONCEPTS, SHOPPING_WORDS
+from assistant.domain.lexicon import CONCEPTS, GENERIC_WORDS, SHOPPING_WORDS
 from assistant.domain.policies import (
     POLICIES,
     POLICY_TRIGGERS,
@@ -74,12 +74,10 @@ class Vocabulary:
         return token in self.doc_freq or stem(token) in self.stems
 
     def is_domain_term(self, token: str, max_share: float = 0.15) -> bool:
-        if not self.documents:
+        if not self.documents or token in GENERIC_WORDS:
             return False
         limit = max(3, int(self.documents * max_share))
-        if 1 <= self.doc_freq.get(token, 0) <= limit:
-            return True
-        return stem(token) in self.stems and self.doc_freq.get(token, 0) <= limit
+        return 1 <= self.doc_freq.get(token, 0) <= limit
 
 
 def edit_distance(a: str, b: str, limit: int) -> int:

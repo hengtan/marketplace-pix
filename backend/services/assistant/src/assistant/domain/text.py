@@ -16,7 +16,7 @@ STOPWORDS = frozenset(
         "eh", "uso", "usar", "ja", "so", "ainda", "tambem", "entre", "sobre", "reais", "real", "r",
         "qualquer", "vale", "pode", "podem", "poderia", "gosto", "ver", "fazer", "faz", "produto",
         "produtos", "categoria", "categorias", "item", "itens", "opcao", "opcoes", "nome",
-        "mostrando", "mas", "porem", "contudo", "nao",
+        "mostrando", "quanto", "quanta", "quantas", "quantos", "mas", "porem", "contudo", "nao",
     }
 )
 # fmt: on

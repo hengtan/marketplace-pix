@@ -13,6 +13,7 @@ from assistant.application.understanding import (
 from assistant.domain.chunking import merge_overlapping
 from assistant.domain.diversity import mmr_select
 from assistant.domain.fusion import reciprocal_rank_fusion
+from assistant.domain.lexicon import SHOPPING_WORDS
 from assistant.domain.models import Filters, Passage
 from assistant.domain.text import content_tokens, normalize, stem
 
@@ -105,9 +106,13 @@ class HybridRetriever:
         cfg = self._config
         name = self._embedder.name
         filters = replace(part.filters, product_ids=restrict.product_ids if restrict else None)
-        residual = " ".join(part.tokens)
+        tokens = part.tokens
+        if filters.product_ids:
+            tokens = [t for t in tokens if t not in SHOPPING_WORDS]
+            part = replace(part, tokens=tokens)
+        residual = " ".join(tokens)
 
-        if not part.tokens:
+        if not tokens:
             if filters.is_empty and part.sort is None:
                 return RetrievalResult([], filters, residual, "empty")
             browsed = await self._store.browse(name, filters, part.sort, cfg.branch_limit)

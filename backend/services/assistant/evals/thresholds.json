@@ -1,0 +1,13 @@
+{
+  "hit_at_3": 0.9,
+  "mrr": 0.88,
+  "ndcg_at_5": 0.88,
+  "context_precision": 0.88,
+  "context_recall": 0.9,
+  "negation_pass": 1.0,
+  "faithfulness": 0.98,
+  "groundedness": 1.0,
+  "tool_accuracy": 0.95,
+  "answer_pass": 0.95,
+  "answer_relevancy": 0.55
+}

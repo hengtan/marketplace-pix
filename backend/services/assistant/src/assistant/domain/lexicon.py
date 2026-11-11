@@ -71,12 +71,23 @@ CONCEPTS: tuple[Concept, ...] = (
         ("smartwatch", "relogio", "gps"),
     ),
     Concept(("gamer", "jogar", "jogos", "games"), ("teclado", "mouse", "rgb", "mecanico")),
-    Concept(("celular", "smartphone", "iphone", "android"), ("usb-c", "carregador", "fone")),
+    Concept(("celular", "smartphone"), ("usb-c", "carregador", "fone")),
     Concept(("wireless", "bluetooth"), ("sem", "fio")),
     Concept(("headphone", "headset", "fones"), ("fone", "bluetooth", "audio")),
     Concept(("tapete", "yoga", "pilates", "alongar", "alongamento"), ("tapete", "yoga", "grip")),
     Concept(("planta", "plantas", "flor", "flores", "jardim"), ("vaso", "ceramica", "decoracao")),
 )
+
+GENERIC_WORDS = frozenset(
+    {
+        "todas", "todos", "toda", "todo", "apenas", "agora", "deve", "devem", "seu", "sua", "seus",
+        "suas", "sim", "bem", "mal", "cada", "outro", "outra", "outros", "outras", "mesmo",
+        "mesma", "tudo", "nada", "aqui", "ali", "hoje", "sempre", "nunca", "posso", "feito",
+        "vou", "vai", "foi", "era", "estao", "estou", "ignore", "regras", "responder", "responda",
+        "mostre", "diga", "repita", "texto", "acima", "bom", "boa", "melhor", "pior", "grande",
+        "pequeno", "novo", "nova", "usar", "uso", "fazer", "muito", "pouco", "mais", "menos",
+    }
+)  # fmt: skip
 
 SHOPPING_WORDS = frozenset(
     {

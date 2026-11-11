@@ -4,7 +4,7 @@ from uuid import UUID
 
 from assistant.application.ports import Action
 from assistant.domain.models import Observation, Turn
-from assistant.domain.text import content_tokens, tokenize
+from assistant.domain.text import STOPWORDS, tokenize
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
 STOCK_WORDS = frozenset(
@@ -57,6 +57,9 @@ class RuleBasedPlanner:
                 return None
             return Action("get_order_status", {"order_id": str(UUID(order.group(0)))})
 
+        if intent == "order":
+            return None
+
         remembered = last_products(history)
         if tokens & STOCK_WORDS:
             return self._stock_step(message, tokens, observations, remembered, done)
@@ -89,7 +92,11 @@ class RuleBasedPlanner:
             return Action("get_stock", {"product_id": top["product_id"], "name": top["name"]})
         if remembered and tokens & (_SINGULAR_REFERENCE | _PLURAL_REFERENCE):
             return Action("get_stock", {"product_id": str(remembered[0])})
-        words = [t for t in content_tokens(message) if t not in STOCK_WORDS]
+        words = [
+            t
+            for t in tokenize(message)
+            if t not in STOCK_WORDS and (t not in STOPWORDS or t == "mais")
+        ]
         return Action("search_products", {"query": " ".join(words) or message})
 
 

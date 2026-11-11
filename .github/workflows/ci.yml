@@ -80,6 +80,12 @@ jobs:
         run: |
           uv sync --frozen --all-extras
           uv run pytest -q
+      - name: RAG regression gate (assistant)
+        if: matrix.service == 'backend/services/assistant'
+        working-directory: backend/services/assistant
+        run: |
+          uv run alembic upgrade head
+          uv run python -m assistant.evals --offline --gate
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail 200

@@ -50,7 +50,7 @@ async def test_injection_typed_by_the_user_is_just_an_unanswerable_question(
 
 async def test_eval_harness_meets_thresholds_and_is_saved(indexed, settings) -> None:  # type: ignore[no-untyped-def]
     cases = load_cases(SERVICE_DIR / "evals" / "cases.yaml")
-    assert len(cases) >= 25
+    assert len(cases) >= 80
     runner = EvalRunner(indexed.chat, thresholds(settings), indexed.embedder.name, indexed.llm.name)
     record = await runner.run(cases)
     await indexed.eval_store.save(record)
@@ -93,6 +93,36 @@ async def test_cli_exit_code_follows_thresholds(engine, monkeypatch, capsys) -> 
     assert "RESULT: PASS" in capsys.readouterr().out
     monkeypatch.setenv("EVAL_MIN_MRR", "1.01")
     assert await run_evals(True, SNAPSHOT, Path(SERVICE_DIR / "evals" / "cases.yaml")) == 1
+
+
+async def test_gate_cli_passes_and_fails_on_regression(  # type: ignore[no-untyped-def]
+    engine, monkeypatch, capsys, tmp_path
+) -> None:
+    monkeypatch.setenv("ASSISTANT_DB", TEST_DB)
+    monkeypatch.chdir(SERVICE_DIR)
+    assert await run_evals(True, SNAPSHOT, None, gate=True) == 0
+    assert "GATE: PASS" in capsys.readouterr().out
+
+    monkeypatch.chdir(tmp_path)
+    evals = tmp_path / "evals"
+    evals.mkdir()
+    (evals / "thresholds.json").write_text('{"hit_at_3": 1.01}')
+    (evals / "baseline.json").write_text('{"mrr": 1.0}')
+    (evals / "gate.json").write_text('{"tolerance": 0.01}')
+    assert await run_evals(True, SNAPSHOT, SERVICE_DIR / "evals" / "cases.yaml", gate=True) == 1
+    out = capsys.readouterr().out
+    assert "GATE FAIL hit_at_3" in out and "GATE: FAIL" in out
+
+
+def test_golden_set_covers_the_required_scenarios() -> None:
+    cases = load_cases(SERVICE_DIR / "evals" / "cases.yaml")
+    by_category: dict[str, int] = {}
+    for case in cases:
+        by_category[case.category] = by_category.get(case.category, 0) + 1
+    for category in ("adversarial", "multi_hop", "negation", "typo", "paraphrase"):
+        assert by_category.get(category, 0) >= 5, category
+    assert by_category.get("memory", 0) >= 3
+    assert {c.split for c in cases} == {"dev", "holdout"}
 
 
 @pytest.mark.parametrize("path", sorted((SERVICE_DIR / "evals").glob("*.yaml")))
