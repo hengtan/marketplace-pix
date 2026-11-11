@@ -8,8 +8,9 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from marketplace_common.observability import get_request_id
+from starlette.background import BackgroundTask
 
 from gateway.config import Settings
 from gateway.rate_limit import RateLimiter
@@ -112,19 +113,35 @@ def create_app(
         headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
         headers["x-request-id"] = request_id
         client: httpx.AsyncClient = request.app.state.client
+        upstream_request = client.build_request(
+            request.method,
+            upstreams[target.service] + target.path,
+            params=request.url.query,
+            content=await request.body(),
+            headers=headers,
+        )
         try:
-            upstream = await client.request(
-                request.method,
-                upstreams[target.service] + target.path,
-                params=request.url.query,
-                content=await request.body(),
-                headers=headers,
-            )
+            upstream = await client.send(upstream_request, stream=True)
         except httpx.TimeoutException:
             return _json(504, "upstream timeout", request_id)
         except httpx.HTTPError:
             return _json(502, "upstream unavailable", request_id)
 
+        if upstream.headers.get("content-type", "").startswith("text/event-stream"):
+            streaming = StreamingResponse(
+                upstream.aiter_bytes(),
+                status_code=upstream.status_code,
+                headers={
+                    k: v for k, v in upstream.headers.items() if k.lower() not in RESPONSE_DROP
+                },
+                background=BackgroundTask(upstream.aclose),
+            )
+            streaming.headers["X-Request-Id"] = request_id
+            streaming.headers["X-Accel-Buffering"] = "no"
+            return streaming
+
+        await upstream.aread()
+        await upstream.aclose()
         response = Response(content=upstream.content, status_code=upstream.status_code)
         for key, value in upstream.headers.multi_items():
             if key.lower() not in RESPONSE_DROP:

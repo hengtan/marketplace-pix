@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -239,3 +241,57 @@ async def test_traceparent_and_request_id_are_forwarded_upstream():
     assert forwarded.headers["traceparent"] == traceparent
     assert forwarded.headers["x-request-id"] == "req-1"
     assert response.headers["x-request-id"] == "req-1"
+
+
+async def test_event_stream_is_forwarded_chunk_by_chunk_without_buffering():
+    gate = asyncio.Event()
+
+    async def upstream_body():
+        yield b"event: token\ndata: one\n\n"
+        await gate.wait()
+        yield b"event: done\ndata: {}\n\n"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, content=upstream_body()
+        )
+
+    app = create_app(settings(), transport=httpx.MockTransport(handler))
+    sent: list[dict] = []
+
+    delivered = False
+
+    async def receive():
+        nonlocal delivered
+        if not delivered:
+            delivered = True
+            return {"type": "http.request", "body": b"{}", "more_body": False}
+        await asyncio.Event().wait()
+
+    async def send(message):
+        sent.append(message)
+        if message["type"] == "http.response.body" and message.get("body"):
+            gate.set()
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "path": "/api/assistant/chat/stream",
+        "raw_path": b"/api/assistant/chat/stream",
+        "query_string": b"",
+        "headers": [(b"content-type", b"application/json")],
+        "client": ("127.0.0.1", 1234),
+        "server": ("gw", 80),
+        "scheme": "http",
+    }
+    async with app.router.lifespan_context(app):
+        await asyncio.wait_for(app(scope, receive, send), timeout=5)
+
+    start = next(m for m in sent if m["type"] == "http.response.start")
+    headers = {k.decode().lower(): v.decode() for k, v in start["headers"]}
+    body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+    assert headers["content-type"].startswith("text/event-stream")
+    assert "x-request-id" in headers and headers["x-accel-buffering"] == "no"
+    assert body == b"event: token\ndata: one\n\nevent: done\ndata: {}\n\n"

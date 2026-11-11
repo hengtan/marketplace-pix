@@ -92,6 +92,13 @@ scripts/e2e.sh     # teste de ponta a ponta pelo gateway (23 verificações), re
 scripts/reset.sh   # apaga containers e volumes para recomeçar do zero
 ```
 
+### Assistente de compras (RAG com modelos simulados)
+
+O botão do assistente fica no canto da loja (ou `Ctrl /`). A resposta chega em streaming, cita produtos e mostra o
+rastro: ferramentas chamadas, trechos recuperados com a pontuação e o tempo.
+
+![Assistente com o rastro da resposta](frontend/docs/screenshots/assistente/desktop-claro-03-como-cheguei.png)
+
 ### Observabilidade (opcional)
 
 `scripts/up.sh --obs` liga Prometheus, Grafana e Jaeger. O Jaeger mostra **um único trace por pedido**, atravessando

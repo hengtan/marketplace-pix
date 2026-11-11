@@ -78,11 +78,11 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 ## Fase 7: IA (FEITA, com modelos simulados)
 - [x] Serviço `assistant`: ingestão com chunking e pgvector (HNSW), busca híbrida com RRF, reranker, filtros, agente com ferramentas, memória e guardrails
 - [x] Avaliação com métricas (hit@k, MRR, aderência ao contexto) que falha o build abaixo dos limiares
-- [ ] Interface de chat no frontend
+- [x] Interface de chat no frontend (streaming, citações com foto e preço, rastro "Como cheguei nessa resposta", memória)
 - [ ] Trocar embeddings e LLM por Ollama (adaptadores prontos, falta rodar e reavaliar)
 
 ## Fase 8: Plataforma
 - [x] OpenTelemetry com traces atravessando o Kafka, métricas Prometheus (RED) e dashboard no Grafana
 - [x] CI no GitHub Actions
-- [ ] Incluir o `assistant` na observabilidade e no CI
+- [x] `assistant` na observabilidade e no CI (CI cobre todos os serviços, a biblioteca, o assistente e o frontend)
 - [ ] Azure (Terraform) e Kubernetes (Helm/k3d): adiados
