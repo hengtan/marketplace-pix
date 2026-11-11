@@ -51,6 +51,13 @@ def build_rules(guest_checkout: bool) -> tuple[Rule, ...]:
         _rule("POST", r"^/api/auth/(register|login|refresh|logout)$", Access.PUBLIC),
         _rule("GET", r"^/api/auth/me$", Access.REQUIRED),
         _rule("POST", r"^/api/auth/admin/users$", Access.REQUIRED, Scope.USERS_MANAGE),
+        _rule(
+            "GET",
+            r"^/api/catalog/products/mine$",
+            Access.REQUIRED,
+            Scope.CATALOG_WRITE_OWN,
+            Scope.CATALOG_WRITE_ANY,
+        ),
         _rule(READ, r"^/api/catalog(/.*)?$", Access.PUBLIC),
         _rule(
             "POST|PATCH|DELETE",

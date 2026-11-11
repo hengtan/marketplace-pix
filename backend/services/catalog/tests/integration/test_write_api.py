@@ -206,3 +206,40 @@ async def test_another_merchant_cannot_reactivate_and_unknown_ids_are_404(writer
     assert (await writer.post(f"/products/{FONE}/reactivate", headers=other)).status_code == 403
     missing = "00000000-0000-4000-8000-000000000000"
     assert (await writer.post(f"/products/{missing}/reactivate", headers=owner)).status_code == 404
+
+
+async def test_owner_lists_every_own_product_including_deactivated_ones(writer) -> None:
+    owner = as_user(("merchant",), None, AURORA)
+    await writer.delete(f"/products/{FONE}", headers=owner)
+
+    response = await writer.get("/products/mine", headers=owner)
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert {i["merchant"]["id"] for i in items} == {str(AURORA)}
+    by_id = {i["id"]: i for i in items}
+    assert by_id[str(FONE)]["active"] is False
+    assert any(i["active"] for i in items)
+    assert response.headers["cache-control"] == "no-store"
+
+
+async def test_a_merchant_never_sees_another_merchants_products_in_the_owner_list(writer) -> None:
+    items = (await writer.get("/products/mine", headers=as_user(("merchant",), None, CASA))).json()[
+        "items"
+    ]
+    assert items
+    assert {i["merchant"]["id"] for i in items} == {str(CASA)}
+
+
+async def test_the_owner_list_requires_a_write_scope(writer) -> None:
+    assert (await writer.get("/products/mine")).status_code == 401
+    customer = as_user(("customer",), None, None)
+    assert (await writer.get("/products/mine", headers=customer)).status_code == 403
+
+
+async def test_an_admin_must_say_which_store_to_list(writer) -> None:
+    admin = as_user(("admin",), None, None)
+    assert (await writer.get("/products/mine", headers=admin)).status_code == 422
+    listed = await writer.get("/products/mine", params={"merchant_id": str(CASA)}, headers=admin)
+    assert listed.status_code == 200
+    assert {i["merchant"]["id"] for i in listed.json()["items"]} == {str(CASA)}

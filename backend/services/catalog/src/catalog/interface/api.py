@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from marketplace_common.security import Principal, PrincipalResolver
@@ -31,6 +32,8 @@ from catalog.domain.sorting import SortOrder
 from catalog.interface.caching import cached_json
 from catalog.interface.schemas import (
     CategoryOut,
+    OwnProductListOut,
+    OwnProductOut,
     ProductCreateIn,
     ProductOut,
     ProductPageOut,
@@ -106,6 +109,14 @@ def build_router() -> APIRouter:
     async def product_by_slug(slug: str, request: Request) -> Response:
         product = await GetProduct(_reader_factory(request)).by_slug(slug)
         return cached_json(request, ProductOut.from_domain(product))
+
+    @router.get("/products/mine")
+    async def own_products(
+        request: Request, principal: PrincipalDep, merchant_id: UUID | None = None
+    ) -> JSONResponse:
+        products = await _manager(request).list_own(_require(principal), merchant_id)
+        body = OwnProductListOut(items=[OwnProductOut.from_owned(p) for p in products])
+        return JSONResponse(jsonable_encoder(body), headers={"Cache-Control": "no-store"})
 
     @router.get("/products/{product_id}")
     async def product_by_id(product_id: UUID, request: Request) -> Response:

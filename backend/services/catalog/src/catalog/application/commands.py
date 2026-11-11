@@ -168,3 +168,15 @@ class ManageProducts:
             )
             await uow.commit()
         return reactivated
+
+    async def list_own(self, principal: Principal, merchant_id: UUID | None) -> list[Product]:
+        if principal.can(Scope.CATALOG_WRITE_ANY):
+            if merchant_id is None:
+                raise InvalidProduct("merchant_id is required for this role")
+            target = merchant_id
+        elif principal.can(Scope.CATALOG_WRITE_OWN) and principal.merchant_id is not None:
+            target = principal.merchant_id
+        else:
+            raise NotProductOwner("no store to list")
+        async with self._uow_factory() as uow:
+            return await uow.products.list_by_merchant(target)

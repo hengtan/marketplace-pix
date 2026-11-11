@@ -51,6 +51,18 @@ class ProductOut(BaseModel):
         )
 
 
+class OwnProductOut(ProductOut):
+    active: bool
+
+    @classmethod
+    def from_owned(cls, product: Product) -> OwnProductOut:
+        return cls(**ProductOut.from_domain(product).model_dump(), active=product.active)
+
+
+class OwnProductListOut(BaseModel):
+    items: list[OwnProductOut]
+
+
 class ProductPageOut(BaseModel):
     items: list[ProductOut]
     total: int

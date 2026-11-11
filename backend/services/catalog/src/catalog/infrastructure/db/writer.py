@@ -22,6 +22,14 @@ class SqlAlchemyProductWriter:
         )
         return to_domain(model) if model else None
 
+    async def list_by_merchant(self, merchant_id: UUID) -> list[Product]:
+        rows = await self._session.scalars(
+            select(ProductModel)
+            .where(ProductModel.merchant_id == merchant_id)
+            .order_by(ProductModel.created_at.desc(), ProductModel.id)
+        )
+        return [to_domain(row) for row in rows.unique()]
+
     async def slug_taken(self, slug: str) -> bool:
         return (
             await self._session.scalar(select(ProductModel.id).where(ProductModel.slug == slug))
