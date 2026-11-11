@@ -28,6 +28,18 @@ x-payments: &payments
     ENABLE_DEV_PSP: "true"
     PIX_TTL_MINUTES: ${PIX_TTL_MINUTES:-30}
 
+x-catalog: &catalog
+  build:
+    context: ../backend/services/catalog
+  image: marketplace-pix/catalog:dev
+  profiles: ["services"]
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    CATALOG_DB: catalog
+
 services:
   postgres:
     image: postgres:17
@@ -188,6 +200,35 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+
+  catalog-migrate:
+    <<: *catalog
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  catalog-seed:
+    <<: *catalog
+    command: ["python", "-m", "catalog.seed"]
+    depends_on:
+      catalog-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  catalog-api:
+    <<: *catalog
+    ports:
+      - "${CATALOG_PORT:-8003}:8000"
+    depends_on:
+      catalog-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   gateway:
     build:

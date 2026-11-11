@@ -128,6 +128,10 @@ inteiros (`*_cents`) com `currency` ("BRL"). IDs em uuid. Erros: `{ "detail": "t
 `GET /products` aceita `q`, `category`, `min_price_cents`, `max_price_cents`, `sort`
 (`relevance|price_asc|price_desc|newest|rating`), `page`, `page_size` (padrão 12, máximo 48).
 
+`GET /products/by-ids` devolve o envelope paginado (`items`, `total`, `page`, `page_size`), na ordem pedida,
+ignora ids desconhecidos e aceita no máximo 100 ids (422 se `ids` faltar ou for inválido). Parâmetros fora do
+intervalo devolvem 422 com `detail` em texto.
+
 Produto: `id`, `slug`, `name`, `description`, `price_cents`, `currency`, `category`, `image_url` (pode ser nulo),
 `rating` (0 a 5), `reviews_count`, `tags[]`, `merchant` (`id`, `slug`, `name`), `created_at`.
 Categoria: `slug`, `label`, `count`.

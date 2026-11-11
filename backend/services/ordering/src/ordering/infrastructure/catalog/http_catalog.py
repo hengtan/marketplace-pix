@@ -35,7 +35,9 @@ class HttpCatalogGateway:
                         "catalog error", request=response.request, response=response
                     )
                 response.raise_for_status()
-                return [_to_product(raw) for raw in response.json()]
+                payload = response.json()
+                raw_items = payload["items"] if isinstance(payload, dict) else payload
+                return [_to_product(raw) for raw in raw_items]
             except (httpx.HTTPError, ValueError, KeyError) as error:
                 last_error = error
                 if attempt + 1 < self._attempts:

@@ -68,3 +68,12 @@ async def test_network_error_becomes_catalog_unavailable():
 async def test_malformed_payload_becomes_catalog_unavailable():
     with pytest.raises(CatalogUnavailable):
         await gateway(lambda r: httpx.Response(200, json=[{"id": "x"}])).get_products([uuid4()])
+
+
+async def test_accepts_the_paginated_envelope_returned_by_the_real_catalog():
+    pid = uuid4()
+    envelope = {"items": [product(pid, 12990)], "total": 1, "page": 1, "page_size": 1}
+
+    (found,) = await gateway(lambda r: httpx.Response(200, json=envelope)).get_products([pid])
+
+    assert found.id == pid and found.price_cents == 12990
