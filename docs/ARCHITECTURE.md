@@ -9,12 +9,11 @@ orchestrated by `ordering`. Synchronous calls happen only at the edge (gateway t
 
 ## Purchase flow
 
-1. `POST /orders` (with `Idempotency-Key`): ordering writes the order as `PENDING` and the `OrderCreated` event to the outbox, in the same transaction. It responds 202.
-2. The relay publishes `OrderCreated`. Inventory reserves stock (with a TTL) and publishes `StockReserved`.
-3. Ordering requests the charge. Payments generates the PIX (QR code and copy-and-paste code, with an expiration) and publishes `PaymentRequested`. (PIX is Brazil's instant payment system.)
-4. The PSP (payment service provider) calls the webhook. Payments validates the signature AND queries the charge at the PSP before confirming. It publishes `PaymentConfirmed`.
-5. The ledger posts the entries (customer, platform, merchant). Ordering marks the order `PAID`. Notifications alerts the customer.
-6. Failure or expiration: the saga compensates (releases stock, cancels the charge, marks the order `CANCELLED`).
+1. `POST /orders` (with `Idempotency-Key`): ordering writes the order as `PENDING` and the `OrderCreated` event to the outbox in the same transaction, then responds `201`. No service is called synchronously.
+2. The relay publishes `OrderCreated` to `orders.events` (key = order id). Four consumers react independently: inventory reserves stock with a TTL (`StockReserved` or `StockRejected`), payments creates the PIX charge with a QR code, a copy-and-paste code and an expiration (`PaymentCreated`), the ledger stores an order projection, and notifications sends the confirmation email. (PIX is Brazil's instant payment system.)
+3. The PSP (payment service provider) calls the webhook. Payments validates the signature AND queries the charge status at the PSP before confirming, then publishes `PaymentConfirmed`.
+4. `PaymentConfirmed` fans out: ordering marks the order `PAID` (`OrderPaid`), inventory turns the reservation into a sale, the ledger posts the double-entry transaction (customer, platform fee, merchant), and notifications emails the customer.
+5. Failure paths compensate through events. `StockRejected` makes ordering cancel with reason `out of stock`; `PaymentExpired` cancels with reason `payment expired`. `OrderCancelled` then makes payments cancel the pending charge and inventory release the reservation. A payment that arrives after cancellation is refunded (next section).
 
 ## Saga: global timeout and late payment
 

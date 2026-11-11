@@ -5,15 +5,12 @@
 Fonte única de verdade para eventos, APIs, portas e dados de seed. Quem implementa um serviço segue este
 documento. Se precisar mudar algo, registre a mudança no relatório final em vez de alterar este arquivo.
 
-## 1. Regras do repositório
+## 1. Regras de contribuição
 
-- Commitar ao terminar cada item (commits pequenos, mensagem em inglês, no imperativo). A identidade do git já está configurada.
-- Nenhum trailer de coautoria e nenhuma menção a ferramentas de IA em código, comentários, docs ou mensagens de commit.
-- **Nunca** dar `git push`.
-- Mexer apenas na própria pasta. Arquivos compartilhados (`infra/docker-compose.yml`, `README.md`, `docs/`, `.env*`, outros serviços) só o integrador altera: descreva no relatório o que precisa mudar.
-- Não derrubar nem reiniciar containers em execução. Não matar processos do Chrome.
-- Textos para o usuário em pt-BR correto (acentos, concordância). Sem travessão (a pontuação longa de travessão) em nenhum texto ou copy.
-- Código em inglês, sem comentários desnecessários.
+- Commits pequenos e focados, com mensagens em inglês no imperativo, uma mudança lógica em cada um.
+- Código em inglês, sem comentários desnecessários. Os nomes carregam o significado.
+- O texto voltado ao usuário é pt-BR correto (acentos, concordância). A loja é para o Brasil, então a interface fica em português enquanto código e documentação são em inglês.
+- Toda mudança entra com seus testes (veja a seção "Padrões" de `docs/pt-BR/ARQUITETURA.md` e o README). Os contratos deste arquivo são a fonte única da verdade: mude-os aqui primeiro, depois o código.
 
 ## 2. Portas
 
@@ -34,8 +31,7 @@ documento. Se precisar mudar algo, registre a mudança no relatório final em ve
 Infra já em execução (use nos testes de integração): Postgres `localhost:5433` (usuário e senha no `.env` da raiz),
 Kafka `localhost:9094`, Redis `localhost:6380`. Bancos existentes: `ordering`, `payments`, `ledger`, `inventory`,
 `catalog`, `notifications`, `identity`. Cada serviço só acessa o seu banco e usa `<serviço>_test` nos testes.
-Em uma worktree o `.env` não existe (é ignorado pelo git): copie com
-`cp /Users/hengtan/Documents/git/estudos/marketplace-pix/.env .env`.
+O `.env` é ignorado pelo git. Num clone novo rode `scripts/up.sh`, que o cria com segredos gerados; em um worktree adicional copie-o do checkout principal.
 
 ## 3. Padrão de serviço Python
 

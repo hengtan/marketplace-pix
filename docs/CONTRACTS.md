@@ -5,15 +5,12 @@
 Single source of truth for events, APIs, ports, and seed data. Whoever implements a service follows this
 document. If something needs to change, record the change in the final report instead of editing this file.
 
-## 1. Repository rules
+## 1. Contribution rules
 
-- Commit as each item is finished (small commits, English messages, imperative mood). The git identity is already configured.
-- No co-author trailers and no mention of automated tooling in code, comments, docs, or commit messages.
-- **Never** run `git push`.
-- Touch only your own folder. Shared files (`infra/docker-compose.yml`, `README.md`, `docs/`, `.env*`, other services) are changed only by the integrator: describe in the report what needs to change.
-- Do not stop or restart running containers. Do not kill Chrome processes.
-- User-facing text in correct pt-BR (accents, agreement). No em dashes (the long dash punctuation) in any text or copy.
-- Code in English, no unnecessary comments.
+- Small, focused commits with English messages in the imperative mood, one logical change each.
+- Code in English, with no unnecessary comments. Names carry the meaning.
+- User-facing copy is correct Brazilian Portuguese (accents, agreement). The storefront targets Brazil, so the UI language stays pt-BR while code and documentation are English.
+- Every change ships with its tests (see the Patterns section of `docs/ARCHITECTURE.md` and the README for the test strategy). Contracts in this file are the single source of truth: change them here first, then the code.
 
 ## 2. Ports
 
@@ -34,8 +31,7 @@ document. If something needs to change, record the change in the final report in
 Infra already running (use it in integration tests): Postgres `localhost:5433` (user and password in the root `.env`),
 Kafka `localhost:9094`, Redis `localhost:6380`. Existing databases: `ordering`, `payments`, `ledger`, `inventory`,
 `catalog`, `notifications`, `identity`. Each service accesses only its own database and uses `<service>_test` in tests.
-In a worktree the `.env` does not exist (it is git-ignored): copy it with
-`cp /Users/hengtan/Documents/git/estudos/marketplace-pix/.env .env`.
+The `.env` is git-ignored. In a fresh clone run `scripts/up.sh`, which creates it with generated secrets; in an additional worktree copy it from your main checkout.
 
 ## 3. Python service pattern
 

@@ -9,12 +9,11 @@ Chamadas síncronas só na borda (gateway para serviço) e em consultas simples.
 
 ## Fluxo de uma compra
 
-1. `POST /orders` (com `Idempotency-Key`): o ordering grava o pedido `PENDENTE` e o evento `OrderCreated` no outbox, na mesma transação. Responde 202.
-2. O relay publica `OrderCreated`. O inventory reserva o estoque (TTL) e publica `StockReserved`.
-3. O ordering pede a cobrança. O payments gera o PIX (QR e copia e cola, com expiração) e publica `PaymentRequested`.
-4. O PSP chama o webhook. O payments valida a assinatura E consulta a cobrança no PSP antes de confirmar. Publica `PaymentConfirmed`.
-5. O ledger lança as entradas (cliente, plataforma, lojista). O ordering marca `PAGO`. O notifications avisa o cliente.
-6. Falha ou expiração: a saga compensa (libera estoque, cancela cobrança, marca `CANCELADO`).
+1. `POST /orders` (com `Idempotency-Key`): o ordering grava o pedido como `PENDING` e o evento `OrderCreated` no outbox, na mesma transação, e responde `201`. Nenhum serviço é chamado de forma síncrona.
+2. O relay publica `OrderCreated` em `orders.events` (chave = id do pedido). Quatro consumidores reagem de forma independente: o inventory reserva o estoque com TTL (`StockReserved` ou `StockRejected`), o payments cria a cobrança PIX com QR code, código copia e cola e expiração (`PaymentCreated`), o ledger guarda uma projeção do pedido, e o notifications envia o e-mail de confirmação. (PIX é o sistema de pagamento instantâneo brasileiro.)
+3. O PSP (provedor de pagamento) chama o webhook. O payments valida a assinatura E consulta o status da cobrança no PSP antes de confirmar, e então publica `PaymentConfirmed`.
+4. `PaymentConfirmed` se espalha: o ordering marca o pedido como `PAID` (`OrderPaid`), o inventory transforma a reserva em venda, o ledger lança a transação de dupla entrada (cliente, taxa da plataforma, lojista) e o notifications avisa o cliente por e-mail.
+5. Os caminhos de falha compensam por eventos. `StockRejected` faz o ordering cancelar com o motivo `out of stock`; `PaymentExpired` cancela com `payment expired`. `OrderCancelled` faz o payments cancelar a cobrança pendente e o inventory liberar a reserva. Um pagamento que chega depois do cancelamento é reembolsado (próxima seção).
 
 ## Saga: timeout global e pagamento tardio
 
