@@ -15,7 +15,8 @@ EMAIL="e2e.$RUN@example.com"
 PASSWORD="E2e-senha-$RUN-segura"
 CORDA=$(uuid5 product corda-pular-speed); GPS=$(uuid5 product relogio-gps-trail)
 TRILHA=$(uuid5 merchant trilha-sports); AURORA=$(uuid5 merchant aurora-tech)
-stock() { curl -s "$G/inventory/stock/$1" | jget "'%s/%s' % (d['available'], d['reserved'])"; }
+stock() { curl -s "$G/inventory/stock/$1" -H "$(auth "$MERCHANT_TOKEN")" | jget "'%s/%s' % (d['available'], d['reserved'])"; }
+chat() { curl -s -X POST "$G/assistant/chat" -H 'content-type: application/json' ${2:+-H "$(auth "$2")"} -d "{\"message\":\"$1\"}" | jget "d['answer']"; }
 
 echo "== 1. Saúde"
 check "gateway agrega todos os serviços (inclui identity)" "$(curl -s "$G/health" | jget "d['status']")" "ok"
@@ -29,7 +30,13 @@ REG=$(curl -s -X POST "$G/auth/register" -H 'content-type: application/json' -d 
 TOKEN=$(echo "$REG" | jget "d['access_token']"); REFRESH=$(echo "$REG" | jget "d['refresh_token']"); CUST=$(echo "$REG" | jget "d['user']['id']")
 check "registro devolve access token JWT" "$(echo "$TOKEN" | awk -F. '{print NF}')" "3"
 check "e-mail repetido é recusado (409)" "$(status -X POST "$G/auth/register" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"name\":\"X\",\"password\":\"$PASSWORD\"}")" "409"
-check "senha errada é recusada (401)" "$(status -X POST "$G/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"errada-errada\"}")" "401"
+WRONG_LOGIN="{\"email\":\"$EMAIL\",\"password\":\"errada-errada\"}"
+check "senha errada é recusada (401)" "$(status -X POST "$G/auth/login" -H 'content-type: application/json' -d "$WRONG_LOGIN")" "401"
+BACKOFF=$(curl -s -o /dev/null -w '%{http_code}' -D "$CODE_FILE.h" -X POST "$G/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
+check "nova tentativa logo após a falha recebe 429 (espera progressiva)" "$BACKOFF" "429"
+check "o 429 traz Retry-After" "$(tr 'A-Z' 'a-z' < "$CODE_FILE.h" | grep -c '^retry-after:')" "1"
+rm -f "$CODE_FILE.h"
+sleep 2.5
 check "GET /auth/me devolve o usuário do token" "$(curl -s "$G/auth/me" -H "$(auth "$TOKEN")" | jget "d['email']")" "$EMAIL"
 check "token adulterado é recusado (401)" "$(status "$G/auth/me" -H "$(auth "${TOKEN%?}x")")" "401"
 check "sem token em rota protegida (401)" "$(status "$G/auth/me")" "401"
@@ -103,6 +110,9 @@ echo "== 7. Checkout de convidado continua funcionando"
 GUEST=$(python3 -c 'import uuid;print(uuid.uuid4())')
 GORDER=$(post_order "$CORDA" 1 "$GUEST" "guest.$RUN@example.com" "e2e-guest-$RUN" | jget "d['id']"); check "convidado cria pedido (201)" "$(cat "$CODE_FILE")" "201"
 check "convidado lê o próprio pedido pelo id (200)" "$(status "$G/orders/$GORDER")" "200"
+PCODE=$(status "$G/payments/by-order/$GORDER")
+check "pagamento logo após criar o pedido é 200 ou 202, nunca 404" "$([ "$PCODE" = 200 ] || [ "$PCODE" = 202 ] && echo ok)" "ok"
+check "pagamento de pedido que não existe é 404" "$(status "$G/payments/by-order/$(python3 -c 'import uuid;print(uuid.uuid4())')")" "404"
 check "pedido de convidado não aparece na conta de ninguém" "$(curl -s "$G/orders" -H "$(auth "$TOKEN")" | jget "str(any(o['id']=='$GORDER' for o in d['items']))")" "False"
 
 echo "== 8. Sem estoque cancela pedido e cobrança"
@@ -115,5 +125,45 @@ check "pagar PIX cancelado é recusado (409)" "$(status -X POST "$G/payments/dev
 echo "== 9. Validações"
 post_order "$(python3 -c 'import uuid;print(uuid.uuid4())')" 1 "$CUST" "$EMAIL" "e2e-unk-$RUN" "$TOKEN" >/dev/null; check "produto inexistente (422)" "$(cat "$CODE_FILE")" "422"
 check "sem Idempotency-Key (400)" "$(status -X POST "$G/orders" -H 'content-type: application/json' -H "$(auth "$TOKEN")" -d "{\"customer_name\":\"Teste E2E\",\"customer_email\":\"$EMAIL\",\"items\":[{\"product_id\":\"$CORDA\",\"quantity\":1}]}")" "400"
+
+echo "== 10. Estoque, cabeçalhos, limite de corpo e revogação"
+check "estoque público não expõe reserved" "$(curl -s "$G/inventory/stock/$CORDA" | jget "'reserved' in d")" "False"
+check "estoque público lista só available" "$(curl -s "$G/inventory/stock?product_ids=$CORDA" | jget "sorted(d[0])")" "['available', 'product_id']"
+check "lojista dono vê reserved" "$(curl -s "$G/inventory/stock/$CORDA" -H "$(auth "$MERCHANT_TOKEN")" | jget "'reserved' in d")" "True"
+check "lojista de outra loja não vê reserved" "$(curl -s "$G/inventory/stock/$CORDA" -H "$(auth "$(login "aurora-tech@marketplace-pix.local" "$SEED_PASSWORD")")" | jget "'reserved' in d")" "False"
+HDRS=$(curl -sI "$G/catalog/categories" | tr -d '\r' | tr 'A-Z' 'a-z')
+check "cabeçalho X-Content-Type-Options: nosniff" "$(echo "$HDRS" | grep -c '^x-content-type-options: nosniff')" "1"
+check "cabeçalho Referrer-Policy" "$(echo "$HDRS" | grep -c '^referrer-policy:')" "1"
+check "cabeçalho Permissions-Policy" "$(echo "$HDRS" | grep -c '^permissions-policy:')" "1"
+check "cabeçalho Cross-Origin-Resource-Policy" "$(echo "$HDRS" | grep -c '^cross-origin-resource-policy:')" "1"
+check "HSTS desligado por padrão em desenvolvimento" "$(echo "$HDRS" | grep -c '^strict-transport-security:')" "0"
+BIG=$(mktemp); head -c 2000000 /dev/zero | tr '\0' 'a' > "$BIG"
+check "corpo de 2 MB é recusado (413)" "$(status -X POST "$G/orders" -H 'content-type: application/json' -H 'Idempotency-Key: big' --data-binary "@$BIG")" "413"
+rm -f "$BIG"
+LOGIN2=$(curl -s -X POST "$G/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
+T2=$(echo "$LOGIN2" | jget "d['access_token']"); R2=$(echo "$LOGIN2" | jget "d['refresh_token']")
+check "access token vale antes do logout" "$(status "$G/auth/me" -H "$(auth "$T2")")" "200"
+curl -s -o /dev/null -X POST "$G/auth/logout" -H 'content-type: application/json' -d "{\"refresh_token\":\"$R2\"}"
+REVOKED=no
+for _ in 1 2 3 4 5; do
+  [ "$(status "$G/auth/me" -H "$(auth "$T2")")" = 401 ] && { REVOKED=yes; break; }
+  sleep 0.2
+done
+check "o mesmo access token recebe 401 em até 1 s depois do logout" "$REVOKED" "yes"
+check "outro token da mesma conta segue valendo" "$(status "$G/auth/me" -H "$(auth "$TOKEN")")" "200"
+
+echo "== 11. Assistente: identidade e eventos do catálogo"
+check "dono pergunta pelo próprio pedido e vê o status" "$(chat "status do pedido $ORDER" "$TOKEN" | grep -c "Pedido\|pago")" "1"
+check "outro usuário não vê o pedido pelo chat" "$(chat "status do pedido $ORDER" "$OTHER" | grep -c "Não encontrei")" "1"
+check "anônimo não vê pedido de conta pelo chat" "$(chat "status do pedido $ORDER" | grep -c "Não encontrei")" "1"
+check "pedido de convidado continua consultável por id" "$(chat "status do pedido $GORDER" | grep -c "Não encontrei")" "0"
+OLD=$(curl -s "$G/catalog/products/$CORDA" | jget "d['price_cents']")
+chat "quanto custa a corda de pular speed?" >/dev/null
+chat "quanto custa a corda de pular speed?" >/dev/null
+check "dono altera o preço pelo catálogo (200)" "$(status -X PATCH "$G/catalog/products/$CORDA" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d '{"price_cents":5490}')" "200"
+wait_for "assistente responde o preço novo sem reindexar" "chat 'quanto custa a corda de pular speed?' | grep -c '54,90'" "1" 40
+check "lojista de outra loja não altera o preço (403)" "$(status -X PATCH "$G/catalog/products/$CORDA" -H 'content-type: application/json' -H "$(auth "$(login "aurora-tech@marketplace-pix.local" "$SEED_PASSWORD")")" -d '{"price_cents":1}')" "403"
+curl -s -o /dev/null -X PATCH "$G/catalog/products/$CORDA" -H 'content-type: application/json' -H "$(auth "$MERCHANT_TOKEN")" -d "{\"price_cents\":$OLD}"
+wait_for "preço volta ao original no assistente" "chat 'quanto custa a corda de pular speed?' | grep -c '49,90'" "1" 40
 
 summary_result

@@ -17,7 +17,7 @@ source "$HERE/e2e-lib.sh"
 sql() { # banco, consulta
   $COMPOSE exec -T postgres psql -U "$PG_USER" -d "$1" -tA -c "$2" 2>/dev/null | tr -d '[:space:]'
 }
-stock() { curl -s "$G/inventory/stock/$1" | jget "'%s/%s' % (d['available'], d['reserved'])"; }
+stock() { curl -s "$G/inventory/stock/$1" -H "$(auth "$MERCHANT_TOKEN")" | jget "'%s/%s' % (d['available'], d['reserved'])"; }
 order_field() { curl -s "$G/orders/$ORDER" -H "$(auth "$TOKEN")" | jget "$1"; }
 payment_status() { curl -s "$G/payments/by-order/$ORDER" -H "$(auth "$TOKEN")" | jget "d['status']"; }
 
