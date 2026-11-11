@@ -53,7 +53,7 @@ def build_notification(
 ) -> Notification:
     base = base_url.rstrip("/")
     action_url = (
-        base if kind is NotificationKind.ORDER_CANCELLED else f"{base}/pedidos/{order.order_id}"
+        base if kind is NotificationKind.ORDER_CANCELLED else f"{base}/pedido/{order.order_id}"
     )
     context: dict[str, Any] = {
         "customer_name": order.contact.first_name,

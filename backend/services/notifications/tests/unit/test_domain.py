@@ -101,7 +101,7 @@ def test_order_created_notification_summarises_the_order() -> None:
     assert notification.context["items"][0]["name"] == "Item 1"
     assert notification.context["items"][1]["name"] == "Cabo USB-C"
     assert notification.context["items"][0]["line_total_cents"] == 35980
-    assert notification.context["action_url"] == f"{BASE_URL}/pedidos/{order.order_id}"
+    assert notification.context["action_url"] == f"{BASE_URL}/pedido/{order.order_id}"
 
 
 def test_pix_ready_carries_code_amount_and_expiry() -> None:

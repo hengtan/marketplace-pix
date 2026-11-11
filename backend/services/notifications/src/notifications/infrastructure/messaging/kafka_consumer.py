@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from typing import Any, Protocol
 from uuid import UUID
 
-from aiokafka import AIOKafkaConsumer, TopicPartition
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
 
 from notifications.application.ports import IncomingEvent
 
@@ -34,6 +34,12 @@ def to_incoming_event(record: Any) -> IncomingEvent | None:
 
 
 class KafkaEventConsumer:
+    """Consome vários tópicos com commit manual.
+
+    Se o handler falhar a mensagem é reprocessada; depois de `max_handler_attempts` falhas ela vai
+    para `<tópico de origem>.dlq` e o consumo segue, sem travar a partição.
+    """
+
     def __init__(
         self,
         bootstrap_servers: str,
@@ -46,6 +52,7 @@ class KafkaEventConsumer:
         self._handler = handler
         self._error_backoff = error_backoff
         self._max_handler_attempts = max_handler_attempts
+        self._group_id = group_id
         self._failures: dict[tuple[str, int, int], int] = {}
         self._consumer = AIOKafkaConsumer(
             *topics,
@@ -54,12 +61,15 @@ class KafkaEventConsumer:
             enable_auto_commit=False,
             auto_offset_reset="earliest",
         )
+        self._dlq_producer = AIOKafkaProducer(bootstrap_servers=bootstrap_servers, acks="all")
 
     async def start(self) -> None:
         await self._consumer.start()
+        await self._dlq_producer.start()
 
     async def stop(self) -> None:
         await self._consumer.stop()
+        await self._dlq_producer.stop()
 
     async def run(self, stop: asyncio.Event) -> None:
         while not stop.is_set():
@@ -77,19 +87,46 @@ class KafkaEventConsumer:
         position = (partition.topic, partition.partition, record.offset)
         try:
             await self._handler.handle(event)
-        except Exception:
+        except Exception as error:
             attempts = self._failures.get(position, 0) + 1
-            if attempts >= self._max_handler_attempts:
-                logger.exception(
-                    "handler gave up on event %s after %s attempts, skipping", event.id, attempts
-                )
+            if attempts >= self._max_handler_attempts and await self._dead_letter(record, error):
                 self._failures.pop(position, None)
                 return True
             self._failures[position] = attempts
-            logger.exception("handler failed for event %s, will retry", event.id)
+            logger.exception(
+                "handler failed for event %s (attempt %d/%d), will retry",
+                event.id,
+                attempts,
+                self._max_handler_attempts,
+            )
             self._consumer.seek(partition, record.offset)
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), timeout=self._error_backoff)
             return False
         self._failures.pop(position, None)
+        return True
+
+    async def _dead_letter(self, record: Any, error: Exception) -> bool:
+        dlq_topic = f"{record.topic}.dlq"
+        headers = [
+            *(record.headers or []),
+            ("dlq_reason", repr(error)[:500].encode()),
+            ("dlq_source", f"{record.topic}/{record.partition}/{record.offset}".encode()),
+            ("dlq_group", self._group_id.encode()),
+        ]
+        try:
+            await self._dlq_producer.send_and_wait(
+                dlq_topic, key=record.key, value=record.value, headers=headers
+            )
+        except Exception:
+            logger.exception("could not publish to %s, will keep retrying", dlq_topic)
+            return False
+        logger.error(
+            "event sent to %s (%s/%s/%s): %r",
+            dlq_topic,
+            record.topic,
+            record.partition,
+            record.offset,
+            error,
+        )
         return True

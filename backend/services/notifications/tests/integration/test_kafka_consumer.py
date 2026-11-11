@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from uuid import UUID, uuid4
 
 import pytest
-from aiokafka import AIOKafkaProducer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
 from notifications.application.handle_event import HandleEvent
@@ -24,10 +24,33 @@ async def topics():
     names = (f"test.orders.events.{suffix}", f"test.payments.events.{suffix}")
     admin = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP)
     await admin.start()
-    await admin.create_topics([NewTopic(n, num_partitions=3, replication_factor=1) for n in names])
+    everything = [*names, *(f"{n}.dlq" for n in names)]
+    await admin.create_topics(
+        [NewTopic(n, num_partitions=3, replication_factor=1) for n in everything]
+    )
     yield names
-    await admin.delete_topics(list(names))
+    await admin.delete_topics(everything)
     await admin.close()
+
+
+async def read_topic(topic: str) -> list:
+    consumer = AIOKafkaConsumer(
+        topic,
+        bootstrap_servers=BOOTSTRAP,
+        group_id=f"reader-{uuid4().hex[:6]}",
+        auto_offset_reset="earliest",
+    )
+    await consumer.start()
+    messages = []
+    try:
+        async with asyncio.timeout(4):
+            while True:
+                messages.append(await consumer.getone())
+    except TimeoutError:
+        pass
+    finally:
+        await consumer.stop()
+    return messages
 
 
 async def publish(topic: str, event_type: str, event_id: UUID, key: str, payload: dict) -> None:
@@ -157,3 +180,9 @@ async def test_consumer_skips_malformed_messages_and_a_poison_event_without_bloc
 
     (stored,) = await all_notifications(session_factory)
     assert stored.kind == "ORDER_CREATED"
+    dead = await read_topic(f"{topics[1]}.dlq")
+    assert len(dead) == 1
+    headers = {k: v.decode() for k, v in dead[0].headers}
+    assert headers["event_type"] == "PaymentCreated"
+    assert headers["dlq_source"].startswith(f"{topics[1]}/")
+    assert headers["dlq_reason"]

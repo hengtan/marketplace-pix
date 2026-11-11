@@ -66,6 +66,26 @@ x-inventory: &inventory
     INVENTORY_DB: inventory
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
+x-notifications: &notifications
+  build:
+    context: ../backend/services/notifications
+  image: marketplace-pix/notifications:dev
+  profiles: ["services"]
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    NOTIFICATIONS_DB: notifications
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_RESULT_BACKEND: redis://redis:6379/1
+    SMTP_HOST: mailpit
+    SMTP_PORT: 1025
+    MAIL_FROM: "Marketplace PIX <no-reply@marketplace-pix.local>"
+    ADMIN_EMAIL: admin@marketplace-pix.local
+    FRONTEND_BASE_URL: http://localhost:5173
+
 services:
   postgres:
     image: postgres:17
@@ -356,6 +376,58 @@ services:
       inventory-migrate:
         condition: service_completed_successfully
       kafka:
+        condition: service_healthy
+
+  notifications-migrate:
+    <<: *notifications
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  notifications-api:
+    <<: *notifications
+    ports:
+      - "${NOTIFICATIONS_PORT:-8006}:8000"
+    depends_on:
+      notifications-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  notifications-worker:
+    <<: *notifications
+    command: ["python", "-m", "notifications.worker_main"]
+    depends_on:
+      notifications-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notifications-celery:
+    <<: *notifications
+    command: ["celery", "-A", "notifications.worker.celery_app", "worker", "-l", "info"]
+    depends_on:
+      notifications-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  notifications-beat:
+    <<: *notifications
+    command: ["celery", "-A", "notifications.worker.celery_app", "beat", "-l", "info", "-s", "/tmp/celerybeat-schedule"]
+    depends_on:
+      notifications-migrate:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
 
   gateway:
