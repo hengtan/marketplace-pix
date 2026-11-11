@@ -1,3 +1,5 @@
+[English](../ROADMAP.md) | **Português (Brasil)**
+
 # Roadmap
 
 Regra de ouro: em cada fase, escrever os testes antes da parte difícil e tentar quebrar de propósito
@@ -92,7 +94,7 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Interface de chat no frontend (streaming, citações com foto e preço, rastro "Como cheguei nessa resposta", memória)
 - [x] Entendimento de consulta: intenção (catálogo, pedido, estoque, política, fora de escopo), reescrita com sinônimos, correção de digitação, negação e decomposição
 - [x] Cache semântico (pgvector) com TTL e invalidação por eventos do catálogo (`catalog.events`), métricas de hit rate e economia
-- [x] Recuperação avançada: filtros pré-busca, pesos na fusão, MMR, parent-document; variantes comparadas em `docs/RAG-AVALIACAO.md`
+- [x] Recuperação avançada: filtros pré-busca, pesos na fusão, MMR, parent-document; variantes comparadas em `docs/pt-BR/RAG-AVALIACAO.md`
 - [x] Avaliação: 111 casos (dev e holdout), hit@k, MRR, nDCG, precisão e revocação de contexto, juiz `JudgeLlm`, portão de regressão no CI
 - [x] Guardrails: injeção direta e indireta, PII em logs e traces, orçamento por sessão e usuário, saída estruturada com reparo, números verificados contra o trecho citado, 41 ataques no red team
 - [x] Observabilidade de LLM: spans por etapa, tokens e custo, painel `assistant` no Grafana
@@ -115,6 +117,6 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [x] Versionamento de eventos: `schema_version`, modelos por versão, upcasters, golden files e testes de contrato; `OrderCreated` v2
 - [x] Retenção em lotes de outbox, inbox, idempotência e refresh tokens
 - [x] Timeout global da saga e pagamento tardio reembolsado de forma idempotente e auditável
-- [x] `docs/SEGURANCA.md` e `docs/EVOLUCAO-DE-EVENTOS.md`
+- [x] `docs/pt-BR/SEGURANCA.md` e `docs/pt-BR/EVOLUCAO-DE-EVENTOS.md`
 - [x] Revogação do access token (logout, reuso do refresh e conta desativada), cadastro em massa e login com limite por IP+e-mail e espera progressiva, cabeçalhos de segurança e limite de corpo no gateway, `GET /stock` público só com `available`, assistente com a identidade do usuário
-- [ ] MFA e cookie `HttpOnly` por BFF (ver limitações em `docs/SEGURANCA.md`)
+- [ ] MFA e cookie `HttpOnly` por BFF (ver limitações em `docs/pt-BR/SEGURANCA.md`)
