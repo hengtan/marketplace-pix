@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
-import { api } from "@/api/endpoints";
+import { api, isPaymentPending } from "@/api/endpoints";
 import type { Order, Payment } from "@/api/schemas";
 import { qk } from "./queries";
 
@@ -34,7 +34,9 @@ export function useOrderStatus(orderId: string, intervalMs = ORDER_POLL_MS): Ord
     queryFn: () => api.paymentByOrder(orderId),
     enabled: Boolean(orderQuery.data),
     refetchInterval: (q) => {
-      if (status && status !== "PENDING" && q.state.data) return false;
+      const data = q.state.data;
+      if (isPaymentPending(data)) return Math.max(500, (data.retryAfter ?? 1) * 1000);
+      if (status && status !== "PENDING" && data) return false;
       return intervalMs;
     },
     staleTime: 0,
@@ -43,7 +45,7 @@ export function useOrderStatus(orderId: string, intervalMs = ORDER_POLL_MS): Ord
 
   return {
     order: orderQuery.data,
-    payment: paymentQuery.data,
+    payment: isPaymentPending(paymentQuery.data) ? undefined : paymentQuery.data,
     isLoading: orderQuery.isLoading,
     isLive: status === "PENDING",
     error: orderQuery.error,
