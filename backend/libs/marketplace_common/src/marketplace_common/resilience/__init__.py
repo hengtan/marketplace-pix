@@ -1,3 +1,4 @@
+from marketplace_common.resilience.bulkhead import Bulkhead
 from marketplace_common.resilience.circuit_breaker import (
     BreakerConfig,
     BreakerRegistry,
@@ -35,6 +36,7 @@ __all__ = [
     "BreakerConfig",
     "BreakerRegistry",
     "BreakerState",
+    "Bulkhead",
     "BulkheadFullError",
     "CircuitBreaker",
     "CircuitOpenError",
