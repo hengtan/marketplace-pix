@@ -58,6 +58,16 @@ Troca de tema usa View Transitions. `prefers-reduced-motion` desliga tudo.
 - Checkout em uma tela: dados à esquerda, resumo fixo à direita. O botão já mostra o total.
 - Pedido: painel PIX com QR e contagem à esquerda, linha do tempo à direita; no sucesso o painel vira confirmação.
 
+## Assistente de compras
+
+Botão flutuante em pílula ultramar (ícone e atalho), sem competir com o carrinho. O painel é uma gaveta de 30 rem à direita no
+desktop e tela cheia no celular. A conversa segue o vocabulário do app: balão ultramar para a pessoa, texto solto para o
+assistente (sem balão, para as listas e os cartões respirarem), chips de etapa em menta suave ("Catálogo consultado"),
+chips numerados `[1]` que casam com os cartões de produto logo abaixo. O rastro ("Como cheguei nessa resposta") é uma linha
+do tempo recolhida por padrão, com barras finas de pontuação. Estados vivos: pontos pulsando e o nome da ferramenta em
+andamento; erros em faixa de perigo com "Tentar de novo". `aria-live` separado do texto que chega token a token, para o
+leitor de tela ouvir só o fim da resposta e os estados.
+
 ## Imagens
 
 `image_url` nulo ou com falha vira um gradiente em OKLCH, com matiz por categoria e variação por produto, mais um glifo

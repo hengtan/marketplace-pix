@@ -28,6 +28,7 @@ Para testar a ferramenta de simulação com o backend real, use `VITE_ENABLE_DEV
 | `VITE_API_URL` | `http://localhost:8000` | Base do gateway. Vazia no Docker (usa o proxy do nginx, mesma origem) |
 | `VITE_USE_MOCKS` | `false` | `true` liga o MSW e todos os endpoints do contrato com estado em memória |
 | `VITE_ENABLE_DEV_TOOLS` | `false` | `true` mostra o botão "Simular pagamento" no painel PIX |
+| `VITE_PROXY_TARGET` | vazia | Só no `pnpm dev`: encaminha `/api` do Vite para o gateway (use com `VITE_API_URL=` vazia para evitar CORS em outra porta) |
 
 ## Scripts
 
@@ -52,6 +53,27 @@ Na primeira execução do Playwright: `pnpm exec playwright install chromium`.
 - Erro de listagem: buscar por `__erro` devolve 500.
 - Para zerar o estado dos mocks, limpe o `localStorage` do site.
 
+## Assistente de compras
+
+O botão flutuante (canto inferior direito), a paleta ⌘K ("Perguntar ao assistente" ou "Perguntar: seu texto") e o
+atalho `Ctrl /` (`⌘ /` no Mac) abrem o chat. Esc fecha e o foco volta ao botão.
+
+- Streaming: `POST /api/assistant/chat/stream` lido com `fetch` e um parser de SSE tolerante a chunks quebrados
+  (`src/features/assistant/sse.ts`). Eventos `tool_call` viram estados vivos, `token` monta o texto e `done` traz sessão,
+  citações e rastro. O botão de parar usa `AbortController` e há timeout de 45 s sem eventos.
+- Respostas: renderizador próprio e seguro (negrito, listas, quebras de linha, chips `[1]` para `/produto/:slug`), sem
+  `dangerouslySetInnerHTML`. Os produtos citados aparecem como cartões com preço e "Adicionar".
+- "Como cheguei nessa resposta": ferramentas chamadas (argumentos, resumo, duração), trechos recuperados com pontuação e
+  latência, em linha do tempo.
+- Sessão em `localStorage` (`praca-assistant-session`), recarregada por `GET /api/assistant/sessions/{id}`.
+  "Nova conversa" limpa tudo.
+- Mocks (`src/mocks/assistant.ts`) simulam SSE com `tool_call`, citações e rastro. Frases de teste: `simular erro`
+  (evento `error`) e `resposta lenta` (tokens devagar, bom para testar o botão de parar).
+- Contra o backend real em outra porta: `VITE_PROXY_TARGET=http://localhost:8000 VITE_API_URL= pnpm exec vite --port 5174`.
+- No nginx, `/api/assistant/chat/stream` tem `proxy_buffering off` para o texto chegar token a token.
+
+Capturas em `docs/screenshots/assistente/`.
+
 ## Docker
 
 ```bash
@@ -71,7 +93,7 @@ src/
   hooks/      queries do TanStack Query e useOrderStatus (polling de 2 s, trocável por SSE)
   store/      carrinho (persistido), cliente, tema, UI
   components/ componentes reutilizáveis e base de UI (Radix)
-  features/   painel PIX, linha do tempo, hero
+  features/   painel PIX, linha do tempo, hero, assistant (chat, SSE, rastro)
   pages/      rotas (carregadas sob demanda)
 docs/         DESIGN.md e screenshots
 e2e/          Playwright
