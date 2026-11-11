@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Annotated, Any, Protocol
@@ -11,7 +12,7 @@ from fastapi import APIRouter, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from payments.application.confirm_payment import ConfirmPayment, ConfirmResult
-from payments.application.errors import PaymentNotFound
+from payments.application.errors import PaymentNotFound, PspUnavailable
 from payments.application.get_payment import GetPaymentByOrder
 from payments.application.ports import PspGateway, UnitOfWork
 from payments.domain.errors import DomainError
@@ -119,6 +120,15 @@ def create_app(
     @app.exception_handler(PaymentNotFound)
     async def not_found(_: Request, exc: PaymentNotFound) -> JSONResponse:
         return JSONResponse({"detail": "payment not found"}, status_code=404)
+
+    @app.exception_handler(PspUnavailable)
+    async def psp_unavailable(_: Request, exc: PspUnavailable) -> JSONResponse:
+        retry_after = str(max(1, math.ceil(exc.retry_after_seconds)))
+        return JSONResponse(
+            {"detail": "payment provider temporarily unavailable", "code": "psp_unavailable"},
+            status_code=503,
+            headers={"Retry-After": retry_after},
+        )
 
     @app.exception_handler(DomainError)
     async def domain_conflict(_: Request, exc: DomainError) -> JSONResponse:

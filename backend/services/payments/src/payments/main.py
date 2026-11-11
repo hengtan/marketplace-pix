@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from payments.config import load_settings
 from payments.infrastructure.db.session import build_engine, build_session_factory
 from payments.infrastructure.db.uow import SqlAlchemyUnitOfWork
-from payments.infrastructure.psp.simulated import SimulatedPsp
+from payments.infrastructure.psp.resilient import ResilientPsp
+from payments.infrastructure.psp.simulated import PspChargeNotFound, SimulatedPsp
 from payments.interface.api import ReadyCheck, create_app
 
 
@@ -35,7 +36,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     factory = build_session_factory(engine)
     psp = SimulatedPsp(factory)
     app.state.uow_factory = lambda: SqlAlchemyUnitOfWork(factory)
-    app.state.psp = psp
+    app.state.psp = ResilientPsp(
+        psp, timeout=settings.psp_timeout_seconds, neutral_errors=(PspChargeNotFound,)
+    )
     app.state.webhook_secret = settings.psp_webhook_secret
     app.state.ready_check = _db_check(engine)
     if settings.enable_dev_psp:

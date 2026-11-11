@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     psp_webhook_secret: str
     enable_dev_psp: bool = False
     pix_ttl_minutes: int = 30
+    psp_timeout_seconds: float = 2.0
 
     @property
     def database_url(self) -> str:
