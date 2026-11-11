@@ -35,7 +35,10 @@ export function ErrorState({
   title?: string;
 }) {
   return (
-    <div role="alert" className="mx-auto grid max-w-sm justify-items-center gap-3 py-16 text-center">
+    <div
+      role="alert"
+      className="mx-auto grid max-w-sm justify-items-center gap-3 py-16 text-center"
+    >
       <div className="grid size-16 place-items-center rounded-full bg-danger-soft text-danger">
         <TriangleAlert className="size-7" />
       </div>

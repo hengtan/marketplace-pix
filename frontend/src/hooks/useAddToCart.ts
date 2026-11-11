@@ -10,7 +10,8 @@ export function useAddToCart() {
 
   return useCallback(
     (product: Product, quantity = 1, available?: number) => {
-      const inCart = useCart.getState().lines.find((l) => l.productId === product.id)?.quantity ?? 0;
+      const inCart =
+        useCart.getState().lines.find((l) => l.productId === product.id)?.quantity ?? 0;
       const cap = Math.min(MAX_PER_ITEM, available ?? MAX_PER_ITEM);
       if (available !== undefined && available <= 0) {
         toast.error("Produto esgotado", { description: product.name });

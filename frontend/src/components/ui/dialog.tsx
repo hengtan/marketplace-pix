@@ -43,7 +43,7 @@ export function DialogContent({
         <D.Title className={cn("font-display text-xl font-semibold", hideTitle && "sr-only")}>
           {title}
         </D.Title>
-        <D.Description className={description ? "text-sm text-muted" : "sr-only"}>
+        <D.Description className={description && !hideTitle ? "text-sm text-muted" : "sr-only"}>
           {description ?? title}
         </D.Description>
         {children}

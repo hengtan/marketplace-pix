@@ -32,7 +32,15 @@ export function Badge({
   return <span className={cn(badgeVariants({ tone }), className)} {...props} />;
 }
 
-export function Stars({ rating, count, className }: { rating: number; count?: number; className?: string }) {
+export function Stars({
+  rating,
+  count,
+  className,
+}: {
+  rating: number;
+  count?: number;
+  className?: string;
+}) {
   const full = Math.round(rating);
   return (
     <span

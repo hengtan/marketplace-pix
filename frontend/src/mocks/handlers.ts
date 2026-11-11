@@ -11,11 +11,19 @@ const LATENCY = 120;
 
 function paginate<T>(items: T[], page: number, pageSize: number) {
   const start = (page - 1) * pageSize;
-  return { items: items.slice(start, start + pageSize), total: items.length, page, page_size: pageSize };
+  return {
+    items: items.slice(start, start + pageSize),
+    total: items.length,
+    page,
+    page_size: pageSize,
+  };
 }
 
 function normalize(s: string): string {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  return s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 }
 
 function relevance(p: Product, q: string): number {
@@ -39,8 +47,15 @@ export const handlers = [
   http.get(url("/api/catalog/products/by-ids"), async ({ request }) => {
     await delay(LATENCY);
     const ids = (new URL(request.url).searchParams.get("ids") ?? "").split(",").filter(Boolean);
-    const items = ids.map((id) => PRODUCTS.find((p) => p.id === id)).filter((p): p is Product => Boolean(p));
-    return HttpResponse.json({ items, total: items.length, page: 1, page_size: Math.max(items.length, 1) });
+    const items = ids
+      .map((id) => PRODUCTS.find((p) => p.id === id))
+      .filter((p): p is Product => Boolean(p));
+    return HttpResponse.json({
+      items,
+      total: items.length,
+      page: 1,
+      page_size: Math.max(items.length, 1),
+    });
   }),
 
   http.get(url("/api/catalog/products/:id"), async ({ params }) => {
@@ -52,7 +67,8 @@ export const handlers = [
   http.get(url("/api/catalog/products"), async ({ request }) => {
     await delay(LATENCY * 2);
     const sp = new URL(request.url).searchParams;
-    if (sp.get("q") === "__erro") return HttpResponse.json({ detail: "Falha simulada" }, { status: 500 });
+    if (sp.get("q") === "__erro")
+      return HttpResponse.json({ detail: "Falha simulada" }, { status: 500 });
     const q = normalize(sp.get("q") ?? "").trim();
     const category = sp.get("category");
     const min = Number(sp.get("min_price_cents") ?? 0);
@@ -67,7 +83,9 @@ export const handlers = [
         p.price_cents >= min &&
         p.price_cents <= max &&
         (!q ||
-          normalize(`${p.name} ${p.description} ${p.tags.join(" ")} ${p.merchant.name}`).includes(q)),
+          normalize(`${p.name} ${p.description} ${p.tags.join(" ")} ${p.merchant.name}`).includes(
+            q,
+          )),
     );
     list = [...list].sort((a, b) => {
       switch (sort) {
@@ -95,7 +113,9 @@ export const handlers = [
 
   http.get(url("/api/inventory/stock"), async ({ request }) => {
     await delay(LATENCY / 2);
-    const ids = (new URL(request.url).searchParams.get("product_ids") ?? "").split(",").filter(Boolean);
+    const ids = (new URL(request.url).searchParams.get("product_ids") ?? "")
+      .split(",")
+      .filter(Boolean);
     return HttpResponse.json(ids.map((id) => db.getStock(id)));
   }),
 
@@ -112,13 +132,17 @@ export const handlers = [
   http.post(url("/api/orders"), async ({ request }) => {
     await delay(LATENCY * 3);
     const key = request.headers.get("Idempotency-Key");
-    if (!key) return HttpResponse.json({ detail: "Idempotency-Key é obrigatório" }, { status: 400 });
+    if (!key)
+      return HttpResponse.json({ detail: "Idempotency-Key é obrigatório" }, { status: 400 });
     const body = (await request.json()) as Parameters<typeof db.createOrder>[0];
     try {
       const { id } = db.createOrder(body, key);
       return HttpResponse.json({ id }, { status: 201 });
     } catch (err) {
-      return HttpResponse.json({ detail: err instanceof Error ? err.message : "Pedido inválido" }, { status: 422 });
+      return HttpResponse.json(
+        { detail: err instanceof Error ? err.message : "Pedido inválido" },
+        { status: 422 },
+      );
     }
   }),
 

@@ -2,8 +2,8 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowDownUp, Search, SearchX, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProductFilters, ProductSort } from "@/api/endpoints";
-import { ErrorState, EmptyState } from "@/components/states";
 import { ProductCard, ProductCardSkeleton } from "@/components/product-card";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { Hero } from "@/features/hero";
@@ -42,7 +42,10 @@ export default function HomePage() {
 
   useEffect(() => {
     if ((search.q ?? "") !== debounced.trim()) {
-      navigate({ search: (prev) => ({ ...prev, q: debounced.trim() || undefined }), replace: true });
+      navigate({
+        search: (prev) => ({ ...prev, q: debounced.trim() || undefined }),
+        replace: true,
+      });
     }
   }, [debounced, navigate, search.q]);
 
@@ -102,7 +105,9 @@ export default function HomePage() {
                   type="button"
                   aria-pressed={active}
                   onClick={() =>
-                    navigate({ search: (prev) => ({ ...prev, categoria: active ? undefined : c.slug }) })
+                    navigate({
+                      search: (prev) => ({ ...prev, categoria: active ? undefined : c.slug }),
+                    })
                   }
                   className={cn(
                     "group flex w-full items-end justify-between rounded-lg border p-5 text-left transition-[background-color,border-color,transform] duration-300 hover:-translate-y-0.5",
@@ -115,7 +120,9 @@ export default function HomePage() {
                     <span className={cn("block text-sm", active ? "opacity-80" : "text-muted")}>
                       {c.count} produtos
                     </span>
-                    <span className="mt-1 block font-display text-2xl font-semibold tracking-tight">{c.label}</span>
+                    <span className="mt-1 block font-display text-2xl font-semibold tracking-tight">
+                      {c.label}
+                    </span>
                   </span>
                   <span
                     aria-hidden
@@ -139,7 +146,9 @@ export default function HomePage() {
               {search.q ? `Resultados para "${search.q}"` : "Vitrine"}
             </h2>
             <p className="mt-1 text-muted" aria-live="polite">
-              {query.isPending ? "Carregando produtos..." : `${total} ${total === 1 ? "produto" : "produtos"}`}
+              {query.isPending
+                ? "Carregando produtos..."
+                : `${total} ${total === 1 ? "produto" : "produtos"}`}
             </p>
           </div>
         </div>
@@ -170,7 +179,10 @@ export default function HomePage() {
               value={range.id}
               onChange={(e) =>
                 navigate({
-                  search: (prev) => ({ ...prev, preco: e.target.value === "todos" ? undefined : e.target.value }),
+                  search: (prev) => ({
+                    ...prev,
+                    preco: e.target.value === "todos" ? undefined : e.target.value,
+                  }),
                 })
               }
             >
@@ -194,7 +206,8 @@ export default function HomePage() {
                 navigate({
                   search: (prev) => ({
                     ...prev,
-                    ordem: e.target.value === "relevance" ? undefined : (e.target.value as ProductSort),
+                    ordem:
+                      e.target.value === "relevance" ? undefined : (e.target.value as ProductSort),
                   }),
                 })
               }
@@ -224,7 +237,10 @@ export default function HomePage() {
               title="Não foi possível carregar os produtos"
             />
           ) : query.isPending ? (
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4" aria-busy>
+            <ul
+              className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4"
+              aria-busy
+            >
               {Array.from({ length: 8 }, (_, i) => (
                 <li key={i}>
                   <ProductCardSkeleton />
@@ -259,7 +275,12 @@ export default function HomePage() {
           <div ref={sentinel} className="h-px" />
           {query.hasNextPage && (
             <div className="mt-10 flex justify-center">
-              <Button variant="outline" size="lg" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage}>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => query.fetchNextPage()}
+                disabled={query.isFetchingNextPage}
+              >
                 {query.isFetchingNextPage ? "Carregando..." : "Ver mais produtos"}
               </Button>
             </div>

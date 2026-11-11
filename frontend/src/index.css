@@ -20,7 +20,7 @@
   --pix: oklch(0.72 0.17 165);
   --pix-ink: oklch(0.38 0.1 165);
   --pix-soft: oklch(0.94 0.06 165);
-  --warn: oklch(0.55 0.15 55);
+  --warn: oklch(0.45 0.13 55);
   --warn-soft: oklch(0.95 0.06 80);
   --danger: oklch(0.52 0.2 25);
   --danger-soft: oklch(0.95 0.035 25);

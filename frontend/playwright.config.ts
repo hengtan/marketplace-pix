@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: process.env.SCREENSHOTS ? /app\.spec/ : /screenshots\.spec/,
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,

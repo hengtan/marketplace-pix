@@ -29,7 +29,10 @@ interface DbState {
   notificationHtml: Map<string, string>;
   entries: Map<string, LedgerEntry[]>;
   liveDaily: Map<string, { gross: number; net: number; orders: number }>;
-  seedDaily: Map<string, { date: string; gross_cents: number; net_cents: number; orders: number }[]>;
+  seedDaily: Map<
+    string,
+    { date: string; gross_cents: number; net_cents: number; orders: number }[]
+  >;
   rejectAt: Map<string, number>;
 }
 
@@ -86,10 +89,59 @@ function createState(): DbState {
   return state;
 }
 
+const STORAGE_KEY = "praca-mock-db-v1";
+const MAPS = [
+  "stock",
+  "orders",
+  "payments",
+  "idempotency",
+  "notificationHtml",
+  "entries",
+  "liveDaily",
+  "seedDaily",
+  "rejectAt",
+] as const;
+
+function hydrate(): DbState | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const next = createState();
+    for (const key of MAPS) {
+      (next as unknown as Record<string, unknown>)[key] = new Map(data[key] as [string, unknown][]);
+    }
+    next.notifications = data.notifications as Notification[];
+    return next;
+  } catch {
+    return null;
+  }
+}
+
+function persist() {
+  if (typeof localStorage === "undefined" || !persistEnabled) return;
+  try {
+    const out: Record<string, unknown> = { notifications: state.notifications };
+    for (const key of MAPS) out[key] = [...(state[key] as Map<string, unknown>).entries()];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
+  } catch {
+    /* storage full or unavailable */
+  }
+}
+
+let persistEnabled = false;
 let state = createState();
+
+export function enableMockPersistence() {
+  persistEnabled = true;
+  state = hydrate() ?? state;
+  persist();
+}
 
 export function resetDb() {
   state = createState();
+  persist();
 }
 
 function nowIso() {
@@ -122,7 +174,11 @@ export function listProducts(): Product[] {
   return PRODUCTS;
 }
 
-export function getStock(productId: string): { product_id: string; available: number; reserved: number } {
+export function getStock(productId: string): {
+  product_id: string;
+  available: number;
+  reserved: number;
+} {
   const s = state.stock.get(productId) ?? { available: 0, reserved: 0 };
   return { product_id: productId, ...s };
 }
@@ -130,6 +186,7 @@ export function getStock(productId: string): { product_id: string; available: nu
 export function setStock(productId: string, available: number) {
   const s = state.stock.get(productId) ?? { available: 0, reserved: 0 };
   state.stock.set(productId, { ...s, available });
+  persist();
 }
 
 export function createOrder(
@@ -176,14 +233,18 @@ export function createOrder(
     emailHtml("Recebemos o seu pedido", "Assim que o PIX for pago, avisamos por aqui.", order),
   );
 
-  const insufficient = items.some((i) => (state.stock.get(i.product_id)?.available ?? 0) < i.quantity);
+  const insufficient = items.some(
+    (i) => (state.stock.get(i.product_id)?.available ?? 0) < i.quantity,
+  );
   if (insufficient) {
     state.rejectAt.set(order.id, Date.now() + STOCK_REJECT_DELAY_MS);
+    persist();
     return { id: order.id, replay: false };
   }
   for (const i of items) {
     const s = state.stock.get(i.product_id);
-    if (s) state.stock.set(i.product_id, { available: s.available, reserved: s.reserved + i.quantity });
+    if (s)
+      state.stock.set(i.product_id, { available: s.available, reserved: s.reserved + i.quantity });
   }
   const short = /expira/i.test(input.customer_email) || /expira/i.test(input.customer_name);
   const payment: Payment = {
@@ -192,7 +253,9 @@ export function createOrder(
     status: "PENDING",
     amount_cents: total,
     currency: "BRL",
-    pix_code: `00020126580014BR.GOV.BCB.PIX0136${uuid()}5204000053039865406${(total / 100).toFixed(2)}5802BR5905PRACA6009SAO PAULO62070503***6304${Math.floor(Math.random() * 65535)
+    pix_code: `00020126580014BR.GOV.BCB.PIX0136${uuid()}5204000053039865406${(total / 100).toFixed(2)}5802BR5905PRACA6009SAO PAULO62070503***6304${Math.floor(
+      Math.random() * 65535,
+    )
       .toString(16)
       .toUpperCase()
       .padStart(4, "0")}`,
@@ -205,8 +268,13 @@ export function createOrder(
     order,
     "PIX_READY",
     "Seu PIX está pronto para pagar",
-    emailHtml("Seu PIX está pronto", "Copie o código ou leia o QR Code no app do seu banco.", order),
+    emailHtml(
+      "Seu PIX está pronto",
+      "Copie o código ou leia o QR Code no app do seu banco.",
+      order,
+    ),
   );
+  persist();
   return { id: order.id, replay: false };
 }
 
@@ -224,7 +292,11 @@ function cancel(order: Order, reason: string) {
     order,
     "ORDER_CANCELLED",
     "Seu pedido foi cancelado",
-    emailHtml("Pedido cancelado", "Nenhum valor foi cobrado. Você pode refazer a compra quando quiser.", order),
+    emailHtml(
+      "Pedido cancelado",
+      "Nenhum valor foi cobrado. Você pode refazer a compra quando quiser.",
+      order,
+    ),
   );
 }
 
@@ -234,13 +306,19 @@ function tick(order: Order) {
   if (rejectAt && Date.now() >= rejectAt) {
     state.rejectAt.delete(order.id);
     cancel(order, "out of stock");
+    persist();
     return;
   }
   const payment = state.payments.get(order.id);
-  if (payment && payment.status === "PENDING" && Date.now() >= new Date(payment.expires_at).getTime()) {
+  if (
+    payment &&
+    payment.status === "PENDING" &&
+    Date.now() >= new Date(payment.expires_at).getTime()
+  ) {
     payment.status = "EXPIRED";
     release(order);
     cancel(order, "payment expired");
+    persist();
   }
 }
 
@@ -264,9 +342,9 @@ export function getPayment(orderId: string): Payment | undefined {
 
 export function payCharge(chargeId: string): boolean {
   const payment = [...state.payments.values()].find((p) => p.psp_charge_id === chargeId);
-  if (!payment || payment.status !== "PENDING") return false;
+  if (payment?.status !== "PENDING") return false;
   const order = state.orders.get(payment.order_id);
-  if (!order || order.status !== "PENDING") return false;
+  if (order?.status !== "PENDING") return false;
   payment.status = "CONFIRMED";
   payment.confirmed_at = nowIso();
   order.status = "PAID";
@@ -281,7 +359,10 @@ export function payCharge(chargeId: string): boolean {
   }
   const byMerchant = new Map<string, number>();
   for (const i of order.items) {
-    byMerchant.set(i.merchant_id, (byMerchant.get(i.merchant_id) ?? 0) + i.quantity * i.unit_price_cents);
+    byMerchant.set(
+      i.merchant_id,
+      (byMerchant.get(i.merchant_id) ?? 0) + i.quantity * i.unit_price_cents,
+    );
   }
   const txId = uuid();
   const today = dayKey(Date.now());
@@ -312,11 +393,14 @@ export function payCharge(chargeId: string): boolean {
     "Pagamento confirmado",
     emailHtml("Pagamento confirmado", "Recebemos o seu PIX. Obrigado pela compra!", order),
   );
+  persist();
   return true;
 }
 
 export function listNotifications(customerId: string): Notification[] {
-  const ids = new Set([...state.orders.values()].filter((o) => o.customer_id === customerId).map((o) => o.id));
+  const ids = new Set(
+    [...state.orders.values()].filter((o) => o.customer_id === customerId).map((o) => o.id),
+  );
   return state.notifications.filter((n) => n.order_id && ids.has(n.order_id));
 }
 

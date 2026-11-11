@@ -21,7 +21,11 @@ export function CartLines({ compact = false }: { compact?: boolean }) {
         const available = stock?.[line.productId];
         const max = Math.min(MAX_PER_ITEM, available ?? MAX_PER_ITEM);
         return (
-          <li key={line.productId} className="grid grid-cols-[4.5rem_1fr] gap-4" data-testid="cart-line">
+          <li
+            key={line.productId}
+            className="grid grid-cols-[4.5rem_1fr] gap-4"
+            data-testid="cart-line"
+          >
             <Link to="/produto/$slug" params={{ slug: line.slug }} className="block">
               <ProductImage
                 src={line.imageUrl}
@@ -67,7 +71,8 @@ export function CartLines({ compact = false }: { compact?: boolean }) {
               </div>
               {available !== undefined && line.quantity > available && (
                 <p role="alert" className="mt-1.5 text-xs text-danger">
-                  {available <= 0 ? "Produto esgotado." : `Só restam ${available} unidades.`} Ajuste a quantidade.
+                  {available <= 0 ? "Produto esgotado." : `Só restam ${available} unidades.`} Ajuste
+                  a quantidade.
                 </p>
               )}
             </div>
@@ -90,7 +95,9 @@ export function CartDrawer() {
       <DialogContent
         side="right"
         title="Seu carrinho"
-        description={empty ? "Nenhum item por aqui ainda." : `${count} ${pluralize(count, "item", "itens")}`}
+        description={
+          empty ? "Nenhum item por aqui ainda." : `${count} ${pluralize(count, "item", "itens")}`
+        }
         className="[&>h2]:px-6 [&>h2]:pt-6 [&>p]:px-6"
       >
         {empty ? (
@@ -112,14 +119,19 @@ export function CartDrawer() {
             <div className="grid gap-4 border-t border-border bg-surface px-6 py-5">
               <div className="flex items-baseline justify-between">
                 <span className="text-muted">Subtotal</span>
-                <span className="tabular font-display text-2xl font-semibold" data-testid="cart-subtotal">
+                <span
+                  className="tabular font-display text-2xl font-semibold"
+                  data-testid="cart-subtotal"
+                >
                   {formatMoney(subtotal)}
                 </span>
               </div>
               <Button asChild size="lg" onClick={() => setOpen(false)}>
                 <Link to="/checkout">Ir para o pagamento</Link>
               </Button>
-              <p className="text-center text-xs text-muted">Pagamento por PIX, com confirmação em segundos.</p>
+              <p className="text-center text-xs text-muted">
+                Pagamento por PIX, com confirmação em segundos.
+              </p>
             </div>
           </>
         )}

@@ -12,7 +12,12 @@ interface Step {
 
 export function buildSteps(order: Order, payment: Payment | undefined): Step[] {
   const steps: Step[] = [
-    { id: "created", label: "Pedido criado", detail: formatDateTime(order.created_at), state: "done" },
+    {
+      id: "created",
+      label: "Pedido criado",
+      detail: formatDateTime(order.created_at),
+      state: "done",
+    },
     {
       id: "pix",
       label: "PIX gerado",
@@ -45,11 +50,18 @@ export function OrderTimeline({ order, payment }: { order: Order; payment: Payme
   return (
     <ol aria-label="Linha do tempo do pedido" className="grid gap-0">
       {steps.map((s, i) => (
-        <li key={s.id} className="relative grid grid-cols-[2rem_1fr] gap-4 pb-6 last:pb-0" aria-current={s.state === "current" ? "step" : undefined}>
+        <li
+          key={s.id}
+          className="relative grid grid-cols-[2rem_1fr] gap-4 pb-6 last:pb-0"
+          aria-current={s.state === "current" ? "step" : undefined}
+        >
           {i < steps.length - 1 && (
             <span
               aria-hidden
-              className={cn("absolute top-8 bottom-0 left-4 w-px -translate-x-1/2", s.state === "done" ? "bg-pix" : "bg-border")}
+              className={cn(
+                "absolute top-8 bottom-0 left-4 w-px -translate-x-1/2",
+                s.state === "done" ? "bg-pix" : "bg-border",
+              )}
             />
           )}
           <span

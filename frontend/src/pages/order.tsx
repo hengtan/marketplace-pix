@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Ban, ClipboardList, Hourglass, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/api/endpoints";
 import { ApiError } from "@/api/client";
+import { api } from "@/api/endpoints";
 import type { Order } from "@/api/schemas";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,11 @@ function OrderItems({ order }: { order: Order }) {
             <li key={i.product_id} className="flex items-start justify-between gap-4 py-3">
               <div className="min-w-0">
                 {p ? (
-                  <Link to="/produto/$slug" params={{ slug: p.slug }} className="font-medium hover:text-primary">
+                  <Link
+                    to="/produto/$slug"
+                    params={{ slug: p.slug }}
+                    className="font-medium hover:text-primary"
+                  >
                     {p.name}
                   </Link>
                 ) : (
@@ -54,14 +58,18 @@ function OrderItems({ order }: { order: Order }) {
                   {i.quantity} x {formatMoney(i.unit_price_cents)}
                 </p>
               </div>
-              <span className="tabular font-semibold">{formatMoney(i.quantity * i.unit_price_cents)}</span>
+              <span className="tabular font-semibold">
+                {formatMoney(i.quantity * i.unit_price_cents)}
+              </span>
             </li>
           );
         })}
       </ul>
       <div className="flex items-baseline justify-between border-t border-border pt-4">
         <span className="font-medium">Total</span>
-        <span className="tabular font-display text-2xl font-bold">{formatMoney(order.total_cents)}</span>
+        <span className="tabular font-display text-2xl font-bold">
+          {formatMoney(order.total_cents)}
+        </span>
       </div>
     </div>
   );
@@ -154,7 +162,8 @@ export default function OrderPage() {
               <SuccessMark />
               <h2 className="mt-4 text-3xl font-bold text-pix-ink">Pagamento confirmado</h2>
               <p className="mx-auto mt-2 max-w-[40ch] text-pix-ink/80">
-                Recebemos {formatMoney(order.total_cents)}. Enviamos a confirmação para {order.customer_email}.
+                Recebemos {formatMoney(order.total_cents)}. Enviamos a confirmação para{" "}
+                {order.customer_email}.
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-3">
                 <Button asChild>
@@ -170,14 +179,24 @@ export default function OrderPage() {
           )}
 
           {cancelled && (
-            <section role="alert" className="rounded-xl border border-danger/40 bg-danger-soft p-8" data-testid="order-cancelled">
+            <section
+              role="alert"
+              className="rounded-xl border border-danger/40 bg-danger-soft p-8"
+              data-testid="order-cancelled"
+            >
               <div className="flex items-start gap-4">
                 <span className="grid size-12 shrink-0 place-items-center rounded-full bg-danger text-primary-foreground">
-                  {order.cancel_reason === "payment expired" ? <Hourglass className="size-6" /> : <Ban className="size-6" />}
+                  {order.cancel_reason === "payment expired" ? (
+                    <Hourglass className="size-6" />
+                  ) : (
+                    <Ban className="size-6" />
+                  )}
                 </span>
                 <div>
                   <h2 className="text-2xl font-bold">
-                    {order.cancel_reason === "payment expired" ? "O PIX expirou" : "Pedido cancelado"}
+                    {order.cancel_reason === "payment expired"
+                      ? "O PIX expirou"
+                      : "Pedido cancelado"}
                   </h2>
                   <p className="mt-1 max-w-[46ch]">{friendlyCancelReason(order.cancel_reason)}</p>
                   <div className="mt-5">
@@ -188,7 +207,8 @@ export default function OrderPage() {
             </section>
           )}
 
-          {!paid && !cancelled &&
+          {!paid &&
+            !cancelled &&
             (payment ? (
               <PixPanel
                 pixCode={payment.pix_code}
@@ -198,7 +218,10 @@ export default function OrderPage() {
                 simulating={simulate.isPending}
               />
             ) : (
-              <section className="grid place-items-center gap-3 rounded-xl border border-border bg-surface p-12 text-center" aria-busy>
+              <section
+                className="grid place-items-center gap-3 rounded-xl border border-border bg-surface p-12 text-center"
+                aria-busy
+              >
                 <span className="size-10 animate-spin rounded-full border-4 border-primary-soft border-t-primary" />
                 <p className="font-display text-xl font-semibold">Gerando o seu PIX</p>
                 <p className="text-muted">Estamos reservando o estoque. Leva poucos segundos.</p>
@@ -210,7 +233,10 @@ export default function OrderPage() {
           </section>
         </div>
 
-        <aside className="h-fit rounded-xl border border-border bg-surface p-6 lg:sticky lg:top-24" aria-labelledby="timeline-title">
+        <aside
+          className="h-fit rounded-xl border border-border bg-surface p-6 lg:sticky lg:top-24"
+          aria-labelledby="timeline-title"
+        >
           <h2 id="timeline-title" className="mb-5 font-display text-xl font-semibold">
             Andamento
           </h2>

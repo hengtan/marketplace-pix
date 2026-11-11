@@ -66,7 +66,8 @@ export const useCart = create<CartState>()(
                     : l,
                 ),
         })),
-      remove: (productId) => set((s) => ({ lines: s.lines.filter((l) => l.productId !== productId) })),
+      remove: (productId) =>
+        set((s) => ({ lines: s.lines.filter((l) => l.productId !== productId) })),
       clear: () => set({ lines: [] }),
     }),
     { name: "praca-cart", version: 1 },

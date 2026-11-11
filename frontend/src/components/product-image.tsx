@@ -70,7 +70,10 @@ export function ProductImage({
           )}
         />
       ) : (
-        <div role="img" aria-label={alt} className="absolute inset-0 grid place-items-center">
+        <div
+          {...(alt ? { role: "img", "aria-label": alt } : { "aria-hidden": true })}
+          className="absolute inset-0 grid place-items-center"
+        >
           <Glyph
             category={category}
             className={cn("size-1/3 text-white/85 drop-shadow-sm", glyphClassName)}

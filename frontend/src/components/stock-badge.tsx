@@ -17,7 +17,13 @@ export function stockLabel(available: number | undefined): {
   return { label: "Em estoque", tone: "pix" };
 }
 
-export function StockBadge({ available, hideInStock }: { available: number | undefined; hideInStock?: boolean }) {
+export function StockBadge({
+  available,
+  hideInStock,
+}: {
+  available: number | undefined;
+  hideInStock?: boolean;
+}) {
   const info = stockLabel(available);
   if (!info || (hideInStock && info.tone === "pix")) return null;
   return <Badge tone={info.tone}>{info.label}</Badge>;

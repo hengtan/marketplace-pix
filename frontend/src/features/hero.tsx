@@ -1,5 +1,5 @@
-import { motion, useReducedMotion } from "motion/react";
 import { Check, QrCode } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 
 const LINES = ["Compre hoje.", "Pague em", "segundos."];
 
@@ -11,7 +11,7 @@ export function Hero() {
         <div>
           <h1
             id="hero-title"
-            className="text-[clamp(3.25rem,9.5vw,8rem)] leading-[0.92] font-bold tracking-[-0.045em]"
+            className="text-[clamp(2.9rem,7.6vw,6.5rem)] leading-[0.94] whitespace-nowrap font-bold tracking-[-0.045em]"
           >
             {LINES.map((line, i) => (
               <span key={line} className="block overflow-hidden pb-[0.08em]">
@@ -32,7 +32,8 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
-            Produtos de lojistas independentes, estoque conferido em tempo real e confirmação do PIX na hora.
+            Produtos de lojistas independentes, estoque conferido em tempo real e confirmação do PIX
+            na hora.
           </motion.p>
         </div>
 
@@ -50,9 +51,11 @@ export function Hero() {
             </div>
             <p className="tabular mt-6 font-display text-5xl font-bold tracking-tight">R$ 349,90</p>
             <div className="mt-6 flex items-center gap-3 rounded-lg bg-pix px-4 py-3 text-[oklch(0.2_0.06_165)]">
-              <span className="relative grid size-8 place-items-center rounded-full bg-[oklch(0.2_0.06_165)] text-pix">
-                <span className="absolute inset-0 animate-[pulse-ring_2.4s_ease-out_infinite] rounded-full bg-pix" />
-                <Check className="relative size-4" strokeWidth={3} />
+              <span className="relative size-8">
+                <span className="absolute inset-0 animate-[pulse-ring_2.4s_ease-out_infinite] rounded-full bg-[oklch(0.2_0.06_165)]/40" />
+                <span className="relative grid size-8 place-items-center rounded-full bg-[oklch(0.2_0.06_165)] text-pix">
+                  <Check className="size-4" strokeWidth={3} />
+                </span>
               </span>
               <span className="font-semibold">PIX confirmado em 2 s</span>
             </div>

@@ -17,7 +17,14 @@ interface Props {
 
 const TOTAL_WINDOW_MS = 10 * 60 * 1000;
 
-export function PixPanel({ pixCode, amountCents, expiresAt, onSimulate, simulating, onExpired }: Props) {
+export function PixPanel({
+  pixCode,
+  amountCents,
+  expiresAt,
+  onSimulate,
+  simulating,
+  onExpired,
+}: Props) {
   const { remainingMs, expired } = useCountdown(expiresAt);
   const { copied, copy } = useCopy();
   const urgent = remainingMs > 0 && remainingMs < 60_000;
@@ -37,11 +44,13 @@ export function PixPanel({ pixCode, amountCents, expiresAt, onSimulate, simulati
           <h2 id="pix-title" className="font-display text-2xl font-semibold">
             Pague com PIX
           </h2>
-          <p className="mt-1 text-muted">Abra o app do seu banco e leia o QR Code ou cole o código.</p>
+          <p className="mt-1 text-muted">
+            Abra o app do seu banco e leia o QR Code ou cole o código.
+          </p>
         </div>
-        <div className="tabular text-right">
+        <div className="tabular shrink-0 text-right">
           <p className="text-sm text-muted">Valor</p>
-          <p className="font-display text-3xl font-bold" data-testid="pix-amount">
+          <p className="font-display text-3xl font-bold whitespace-nowrap" data-testid="pix-amount">
             {formatMoney(amountCents)}
           </p>
         </div>
@@ -73,8 +82,7 @@ export function PixPanel({ pixCode, amountCents, expiresAt, onSimulate, simulati
               PIX copia e cola
             </p>
             <p
-              aria-labelledby="pix-code-label"
-              className="mt-1.5 line-clamp-3 rounded-md bg-surface-2 p-3 font-mono text-xs leading-relaxed break-all text-muted"
+              className="mt-1.5 max-h-28 overflow-y-auto rounded-md bg-surface-2 p-3 font-mono text-[0.7rem] leading-relaxed break-all text-muted"
               data-testid="pix-code"
             >
               {pixCode}
@@ -103,7 +111,9 @@ export function PixPanel({ pixCode, amountCents, expiresAt, onSimulate, simulati
               <span
                 className={cn("tabular font-mono text-lg font-semibold", urgent && "text-danger")}
                 role="timer"
-                aria-label={expired ? "PIX expirado" : `Tempo restante ${formatCountdown(remainingMs)}`}
+                aria-label={
+                  expired ? "PIX expirado" : `Tempo restante ${formatCountdown(remainingMs)}`
+                }
                 data-testid="countdown"
               >
                 {formatCountdown(remainingMs)}
@@ -125,16 +135,25 @@ export function PixPanel({ pixCode, amountCents, expiresAt, onSimulate, simulati
       <div className="mt-6 flex items-center gap-3 rounded-lg bg-primary-soft px-4 py-3 text-sm text-primary">
         <QrCode className="size-4 shrink-0" aria-hidden />
         <span role="status">
-          {expired ? "O tempo acabou. Estamos atualizando o pedido." : "Aguardando o pagamento. Esta tela atualiza sozinha."}
+          {expired
+            ? "O tempo acabou. Estamos atualizando o pedido."
+            : "Aguardando o pagamento. Esta tela atualiza sozinha."}
         </span>
       </div>
 
       {onSimulate && (
         <div className="mt-4 border-t border-dashed border-border pt-4">
-          <Button variant="outline" onClick={onSimulate} disabled={simulating || expired} data-testid="simulate-pay">
+          <Button
+            variant="outline"
+            onClick={onSimulate}
+            disabled={simulating || expired}
+            data-testid="simulate-pay"
+          >
             <FlaskConical /> {simulating ? "Simulando..." : "Simular pagamento"}
           </Button>
-          <p className="mt-2 text-xs text-muted">Ferramenta de desenvolvimento. Não aparece em produção.</p>
+          <p className="mt-2 text-xs text-muted">
+            Ferramenta de desenvolvimento. Não aparece em produção.
+          </p>
         </div>
       )}
     </section>

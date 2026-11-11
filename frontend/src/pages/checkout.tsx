@@ -122,7 +122,13 @@ export default function CheckoutPage() {
             </Field>
           </fieldset>
 
-          <Button type="submit" variant="pix" size="lg" disabled={mutation.isPending} className="w-full sm:w-auto sm:min-w-72">
+          <Button
+            type="submit"
+            variant="pix"
+            size="lg"
+            disabled={mutation.isPending}
+            className="w-full sm:w-auto sm:min-w-72"
+          >
             <QrCode />
             {mutation.isPending ? "Gerando seu PIX..." : `Pagar com PIX, ${formatMoney(subtotal)}`}
           </Button>
@@ -131,7 +137,10 @@ export default function CheckoutPage() {
           </p>
         </form>
 
-        <aside aria-labelledby="resumo" className="h-fit rounded-xl border border-border bg-surface p-6 shadow-soft lg:sticky lg:top-24">
+        <aside
+          aria-labelledby="resumo"
+          className="h-fit rounded-xl border border-border bg-surface p-6 shadow-soft lg:sticky lg:top-24"
+        >
           <h2 id="resumo" className="font-display text-2xl font-semibold">
             Resumo
           </h2>

@@ -398,7 +398,7 @@ export const PRODUCTS: Product[] = SEEDS.map((s, i) => ({
   rating: s.rating,
   reviews_count: s.reviews,
   tags: s.tags,
-  merchant: merchantBySlug[s.merchant] ?? SEED_MERCHANTS[0]!,
+  merchant: merchantBySlug[s.merchant] as Product["merchant"],
   created_at: new Date(BASE - (i % 12) * 4 * DAY - i * 3_600_000).toISOString(),
 }));
 

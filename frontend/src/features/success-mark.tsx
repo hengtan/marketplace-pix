@@ -31,7 +31,16 @@ export function SuccessMark() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 18 }}
       >
-        <svg viewBox="0 0 24 24" className="size-12" fill="none" stroke="oklch(0.2 0.06 165)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          role="presentation"
+          viewBox="0 0 24 24"
+          className="size-12"
+          fill="none"
+          stroke="oklch(0.2 0.06 165)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <motion.path
             d="M5 12.5l4.5 4.5L19 7.5"
             initial={reduce ? false : { pathLength: 0 }}

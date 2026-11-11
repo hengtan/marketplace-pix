@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/api/endpoints";
 import { ApiError } from "@/api/client";
+import { api } from "@/api/endpoints";
 import type { Order, Payment } from "@/api/schemas";
 import { qk } from "./queries";
 
@@ -22,7 +22,8 @@ export function useOrderStatus(orderId: string, intervalMs = ORDER_POLL_MS): Ord
   const orderQuery = useQuery({
     queryKey: qk.order(orderId),
     queryFn: () => api.order(orderId),
-    refetchInterval: (q) => (q.state.data && q.state.data.status !== "PENDING" ? false : intervalMs),
+    refetchInterval: (q) =>
+      q.state.data && q.state.data.status !== "PENDING" ? false : intervalMs,
     staleTime: 0,
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
   });

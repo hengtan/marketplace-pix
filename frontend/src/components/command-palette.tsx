@@ -11,8 +11,8 @@ import {
   Tag,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { useDebounced } from "@/hooks/utils";
 import { useOrders, useProductSearch } from "@/hooks/queries";
+import { useDebounced } from "@/hooks/utils";
 import { formatMoney, shortId } from "@/lib/format";
 import { getCustomerId } from "@/store/customer";
 import { useTheme } from "@/store/theme";
@@ -21,7 +21,10 @@ import { Dialog, DialogContent } from "./ui/dialog";
 import { Kbd } from "./ui/misc";
 
 function norm(s: string) {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  return s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 }
 
 const itemClass =
@@ -64,9 +67,24 @@ export function CommandPalette() {
     () =>
       [
         { id: "loja", label: "Ir para a loja", icon: <Store />, run: () => navigate({ to: "/" }) },
-        { id: "carrinho", label: "Abrir carrinho", icon: <ShoppingBag />, run: () => setCartOpen(true) },
-        { id: "pedidos", label: "Meus pedidos", icon: <ClipboardList />, run: () => navigate({ to: "/pedidos" }) },
-        { id: "lojista", label: "Painel do lojista", icon: <Tag />, run: () => navigate({ to: "/lojista" }) },
+        {
+          id: "carrinho",
+          label: "Abrir carrinho",
+          icon: <ShoppingBag />,
+          run: () => setCartOpen(true),
+        },
+        {
+          id: "pedidos",
+          label: "Meus pedidos",
+          icon: <ClipboardList />,
+          run: () => navigate({ to: "/pedidos" }),
+        },
+        {
+          id: "lojista",
+          label: "Painel do lojista",
+          icon: <Tag />,
+          run: () => navigate({ to: "/lojista" }),
+        },
         {
           id: "tema",
           label: theme === "dark" ? "Mudar para o tema claro" : "Mudar para o tema escuro",
@@ -83,8 +101,14 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent side="top" title="Paleta de comandos" description="Busque produtos e navegue" hideTitle className="p-0">
-        <Command shouldFilter={false} label="Paleta de comandos" loop>
+      <DialogContent
+        side="top"
+        title="Paleta de comandos"
+        description="Busque produtos e navegue"
+        hideTitle
+        className="p-0"
+      >
+        <Command shouldFilter={false} label="Buscar produtos ou ações" loop>
           <div className="flex items-center gap-3 border-b border-border px-4">
             <Search className="size-5 text-muted" aria-hidden />
             <Command.Input
@@ -97,7 +121,11 @@ export function CommandPalette() {
             <Kbd>esc</Kbd>
           </div>
           <Command.List className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2">
-            {nothing && <p className="px-3 py-8 text-center text-sm text-muted">Nada encontrado para "{query}".</p>}
+            {nothing && (
+              <p className="px-3 py-8 text-center text-sm text-muted">
+                Nada encontrado para "{query}".
+              </p>
+            )}
             {products.length > 0 && (
               <Command.Group heading="Produtos" className={groupClass}>
                 {products.map((p) => (
@@ -105,7 +133,9 @@ export function CommandPalette() {
                     key={p.id}
                     value={`produto-${p.id}`}
                     className={itemClass}
-                    onSelect={() => run(() => navigate({ to: "/produto/$slug", params: { slug: p.slug } }))}
+                    onSelect={() =>
+                      run(() => navigate({ to: "/produto/$slug", params: { slug: p.slug } }))
+                    }
                   >
                     <Search />
                     <span className="flex-1 truncate">{p.name}</span>
@@ -120,7 +150,12 @@ export function CommandPalette() {
             {actions.length > 0 && (
               <Command.Group heading="Navegar" className={groupClass}>
                 {actions.map((a) => (
-                  <Command.Item key={a.id} value={a.id} className={itemClass} onSelect={() => run(a.run)}>
+                  <Command.Item
+                    key={a.id}
+                    value={a.id}
+                    className={itemClass}
+                    onSelect={() => run(a.run)}
+                  >
                     {a.icon as ReactNode}
                     <span className="flex-1">{a.label}</span>
                   </Command.Item>
@@ -134,7 +169,9 @@ export function CommandPalette() {
                     key={o.id}
                     value={`pedido-${o.id}`}
                     className={itemClass}
-                    onSelect={() => run(() => navigate({ to: "/pedido/$id", params: { id: o.id } }))}
+                    onSelect={() =>
+                      run(() => navigate({ to: "/pedido/$id", params: { id: o.id } }))
+                    }
                   >
                     <ClipboardList />
                     <span className="flex-1">Pedido {shortId(o.id)}</span>

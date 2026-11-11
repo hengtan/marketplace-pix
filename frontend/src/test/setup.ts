@@ -25,6 +25,8 @@ if (!window.matchMedia) {
     }) as MediaQueryList;
 }
 
+window.scrollTo = () => {};
+
 class IO {
   observe() {}
   unobserve() {}

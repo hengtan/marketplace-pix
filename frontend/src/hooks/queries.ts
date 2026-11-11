@@ -90,7 +90,7 @@ export function useOrders(customerId: string, page: number) {
     queryKey: qk.orders(customerId, page),
     queryFn: () => api.orders(customerId, page, 8),
     placeholderData: keepPreviousData,
-    staleTime: 5_000,
+    staleTime: 0,
   });
 }
 

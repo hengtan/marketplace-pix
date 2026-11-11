@@ -39,8 +39,9 @@ export function ProductCard({ product, available, priority }: Props) {
         params={{ slug: product.slug }}
         onMouseEnter={() => prefetchProduct(client, product.slug)}
         onFocus={() => prefetchProduct(client, product.slug)}
+        tabIndex={-1}
+        aria-hidden
         className="block rounded-lg outline-offset-4"
-        aria-label={`${product.name}, ${formatMoney(product.price_cents)}`}
       >
         <div className="relative overflow-hidden rounded-lg bg-surface-2 shadow-soft transition-[box-shadow,transform] duration-500 ease-out group-hover:shadow-lift">
           <ProductImage
@@ -68,8 +69,8 @@ export function ProductCard({ product, available, priority }: Props) {
             <Link
               to="/produto/$slug"
               params={{ slug: product.slug }}
-              tabIndex={-1}
-              aria-hidden
+              onMouseEnter={() => prefetchProduct(client, product.slug)}
+              onFocus={() => prefetchProduct(client, product.slug)}
               className="line-clamp-2 hover:text-primary"
             >
               {product.name}
@@ -84,7 +85,9 @@ export function ProductCard({ product, available, priority }: Props) {
           type="button"
           onClick={onAdd}
           disabled={soldOut}
-          aria-label={soldOut ? `${product.name} esgotado` : `Adicionar ${product.name} ao carrinho`}
+          aria-label={
+            soldOut ? `${product.name} esgotado` : `Adicionar ${product.name} ao carrinho`
+          }
           className={cn(
             "mt-5 grid size-11 shrink-0 place-items-center rounded-full border transition-[background-color,color,transform,border-color] duration-300 active:scale-90 disabled:opacity-40",
             added

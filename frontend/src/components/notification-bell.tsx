@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Popover } from "radix-ui";
 import { Bell, Mail } from "lucide-react";
+import { Popover } from "radix-ui";
 import { useState } from "react";
 import { fetchText } from "@/api/client";
 import type { Notification } from "@/api/schemas";
@@ -23,7 +23,13 @@ const STATUS_LABEL: Record<Notification["status"], string> = {
   FAILED: "Falhou",
 };
 
-function EmailPreview({ notification, onClose }: { notification: Notification | null; onClose: () => void }) {
+function EmailPreview({
+  notification,
+  onClose,
+}: {
+  notification: Notification | null;
+  onClose: () => void;
+}) {
   const id = notification?.id;
   const { data, isLoading, isError } = useQuery({
     queryKey: ["notification-html", id],
@@ -33,11 +39,19 @@ function EmailPreview({ notification, onClose }: { notification: Notification | 
   });
   return (
     <Dialog open={Boolean(notification)} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={notification?.subject ?? "E-mail"} description="Pré-visualização do e-mail enviado" className="h-[80dvh] max-w-2xl p-6">
+      <DialogContent
+        title={notification?.subject ?? "E-mail"}
+        description="Pré-visualização do e-mail enviado"
+        className="h-[80dvh] max-w-2xl p-6"
+      >
         <div className="mt-4 flex-1 overflow-hidden rounded-md border border-border bg-white">
           {isLoading && <div className="skeleton size-full" />}
-          {isError && <p className="p-6 text-sm text-danger">Não foi possível carregar o e-mail.</p>}
-          {data && <iframe title="Conteúdo do e-mail" sandbox="" srcDoc={data} className="size-full" />}
+          {isError && (
+            <p className="p-6 text-sm text-danger">Não foi possível carregar o e-mail.</p>
+          )}
+          {data && (
+            <iframe title="Conteúdo do e-mail" sandbox="" srcDoc={data} className="size-full" />
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -72,7 +86,9 @@ export function NotificationBell() {
             sideOffset={8}
             className="z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-border bg-surface p-2 shadow-lift data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
           >
-            <h2 className="px-3 pt-2 pb-1 font-sans text-sm font-semibold tracking-normal">E-mails do seu pedido</h2>
+            <h2 className="px-3 pt-2 pb-1 font-sans text-sm font-semibold tracking-normal">
+              E-mails do seu pedido
+            </h2>
             {items.length === 0 ? (
               <p className="px-3 py-8 text-center text-sm text-muted">
                 Quando você fizer um pedido, os e-mails aparecem aqui.
@@ -96,7 +112,11 @@ export function NotificationBell() {
                           {KIND_LABEL[n.kind]}, {formatDateTime(n.created_at)}
                         </span>
                       </span>
-                      <Badge tone={n.status === "FAILED" ? "danger" : n.status === "SENT" ? "pix" : "neutral"}>
+                      <Badge
+                        tone={
+                          n.status === "FAILED" ? "danger" : n.status === "SENT" ? "pix" : "neutral"
+                        }
+                      >
                         {STATUS_LABEL[n.status]}
                       </Badge>
                     </button>

@@ -2,13 +2,13 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  lazyRouteComponent,
   Link,
+  lazyRouteComponent,
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/app-shell";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/states";
+import { Button } from "@/components/ui/button";
 
 const homeSearch = z.object({
   q: z.string().optional(),

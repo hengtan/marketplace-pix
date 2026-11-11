@@ -11,14 +11,25 @@ interface Props {
   size?: "sm" | "md";
 }
 
-export function QuantityStepper({ value, min = 0, max, onChange, label, className, size = "md" }: Props) {
+export function QuantityStepper({
+  value,
+  min = 0,
+  max,
+  onChange,
+  label,
+  className,
+  size = "md",
+}: Props) {
   const btn = cn(
     "grid place-items-center rounded-full text-foreground transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent",
     size === "md" ? "size-10" : "size-9",
   );
   return (
     <fieldset
-      className={cn("inline-flex items-center rounded-full border border-border bg-surface p-0.5", className)}
+      className={cn(
+        "inline-flex items-center rounded-full border border-border bg-surface p-0.5",
+        className,
+      )}
       aria-label={label}
     >
       <button

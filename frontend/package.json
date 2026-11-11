@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "screenshots": "playwright test e2e/screenshots.spec.ts"
+    "screenshots": "SCREENSHOTS=1 playwright test"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",

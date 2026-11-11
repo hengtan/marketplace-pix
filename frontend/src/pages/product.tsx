@@ -1,6 +1,7 @@
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, QrCode, ShieldCheck, ShoppingBag, Store } from "lucide-react";
 import { useState } from "react";
+import { ApiError } from "@/api/client";
 import { ProductCard } from "@/components/product-card";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
@@ -8,9 +9,8 @@ import { ErrorState } from "@/components/states";
 import { StockBadge } from "@/components/stock-badge";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton, Stars } from "@/components/ui/misc";
-import { ApiError } from "@/api/client";
-import { useAddToCart } from "@/hooks/useAddToCart";
 import { useProduct, useRelatedProducts, useStock } from "@/hooks/queries";
+import { useAddToCart } from "@/hooks/useAddToCart";
 import { usePageTitle } from "@/hooks/utils";
 import { formatMoney } from "@/lib/format";
 import { MAX_PER_ITEM } from "@/store/cart";
@@ -51,7 +51,9 @@ export default function ProductPage() {
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <ErrorState
           title={missing ? "Produto não encontrado" : "Não foi possível carregar o produto"}
-          message={missing ? "Esse produto não existe mais ou o link está incorreto." : error?.message}
+          message={
+            missing ? "Esse produto não existe mais ou o link está incorreto." : error?.message
+          }
           onRetry={missing ? undefined : () => refetch()}
         />
         <div className="flex justify-center">
@@ -70,7 +72,10 @@ export default function ProductPage() {
 
   return (
     <article className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
-      <Link to="/" className="inline-flex items-center gap-2 rounded-md py-2 text-sm text-muted hover:text-foreground">
+      <Link
+        to="/"
+        className="inline-flex items-center gap-2 rounded-md py-2 text-sm text-muted hover:text-foreground"
+      >
         <ArrowLeft className="size-4" /> Voltar para a loja
       </Link>
 
@@ -93,14 +98,22 @@ export default function ProductPage() {
         <div className="grid content-start gap-6">
           <div>
             <p className="flex items-center gap-2 text-sm text-muted">
-              <Store className="size-4" /> Vendido por <span className="font-medium text-foreground">{product.merchant.name}</span>
+              <Store className="size-4" /> Vendido por{" "}
+              <span className="font-medium text-foreground">{product.merchant.name}</span>
             </p>
             <h1 className="mt-3 text-4xl font-bold sm:text-5xl">{product.name}</h1>
-            <Stars rating={product.rating} count={product.reviews_count} className="mt-3 text-base" />
+            <Stars
+              rating={product.rating}
+              count={product.reviews_count}
+              className="mt-3 text-base"
+            />
           </div>
 
           <div className="flex flex-wrap items-baseline gap-3">
-            <p className="tabular font-display text-5xl font-bold tracking-tight" data-testid="product-price">
+            <p
+              className="tabular font-display text-5xl font-bold tracking-tight"
+              data-testid="product-price"
+            >
               {formatMoney(product.price_cents)}
             </p>
             <Badge tone="pix">
@@ -160,8 +173,8 @@ export default function ProductPage() {
           </div>
 
           <p className="flex items-start gap-2 text-sm text-muted">
-            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-pix-ink" />
-            O estoque é reservado assim que o pedido é criado e liberado se o PIX expirar.
+            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-pix-ink" />O estoque é reservado
+            assim que o pedido é criado e liberado se o PIX expirar.
           </p>
         </div>
       </div>

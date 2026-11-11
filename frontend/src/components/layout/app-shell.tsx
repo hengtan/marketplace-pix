@@ -6,10 +6,10 @@ import { CartDrawer } from "@/components/cart-drawer";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { Kbd } from "@/components/ui/misc";
+import { cn } from "@/lib/utils";
 import { selectCount, useCart } from "@/store/cart";
 import { useTheme } from "@/store/theme";
 import { useUi } from "@/store/ui";
-import { cn } from "@/lib/utils";
 
 function Wordmark() {
   return (
@@ -51,7 +51,11 @@ function Header() {
         <Wordmark />
         <nav aria-label="Principal" className="ml-2 hidden items-center gap-1 md:flex">
           {NAV.map((n) => {
-            const active = n.to === "/" ? pathname === "/" || pathname.startsWith("/produto") : pathname.startsWith(n.to) || (n.to === "/pedidos" && pathname.startsWith("/pedido"));
+            const active =
+              n.to === "/"
+                ? pathname === "/" || pathname.startsWith("/produto")
+                : pathname.startsWith(n.to) ||
+                  (n.to === "/pedidos" && pathname.startsWith("/pedido"));
             return (
               <Link
                 key={n.to}
@@ -59,7 +63,9 @@ function Header() {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "rounded-full px-4 py-2 text-sm font-medium transition-colors",
-                  active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-2 hover:text-foreground",
+                  active
+                    ? "bg-primary-soft text-primary"
+                    : "text-muted hover:bg-surface-2 hover:text-foreground",
                 )}
               >
                 {n.label}
@@ -72,7 +78,6 @@ function Header() {
             type="button"
             onClick={() => setPaletteOpen(true)}
             className="hidden h-11 items-center gap-3 rounded-full border border-border bg-surface px-4 text-sm text-muted transition-colors hover:border-primary hover:text-foreground sm:flex"
-            aria-label="Abrir busca e comandos"
           >
             <Search className="size-4" />
             <span className="w-28 text-left lg:w-40">Buscar</span>
@@ -113,7 +118,10 @@ function Header() {
           </button>
         </div>
       </div>
-      <nav aria-label="Principal (móvel)" className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
+      <nav
+        aria-label="Principal (móvel)"
+        className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden"
+      >
         {NAV.map((n) => (
           <Link
             key={n.to}
@@ -141,6 +149,7 @@ function Footer() {
 }
 
 export function AppShell() {
+  const toastTheme = useTheme((s) => s.theme);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
@@ -152,7 +161,7 @@ export function AppShell() {
     }
     window.scrollTo({ top: 0 });
     mainRef.current?.focus({ preventScroll: true });
-  }, [pathname]);
+  }, []);
 
   return (
     <>
@@ -171,7 +180,7 @@ export function AppShell() {
       <Footer />
       <CartDrawer />
       <CommandPalette />
-      <Toaster position="bottom-center" offset={20} />
+      <Toaster position="top-center" offset={72} theme={toastTheme} />
     </>
   );
 }

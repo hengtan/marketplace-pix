@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import { useState } from "react";
-import { ErrorState, EmptyState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/misc";
 import { useOrders } from "@/hooks/queries";
@@ -58,14 +58,18 @@ export default function OrdersPage() {
                     >
                       <span>
                         <span className="flex flex-wrap items-center gap-3">
-                          <span className="font-display text-xl font-semibold">Pedido {shortId(o.id)}</span>
+                          <span className="font-display text-xl font-semibold">
+                            Pedido {shortId(o.id)}
+                          </span>
                           <OrderStatusBadge status={o.status} />
                         </span>
                         <span className="mt-1 block text-sm text-muted">
                           {formatDateTime(o.created_at)}, {qty} {pluralize(qty, "item", "itens")}
                         </span>
                       </span>
-                      <span className="tabular font-display text-2xl font-bold">{formatMoney(o.total_cents)}</span>
+                      <span className="tabular font-display text-2xl font-bold">
+                        {formatMoney(o.total_cents)}
+                      </span>
                     </Link>
                   </li>
                 );
@@ -73,13 +77,25 @@ export default function OrdersPage() {
             </ul>
             {pages > 1 && (
               <nav aria-label="Paginação" className="mt-6 flex items-center justify-center gap-4">
-                <Button variant="outline" size="icon" onClick={() => setPage((p) => p - 1)} disabled={page <= 1} aria-label="Página anterior">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={page <= 1}
+                  aria-label="Página anterior"
+                >
                   <ChevronLeft />
                 </Button>
                 <span className="tabular text-sm text-muted">
                   Página {page} de {pages}
                 </span>
-                <Button variant="outline" size="icon" onClick={() => setPage((p) => p + 1)} disabled={page >= pages} aria-label="Próxima página">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= pages}
+                  aria-label="Próxima página"
+                >
                   <ChevronRight />
                 </Button>
               </nav>

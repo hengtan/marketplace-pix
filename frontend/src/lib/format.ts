@@ -1,5 +1,9 @@
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const dateFmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+const dateFmt = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
 const dateTimeFmt = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",

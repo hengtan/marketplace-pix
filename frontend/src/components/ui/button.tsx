@@ -12,7 +12,8 @@ export const buttonVariants = cva(
           "bg-primary text-primary-foreground shadow-soft hover:brightness-110 dark:hover:brightness-105",
         pix: "bg-pix text-[oklch(0.2_0.06_165)] shadow-soft hover:brightness-105",
         secondary: "bg-surface-2 text-foreground hover:bg-primary-soft",
-        outline: "border border-border bg-surface text-foreground hover:border-primary hover:text-primary",
+        outline:
+          "border border-border bg-surface text-foreground hover:border-primary hover:text-primary",
         ghost: "text-foreground hover:bg-surface-2",
         danger: "bg-danger text-primary-foreground hover:brightness-110",
       },
@@ -31,7 +32,14 @@ export interface ButtonProps extends ComponentProps<"button">, VariantProps<type
   asChild?: boolean;
 }
 
-export function Button({ className, variant, size, asChild, type = "button", ...props }: ButtonProps) {
+export function Button({
+  className,
+  variant,
+  size,
+  asChild,
+  type = "button",
+  ...props
+}: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
   return (
     <Comp
