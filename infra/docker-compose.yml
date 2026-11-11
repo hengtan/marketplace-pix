@@ -500,6 +500,14 @@ services:
       NOTIFICATIONS_URL: http://notifications-api:8000
       ASSISTANT_URL: http://assistant-api:8000
       ENABLE_DEV_ROUTES: "true"
+      REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-600}
+      RATE_LIMIT_ROUTES:
+      RATE_LIMIT_FAILURE_MODE: ${RATE_LIMIT_FAILURE_MODE:-fallback}
+      BREAKER_OPEN_SECONDS: ${BREAKER_OPEN_SECONDS:-10}
+    depends_on:
+      redis:
+        condition: service_healthy
     ports:
       - "${GATEWAY_PORT:-8000}:8000"
     healthcheck:
