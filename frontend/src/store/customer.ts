@@ -1,4 +1,5 @@
 import { uuid } from "@/lib/uuid";
+import { useAuth } from "@/store/auth";
 
 const ID_KEY = "praca-customer-id";
 const CONTACT_KEY = "praca-contact";
@@ -20,7 +21,28 @@ function write(key: string, value: string) {
   }
 }
 
+function subjectOf(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const part = token.split(".")[1] ?? "";
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === "string" && sub.length > 0 ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
+export function useCustomerId(): string {
+  useAuth((s) => s.accessToken);
+  useAuth((s) => s.user?.id);
+  return getCustomerId();
+}
+
 export function getCustomerId(): string {
+  const { user, accessToken } = useAuth.getState();
+  const accountId = user?.id ?? subjectOf(accessToken);
+  if (accountId) return accountId;
   const existing = read(ID_KEY);
   if (existing) return existing;
   const id = uuid();

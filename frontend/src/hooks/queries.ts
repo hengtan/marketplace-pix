@@ -91,8 +91,9 @@ export function prefetchProduct(client: QueryClient, slug: string) {
 }
 
 export function useOrders(customerId: string, page: number, enabled = true) {
+  const restoring = useAuth((s) => s.restoring);
   return useQuery({
-    enabled,
+    enabled: enabled && !restoring,
     queryKey: qk.orders(customerId, page),
     queryFn: () => api.orders(customerId, page, 8),
     placeholderData: keepPreviousData,

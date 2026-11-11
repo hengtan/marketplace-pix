@@ -6,7 +6,7 @@ import { fetchText } from "@/api/client";
 import type { Notification } from "@/api/schemas";
 import { useNotifications } from "@/hooks/queries";
 import { formatDateTime } from "@/lib/format";
-import { getCustomerId } from "@/store/customer";
+import { useCustomerId } from "@/store/customer";
 import { Dialog, DialogContent } from "./ui/dialog";
 import { Badge } from "./ui/misc";
 
@@ -59,7 +59,7 @@ function EmailPreview({
 }
 
 export function NotificationBell() {
-  const customerId = getCustomerId();
+  const customerId = useCustomerId();
   const { data } = useNotifications(customerId);
   const [selected, setSelected] = useState<Notification | null>(null);
   const [open, setOpen] = useState(false);

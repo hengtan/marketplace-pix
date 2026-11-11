@@ -8,13 +8,13 @@ import { Skeleton } from "@/components/ui/misc";
 import { useOrders } from "@/hooks/queries";
 import { usePageTitle } from "@/hooks/utils";
 import { formatDateTime, formatMoney, pluralize, shortId } from "@/lib/format";
-import { getCustomerId } from "@/store/customer";
+import { useCustomerId } from "@/store/customer";
 import { OrderStatusBadge } from "./order";
 
 export default function OrdersPage() {
   usePageTitle("Meus pedidos");
   const [page, setPage] = useState(1);
-  const { data, isPending, isError, error, refetch } = useOrders(getCustomerId(), page);
+  const { data, isPending, isError, error, refetch } = useOrders(useCustomerId(), page);
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
