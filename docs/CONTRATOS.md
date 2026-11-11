@@ -25,12 +25,13 @@ documento. Se precisar mudar algo, registre a mudança no relatório final em ve
 | ledger | 8005 | `ledger-api` |
 | notifications | 8006 | `notifications-api` |
 | assistant | 8007 | `assistant-api` |
+| identity | 8008 | `identity-api` |
 | frontend (dev) | 5173 | n/a |
 | Mailpit (SMTP / UI) | 1025 / 8025 | `mailpit` |
 
 Infra já em execução (use nos testes de integração): Postgres `localhost:5433` (usuário e senha no `.env` da raiz),
 Kafka `localhost:9094`, Redis `localhost:6380`. Bancos existentes: `ordering`, `payments`, `ledger`, `inventory`,
-`catalog`, `notifications`. Cada serviço só acessa o seu banco e usa `<serviço>_test` nos testes.
+`catalog`, `notifications`, `identity`. Cada serviço só acessa o seu banco e usa `<serviço>_test` nos testes.
 Em uma worktree o `.env` não existe (é ignorado pelo git): copie com
 `cp /Users/hengtan/Documents/git/estudos/marketplace-pix/.env .env`.
 
@@ -112,6 +113,7 @@ no gateway e o caminho real no serviço. O gateway implementa exatamente estas r
 - `/api/payments/dev/<resto>` → payments `/dev/<resto>`
 - `/api/notifications` e `/api/notifications/<resto>` → notifications `/notifications` e `/notifications/<resto>`
 - `/api/assistant/<resto>` → assistant `/<resto>`
+- `/api/auth/<resto>` → identity `/auth/<resto>`
 - `GET /api/health` → agrega o `/health` de todos os serviços
 
 Listas paginadas: `{ "items": [...], "total": 0, "page": 1, "page_size": 20 }`. Dinheiro sempre em centavos
@@ -144,7 +146,8 @@ Categoria: `slug`, `label`, `count`.
 |---|---|
 | `GET /api/inventory/stock?product_ids=a,b` | `GET /stock?product_ids=a,b` → `[{product_id, available, reserved}]` |
 | `GET /api/inventory/stock/{product_id}` | `GET /stock/{product_id}` |
-| `PUT /api/inventory/stock/{product_id}` | `PUT /stock/{product_id}` com `{ "available": 10 }` |
+| `PUT /api/inventory/stock/{product_id}` | `PUT /stock/{product_id}` com `{ "available": 10 }` (lojista só nos próprios produtos, `403` nos demais; `admin` em todos) |
+| `GET /api/inventory/stock/mine` | `GET /stock/mine` → estoque dos produtos do lojista do token |
 
 ### ordering (porta 8001)
 
@@ -153,13 +156,24 @@ Categoria: `slug`, `label`, `count`.
 | `POST /api/orders` | `POST /orders` (header `Idempotency-Key` obrigatório) |
 | `GET /api/orders/{id}` | `GET /orders/{id}` |
 | `GET /api/orders?customer_id=&page=&page_size=` | `GET /orders?...` |
+| `GET /api/orders/merchant?page=&page_size=` | `GET /orders/merchant?...` |
 
-`POST` corpo: `customer_id`, `customer_name`, `customer_email`, `items[]` com `product_id` e `quantity`.
+`POST` corpo: `customer_id` (obrigatório só no checkout de convidado; com token vale o `sub` e um valor
+diferente dá `403`), `customer_name`, `customer_email`, `items[]` com `product_id` e `quantity`.
+Autorização por objeto: um pedido feito com token pertence ao usuário (`owner_id`); `GET /orders/{id}` de
+pedido alheio responde `404` (igual ao inexistente), `GET /orders` lista só os do token (`customer_id` de
+outra pessoa dá `403`; `admin` pode consultar qualquer um). Pedido de convidado é lido por quem tem o id e
+listado por `customer_id` sem token, e nunca aparece na conta de um usuário. `GET /orders/merchant` devolve só
+os pedidos que têm itens do lojista do token, com só os itens dele: `id`, `status`, `currency`, `created_at`,
+`customer_name`, `subtotal_cents`, `items[]` (sem e-mail do cliente).
 **O preço e o `merchant_id` vêm do catálogo**, nunca do cliente. Resposta `201`: `{ "id": "..." }`.
 Pedido: `id`, `customer_id`, `customer_name`, `customer_email`, `status` (`PENDING|PAID|CANCELLED`), `currency`,
 `total_cents`, `created_at`, `cancel_reason` (nulo), `items[]` (`product_id`, `merchant_id`, `quantity`, `unit_price_cents`).
 
 ### payments (porta 8002)
+
+`GET /api/payments/by-order/{id}` só responde para quem pode ver o pedido (o gateway consulta o ordering com
+a identidade do chamador antes; `404` caso contrário).
 
 | Gateway | Serviço |
 |---|---|
@@ -170,6 +184,9 @@ Pagamento: `id`, `order_id`, `status` (`PENDING|CONFIRMED|EXPIRED|CANCELLED`), `
 `pix_code`, `psp_charge_id`, `expires_at`, `confirmed_at`.
 
 ### ledger (porta 8005)
+
+Todas as rotas exigem token. O lojista só enxerga o próprio `merchant_id` e a própria conta
+`merchant:<id>` (`403` nas demais, inclusive `platform:revenue` e `psp:receivable`); `admin` enxerga tudo.
 
 | Gateway | Serviço |
 |---|---|
@@ -187,6 +204,9 @@ Regra de split: taxa da plataforma de 10% (1000 bps) sobre o subtotal de cada lo
 centavo mais próximo; o lojista recebe o restante. Em cada transação, débitos = créditos.
 
 ### notifications (porta 8006)
+
+Exige token. O gateway reescreve `customer_id` com o `sub` do token (`403` se vier outro; `admin` escolhe).
+Como o convidado não tem token, ele não lista notificações.
 
 | Gateway | Serviço |
 |---|---|
@@ -223,6 +243,71 @@ Ferramentas do agente (chamam os outros serviços por HTTP): `search_products`, 
 Proxy reverso FastAPI. Roteia `/api/<serviço>/...` para o serviço, repassa método, corpo, query e headers
 relevantes (incluindo `Idempotency-Key`), cria `X-Request-Id`, aplica CORS para `http://localhost:5173`,
 agrega `GET /api/health`.
+
+### identity (porta 8008): autenticação e autorização
+
+Decisão e justificativa em `docs/adr/0001-identidade-como-servico.md`. O frontend fala só com `/api/auth/*`.
+
+| Gateway | Acesso | Corpo e resposta |
+|---|---|---|
+| `POST /api/auth/register` | anônimo | `{ email, name, password }` → `201` com tokens (cria sempre um `customer`) |
+| `POST /api/auth/login` | anônimo | `{ email, password }` → `200` com tokens |
+| `POST /api/auth/refresh` | anônimo | `{ refresh_token }` → `200` com tokens novos (o antigo morre) |
+| `POST /api/auth/logout` | anônimo | `{ refresh_token }` → `204` (revoga a sessão; idempotente) |
+| `GET /api/auth/me` | token | perfil do usuário do token |
+| `POST /api/auth/admin/users` | `admin` | `{ email, name, password, roles[], merchant_id ou merchant_slug }` → `201` (cria lojista ou admin) |
+
+Resposta de `register`, `login` e `refresh`: `access_token` (JWT), `refresh_token` (opaco), `token_type`
+(`Bearer`), `expires_in` (segundos, 600) e `user` (`id`, `email`, `name`, `roles[]`, `merchant_id`). Erros:
+`401 invalid credentials` (mesma resposta para e-mail inexistente, senha errada, conta bloqueada ou
+desativada), `401 invalid refresh token`, `409 email already registered`, `422` (e-mail ou senha fora da
+política: mínimo de 10 caracteres). Respostas de token vêm com `Cache-Control: no-store`.
+
+Uso no frontend:
+
+1. Guardar `access_token` em memória e mandar `Authorization: Bearer <token>` em toda chamada autenticada.
+2. Guardar o `refresh_token` (idealmente em cookie `HttpOnly` quando houver um BFF; no estudo, `sessionStorage`).
+3. Ao receber `401` com token que deveria valer, chamar `/api/auth/refresh` **uma única vez** e repetir a
+   chamada. Se o refresh também der `401`, a sessão acabou: voltar ao login. Nunca reutilizar um refresh antigo
+   (reapresentar um token já usado revoga a sessão inteira nos dois dispositivos).
+4. O `access_token` é um JWT `EdDSA`; as claims úteis para a UI são `roles`, `scope` e `merchant_id`
+   (decodificar para exibir, nunca para decidir segurança: o servidor revalida tudo).
+5. `Authorization` precisa estar em `Access-Control-Allow-Headers` (o gateway já permite).
+
+Papéis e escopos:
+
+| Papel | Escopos |
+|---|---|
+| `customer` | `orders:create`, `orders:read:own`, `notifications:read:own` |
+| `merchant` | os de `customer` mais `orders:read:merchant`, `stock:write:own`, `ledger:read:own` (e `merchant_id` no token) |
+| `admin` | os de `customer` mais `orders:read:any`, `orders:read:merchant`, `stock:write:any`, `ledger:read:any`, `ledger:reconcile`, `users:manage`, `assistant:admin` |
+
+Contas de desenvolvimento (criadas por `identity-seed` quando `IDENTITY_SEED_PASSWORD` existe no `.env`; a
+senha é a desse segredo): `admin@marketplace-pix.local` (admin) e um lojista por loja,
+`aurora-tech@marketplace-pix.local`, `casa-lume@marketplace-pix.local` e `trilha-sports@marketplace-pix.local`.
+O `merchant_id` do lojista é o do seed da seção 6.
+
+Matriz de acesso no gateway (`401` sem token válido, `403` sem o escopo):
+
+| Rota | Acesso |
+|---|---|
+| `GET /api/catalog/**`, `GET /api/inventory/stock**` | público |
+| `POST /api/orders` | anônimo (convidado) ou autenticado; `ALLOW_GUEST_CHECKOUT=false` exige token |
+| `GET /api/orders`, `GET /api/orders/{id}`, `GET /api/payments/by-order/{id}` | anônimo ou autenticado; o serviço decide pelo dono |
+| `GET /api/orders/merchant` | `orders:read:merchant` |
+| `PUT /api/inventory/stock/{id}`, `GET /api/inventory/stock/mine` | `stock:write:own` ou `stock:write:any` |
+| `GET /api/ledger/**` | `ledger:read:own` ou `ledger:read:any` (o serviço confere o lojista) |
+| `GET /api/ledger/reconciliation` | `ledger:reconcile` |
+| `GET /api/notifications**` | `notifications:read:own` (o gateway força `customer_id` do token; `admin` pode escolher) |
+| `POST /api/payments/dev/**` | token (e só com `ENABLE_DEV_ROUTES`) |
+| `POST /api/assistant/admin/**` | `assistant:admin` |
+| `GET\|POST /api/assistant/**` | anônimo ou autenticado |
+
+Identidade para os serviços (não é contrato do frontend): o gateway remove `Authorization` e qualquer
+`X-User-Id`, `X-User-Roles`, `X-User-Scopes`, `X-Merchant-Id`, `X-Auth-Ts` e `X-Auth-Sig` vindos do cliente e,
+com token válido, injeta esses cabeçalhos assinados com `INTERNAL_AUTH_SECRET` (HMAC-SHA256 sobre usuário,
+papéis, escopos, lojista, carimbo e `X-Request-Id`, validade de 60 s). Serviço sem a assinatura correta trata a
+chamada como anônima.
 
 ## 6. Dados de seed (determinísticos)
 

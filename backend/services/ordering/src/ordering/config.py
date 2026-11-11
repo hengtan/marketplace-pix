@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     ordering_db: str = "ordering"
     kafka_bootstrap_servers: str = "localhost:9094"
     catalog_url: str = "http://localhost:8003"
+    internal_auth_secret: str = ""
 
     @property
     def database_url(self) -> str:

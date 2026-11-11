@@ -19,6 +19,7 @@ class StockModel(Base):
     product_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     available: Mapped[int] = mapped_column(Integer)
     reserved: Mapped[int] = mapped_column(Integer, server_default="0")
+    merchant_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

@@ -30,11 +30,14 @@ class SqlAlchemyStockRepository:
         if lock:
             stmt = stmt.with_for_update()
         rows = (await self._session.execute(stmt)).scalars().all()
-        return {r.product_id: Stock(r.product_id, r.available, r.reserved) for r in rows}
+        return {r.product_id: _stock(r) for r in rows}
 
     async def save(self, stock: Stock) -> None:
         stmt = insert(StockModel).values(
-            product_id=stock.product_id, available=stock.available, reserved=stock.reserved
+            product_id=stock.product_id,
+            available=stock.available,
+            reserved=stock.reserved,
+            merchant_id=stock.merchant_id,
         )
         await self._session.execute(
             stmt.on_conflict_do_update(
@@ -50,7 +53,21 @@ class SqlAlchemyStockRepository:
     async def list_all(self, limit: int) -> list[Stock]:
         stmt = select(StockModel).order_by(StockModel.product_id).limit(limit)
         rows = (await self._session.execute(stmt)).scalars().all()
-        return [Stock(r.product_id, r.available, r.reserved) for r in rows]
+        return [_stock(r) for r in rows]
+
+    async def list_by_merchant(self, merchant_id: UUID, limit: int) -> list[Stock]:
+        stmt = (
+            select(StockModel)
+            .where(StockModel.merchant_id == merchant_id)
+            .order_by(StockModel.product_id)
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [_stock(r) for r in rows]
+
+
+def _stock(row: StockModel) -> Stock:
+    return Stock(row.product_id, row.available, row.reserved, row.merchant_id)
 
 
 def _to_domain(row: ReservationModel) -> Reservation:

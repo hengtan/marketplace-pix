@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ordering.application.ports import OwnerScope
 from ordering.domain.money import Money
 from ordering.domain.order import Order, OrderItem, OrderStatus
 from ordering.infrastructure.db.models import OrderItemModel, OrderModel
@@ -29,6 +30,7 @@ def _to_domain(model: OrderModel) -> Order:
         status=OrderStatus(model.status),
         cancel_reason=model.cancel_reason,
         created_at=model.created_at,
+        owner_id=model.owner_id,
     )
 
 
@@ -41,6 +43,7 @@ class SqlAlchemyOrderRepository:
             OrderModel(
                 id=order.id,
                 customer_id=order.customer_id,
+                owner_id=order.owner_id,
                 customer_name=order.customer_name,
                 customer_email=order.customer_email,
                 status=order.status.value,
@@ -79,16 +82,32 @@ class SqlAlchemyOrderRepository:
         model.cancel_reason = order.cancel_reason
 
     async def list_by_customer(
-        self, customer_id: UUID, page: int, page_size: int
+        self, customer_id: UUID, page: int, page_size: int, scope: OwnerScope
+    ) -> tuple[list[Order], int]:
+        condition = [OrderModel.customer_id == customer_id]
+        if scope is OwnerScope.OWNED:
+            condition.append(OrderModel.owner_id == customer_id)
+        elif scope is OwnerScope.GUEST:
+            condition.append(OrderModel.owner_id.is_(None))
+        return await self._page(condition, page, page_size)
+
+    async def list_by_merchant(
+        self, merchant_id: UUID, page: int, page_size: int
+    ) -> tuple[list[Order], int]:
+        mine = OrderModel.id.in_(
+            select(OrderItemModel.order_id).where(OrderItemModel.merchant_id == merchant_id)
+        )
+        return await self._page([mine], page, page_size)
+
+    async def _page(
+        self, condition: list[ColumnElement[bool]], page: int, page_size: int
     ) -> tuple[list[Order], int]:
         total = await self._session.scalar(
-            select(func.count())
-            .select_from(OrderModel)
-            .where(OrderModel.customer_id == customer_id)
+            select(func.count()).select_from(OrderModel).where(*condition)
         )
         stmt = (
             select(OrderModel)
-            .where(OrderModel.customer_id == customer_id)
+            .where(*condition)
             .options(selectinload(OrderModel.items))
             .order_by(OrderModel.created_at.desc(), OrderModel.id)
             .offset((page - 1) * page_size)

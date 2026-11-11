@@ -7,6 +7,7 @@ import pytest
 from ledger.application.handle_order_event import HandleOrderEvent
 from ledger.application.handle_payment_event import HandlePaymentEvent
 from ledger.interface.api import create_app
+from tests.auth import SECRET, as_user
 from tests.builders import order_created, payment_confirmed
 from tests.fakes import FakeDatabase, FakeUow
 
@@ -26,9 +27,11 @@ async def sell(db, merchant, cents, when):
 @pytest.fixture
 async def env():
     db = FakeDatabase()
-    app = create_app(uow_factory=lambda: FakeUow(db), clock=lambda: TODAY)
+    app = create_app(uow_factory=lambda: FakeUow(db), clock=lambda: TODAY, internal_secret=SECRET)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://t", headers=as_user(("admin",))
+    ) as client:
         yield client, db
 
 

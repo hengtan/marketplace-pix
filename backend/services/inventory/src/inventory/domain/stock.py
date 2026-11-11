@@ -11,6 +11,7 @@ class Stock:
     product_id: UUID
     available: int = 0
     reserved: int = 0
+    merchant_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.available < 0 or self.reserved < 0:

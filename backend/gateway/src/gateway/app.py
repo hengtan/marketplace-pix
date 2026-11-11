@@ -10,8 +10,10 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from marketplace_common.observability import get_request_id
+from marketplace_common.security import strip_identity_headers
 from starlette.background import BackgroundTask
 
+from gateway.auth import Denied, GatewayAuth, JwksCache, TokenVerifier
 from gateway.config import Settings
 from gateway.rate_limit import RateLimiter
 from gateway.routes import resolve
@@ -48,6 +50,19 @@ def _json(
     return response
 
 
+def _build_auth(settings: Settings, client: httpx.AsyncClient) -> GatewayAuth | None:
+    if not settings.auth_enabled:
+        return None
+    jwks = JwksCache(f"{settings.identity_url}/.well-known/jwks.json", client)
+    verifier = TokenVerifier(jwks, settings.jwt_issuer, settings.jwt_audience)
+    return GatewayAuth(
+        verifier,
+        settings.internal_auth_secret,
+        guest_checkout=settings.allow_guest_checkout,
+        ordering_url=settings.ordering_url,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -60,6 +75,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.client = httpx.AsyncClient(timeout=settings.upstream_timeout, transport=transport)
+        app.state.auth = _build_auth(settings, app.state.client)
         yield
         await app.state.client.aclose()
 
@@ -68,7 +84,13 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_methods=METHODS,
-        allow_headers=["Content-Type", "Idempotency-Key", "If-None-Match", "X-Request-Id"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "If-None-Match",
+            "X-Request-Id",
+        ],
         expose_headers=["Idempotent-Replayed", "X-Request-Id", "ETag"],
     )
 
@@ -110,13 +132,23 @@ def create_app(
         if target is None or (target.dev_only and not settings.enable_dev_routes):
             return _json(404, "not found", request_id)
 
-        headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
-        headers["x-request-id"] = request_id
         client: httpx.AsyncClient = request.app.state.client
+        auth: GatewayAuth | None = request.app.state.auth
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
+        headers = strip_identity_headers(headers)
+        query = request.url.query
+        if auth is not None:
+            decision = await auth.authorize(request, client, request_id)
+            if isinstance(decision, Denied):
+                challenge = {"WWW-Authenticate": "Bearer"} if decision.challenge else None
+                return _json(decision.status, decision.detail, request_id, challenge)
+            query = decision.query
+            headers = auth.upstream_headers(headers, decision.principal, request_id)
+        headers["x-request-id"] = request_id
         upstream_request = client.build_request(
             request.method,
             upstreams[target.service] + target.path,
-            params=request.url.query,
+            params=query,
             content=await request.body(),
             headers=headers,
         )

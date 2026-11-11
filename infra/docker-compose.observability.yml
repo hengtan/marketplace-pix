@@ -54,6 +54,9 @@ services:
   gateway:
     environment: *otel
 
+  identity-api:
+    environment: *otel
+
   ordering-api:
     environment: *otel
   ordering-worker:

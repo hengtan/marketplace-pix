@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from types import TracebackType
 from typing import Protocol, Self
 from uuid import UUID
 
 from ordering.domain.events import DomainEvent
 from ordering.domain.order import Order
+
+
+class OwnerScope(StrEnum):
+    OWNED = "owned"
+    GUEST = "guest"
+    ANY = "any"
 
 
 class OrderRepository(Protocol):
@@ -17,7 +24,11 @@ class OrderRepository(Protocol):
     async def save(self, order: Order) -> None: ...
 
     async def list_by_customer(
-        self, customer_id: UUID, page: int, page_size: int
+        self, customer_id: UUID, page: int, page_size: int, scope: OwnerScope
+    ) -> tuple[list[Order], int]: ...
+
+    async def list_by_merchant(
+        self, merchant_id: UUID, page: int, page_size: int
     ) -> tuple[list[Order], int]: ...
 
 

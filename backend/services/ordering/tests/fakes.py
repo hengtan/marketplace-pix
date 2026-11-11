@@ -2,7 +2,7 @@ import copy
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from ordering.application.errors import CatalogUnavailable
-from ordering.application.ports import CatalogProduct, IdempotencyRecord
+from ordering.application.ports import CatalogProduct, IdempotencyRecord, OwnerScope
 from ordering.domain.events import DomainEvent
 from ordering.domain.order import Order
 
@@ -32,9 +32,21 @@ class FakeOrders:
         self._uow.staged_orders[order.id] = persisted(order)
 
     async def list_by_customer(
-        self, customer_id: UUID, page: int, page_size: int
+        self, customer_id: UUID, page: int, page_size: int, scope: OwnerScope = OwnerScope.GUEST
     ) -> tuple[list[Order], int]:
         mine = [o for o in self._uow.db.orders.values() if o.customer_id == customer_id]
+        if scope is OwnerScope.OWNED:
+            mine = [o for o in mine if o.owner_id == customer_id]
+        elif scope is OwnerScope.GUEST:
+            mine = [o for o in mine if o.owner_id is None]
+        mine.reverse()
+        start = (page - 1) * page_size
+        return [copy.deepcopy(o) for o in mine[start : start + page_size]], len(mine)
+
+    async def list_by_merchant(
+        self, merchant_id: UUID, page: int, page_size: int
+    ) -> tuple[list[Order], int]:
+        mine = [o for o in self._uow.db.orders.values() if o.items_of(merchant_id)]
         mine.reverse()
         start = (page - 1) * page_size
         return [copy.deepcopy(o) for o in mine[start : start + page_size]], len(mine)

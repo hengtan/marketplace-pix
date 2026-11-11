@@ -18,6 +18,7 @@ class OrderModel(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     customer_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    owner_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     customer_name: Mapped[str] = mapped_column(String(120))
     customer_email: Mapped[str] = mapped_column(String(254))
     status: Mapped[str] = mapped_column(String(20))
@@ -41,7 +42,7 @@ class OrderItemModel(Base):
     )
     position: Mapped[int] = mapped_column(Integer, primary_key=True)
     product_id: Mapped[UUID] = mapped_column(Uuid)
-    merchant_id: Mapped[UUID] = mapped_column(Uuid)
+    merchant_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price_cents: Mapped[int] = mapped_column(BigInteger)
 
