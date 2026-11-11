@@ -81,7 +81,7 @@ const ordersRoute = createRoute({
 const authSearch = z.object({ redirect: z.optional(z.string()) });
 
 async function requireSession({ location }: { location: { href: string } }) {
-  await restoreSession();
+  if (!isSignedIn()) await restoreSession();
   if (!isSignedIn()) throw redirect({ to: "/entrar", search: { redirect: location.href } });
 }
 
