@@ -161,6 +161,24 @@ async def test_create_and_cancel_are_retried_because_they_are_idempotent() -> No
     assert await wrap(psp).cancel_charge(charge.id) is True
 
 
+async def test_refund_goes_through_the_same_protection_as_the_other_operations() -> None:
+    psp = FlakyPsp()
+    charge = await psp.create_charge("o10", Money(500, "BRL"), NOW)
+    psp.statuses[charge.id] = ChargeStatus.PAID
+    calls = {"n": 0}
+    original = psp.refund_charge
+
+    async def flaky_refund(charge_id: str) -> bool:
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise ConnectionError("blip")
+        return await original(charge_id)
+
+    psp.refund_charge = flaky_refund  # type: ignore[method-assign]
+    assert await wrap(psp).refund_charge(charge.id) is True
+    assert calls["n"] == 2 and psp.statuses[charge.id] == ChargeStatus.REFUNDED
+
+
 async def test_webhook_answers_503_with_retry_after_while_the_psp_is_down() -> None:
     db, inner, clock = FakeDatabase(), FlakyPsp(), Clock()
     order_id = uuid4()

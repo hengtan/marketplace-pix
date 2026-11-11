@@ -35,9 +35,9 @@ def _is_transient(error: BaseException) -> bool:
 class ResilientPsp:
     """Decora o PSP com timeout (limitado pelo deadline), retry, circuit breaker e bulkhead.
 
-    As três operações do PSP são idempotentes (cobrança por referência, leitura de status e
-    cancelamento), então todas podem ser retentadas. Qualquer falha vira `PspUnavailable`, que a
-    API traduz em 503 + Retry-After para o PSP reenviar o webhook mais tarde.
+    As quatro operações do PSP são idempotentes (cobrança por referência, leitura de status,
+    cancelamento e estorno), então todas podem ser retentadas. Qualquer falha vira
+    `PspUnavailable`, que a API traduz em 503 + Retry-After para o PSP reenviar o webhook.
     """
 
     def __init__(
@@ -115,3 +115,6 @@ class ResilientPsp:
 
     async def cancel_charge(self, charge_id: str) -> bool:
         return await self._call("cancel_charge", lambda: self._inner.cancel_charge(charge_id))
+
+    async def refund_charge(self, charge_id: str) -> bool:
+        return await self._call("refund_charge", lambda: self._inner.refund_charge(charge_id))
