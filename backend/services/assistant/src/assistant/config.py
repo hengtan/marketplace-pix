@@ -48,11 +48,12 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     retrieval_min_score: float = 0.1
     retrieval_relative_cutoff: float = 0.5
-    retrieval_rewrite: Literal["off", "always", "adaptive"] = "adaptive"
+    retrieval_rewrite: Literal["off", "always", "adaptive"] = "always"
     retrieval_typo_correction: bool = True
     retrieval_hyde: bool = False
     retrieval_decompose: bool = True
     retrieval_negation: bool = True
+    retrieval_parent_documents: bool = True
 
     kafka_bootstrap_servers: str = "localhost:9094"
     cache_enabled: bool = True

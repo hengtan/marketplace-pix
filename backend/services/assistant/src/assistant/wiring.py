@@ -113,6 +113,7 @@ def retrieval_config(settings: Settings) -> RetrievalConfig:
         hyde=settings.retrieval_hyde,
         decompose=settings.retrieval_decompose,
         negation=settings.retrieval_negation,
+        parent_documents=settings.retrieval_parent_documents,
     )
 
 

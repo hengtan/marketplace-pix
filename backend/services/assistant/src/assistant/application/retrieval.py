@@ -119,7 +119,7 @@ class HybridRetriever:
             top = _one_per_product(
                 [p.with_score(round(p.rating / 5, 4), "browse") for p in browsed]
             )[: cfg.final]
-            top = self._exclude(top, part.exclusions)
+            top = await self._expand_parents(self._exclude(top, part.exclusions))
             return RetrievalResult(top, filters, residual, "browse", top)
 
         direct = cfg.rewrite == "always" or (cfg.rewrite == "off" and cfg.hyde)
