@@ -15,9 +15,7 @@ _MIN_PRICE = re.compile(
     rf"(?:\s*(?:reais|real))?"
 )
 _CATEGORY_STOP = frozenset({"e", "de", "da", "do", "para", "com"})
-_SORT_PRICE = re.compile(
-    r"\b(?:mais barat\w*|menor(?:es)? preco\w*|mais em conta)\b"
-)
+_SORT_PRICE = re.compile(r"\b(?:mais barat\w*|menor(?:es)? preco\w*|mais em conta)\b")
 _SORT_RATING = re.compile(
     r"\b(?:mais bem avaliad\w*|melhor(?:es)? avaliad\w*|melhor(?:es)? avaliac\w*"
     r"|melhor nota|maior nota)\b"

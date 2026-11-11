@@ -1,6 +1,7 @@
 import re
 import unicodedata
 
+# fmt: off
 STOPWORDS = frozenset(
     {
         "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das", "em",
@@ -18,6 +19,7 @@ STOPWORDS = frozenset(
         "mostrando",
     }
 )
+# fmt: on
 
 _NON_WORD = re.compile(r"[^a-z0-9]+")
 
@@ -42,7 +44,7 @@ _SUFFIXES = (
     "aveis", "avel", "osos", "osas", "oso", "osa", "ando", "endo", "indo", "ados", "adas", "ado",
     "ada", "idos", "idas", "ido", "ida", "ar", "er", "ir", "as", "os", "es", "a", "o", "e", "s",
 )  # fmt: skip
-_MIN_STEM = 3
+_MIN_STEM = 4
 
 
 def stem(token: str) -> str:

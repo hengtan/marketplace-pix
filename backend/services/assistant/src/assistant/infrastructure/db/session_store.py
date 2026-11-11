@@ -16,9 +16,7 @@ class PgSessionStore(SessionStore):
 
     async def ensure(self, session_id: UUID) -> datetime:
         async with self._factory.begin() as session:
-            await session.execute(
-                insert(SessionRow).values(id=session_id).on_conflict_do_nothing()
-            )
+            await session.execute(insert(SessionRow).values(id=session_id).on_conflict_do_nothing())
             created = await session.scalar(
                 select(SessionRow.created_at).where(SessionRow.id == session_id)
             )
@@ -31,9 +29,7 @@ class PgSessionStore(SessionStore):
                 select(SessionRow.created_at).where(SessionRow.id == session_id)
             )
 
-    async def append(
-        self, session_id: UUID, role: str, content: str, meta: dict[str, Any]
-    ) -> None:
+    async def append(self, session_id: UUID, role: str, content: str, meta: dict[str, Any]) -> None:
         async with self._factory.begin() as session:
             session.add(MessageRow(session_id=session_id, role=role, content=content, meta=meta))
 

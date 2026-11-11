@@ -155,6 +155,4 @@ def build_container(
         embedder,
         RecursiveChunker(settings.chunk_size, settings.chunk_overlap),
     )
-    return Container(
-        settings, chat, ingest, retriever, PgEvalStore(factory), embedder, llm, owned
-    )
+    return Container(settings, chat, ingest, retriever, PgEvalStore(factory), embedder, llm, owned)

@@ -91,4 +91,3 @@ def _last_products(history: Sequence[Turn]) -> list[UUID]:
         if turn.role == "assistant" and turn.product_ids:
             return list(turn.product_ids)
     return []
-

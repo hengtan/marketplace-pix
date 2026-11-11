@@ -74,9 +74,7 @@ class PromptBuilder:
             name, flagged_name = sanitize_untrusted(passage.name)
             flagged_total += flagged + flagged_name
             context.append(
-                ContextItem(
-                    index, _replace(passage, content=content, name=name or passage.slug)
-                )
+                ContextItem(index, _replace(passage, content=content, name=name or passage.slug))
             )
         clean_observations: list[Observation] = []
         for obs in observations:
