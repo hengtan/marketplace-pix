@@ -810,8 +810,9 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=0.51b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.30.0" },
     { name = "prometheus-client", specifier = ">=0.21.0" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.2.0" },
 ]
-provides-extras = ["kafka", "sqlalchemy"]
+provides-extras = ["kafka", "sqlalchemy", "redis"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -821,6 +822,7 @@ dev = [
     { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.51b0" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.1.post1" },
+    { name = "redis", specifier = ">=5.2.0" },
     { name = "ruff", specifier = ">=0.17.4" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.8" },
 ]

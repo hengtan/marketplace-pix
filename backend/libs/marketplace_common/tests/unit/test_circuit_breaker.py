@@ -296,3 +296,19 @@ def test_registry_reuses_breakers_and_reports_snapshots() -> None:
 def test_invalid_configuration_is_rejected(bad: dict[str, float]) -> None:
     with pytest.raises(ValueError):
         BreakerConfig(**bad)  # type: ignore[arg-type]
+
+
+async def test_abandoned_async_generator_is_neutral() -> None:
+    breaker = make(FakeClock(), "t-gen", minimum_calls=1, window_size=2)
+
+    async def stream():  # type: ignore[no-untyped-def]
+        async with breaker.guard():
+            for i in range(5):
+                yield i
+
+    for _ in range(3):
+        generator = stream()
+        assert await generator.__anext__() == 0
+        await generator.aclose()
+    assert breaker.state is BreakerState.CLOSED
+    assert breaker.snapshot()["calls_in_window"] == 0

@@ -227,7 +227,7 @@ class CircuitBreaker:
         permit = self._acquire()
         try:
             yield permit
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, GeneratorExit):
             permit.done = True
             self._release(permit)
             raise
