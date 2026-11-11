@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from payments.application.expire_payments import ExpirePayments
 from payments.application.handle_order_event import HandleOrderEvent
+from payments.application.ports import ChargeStatus
 from payments.infrastructure.db.models import OutboxEventModel
 from payments.infrastructure.psp.simulated import SimulatedPsp
 from payments.interface.api import create_app
@@ -99,11 +100,12 @@ async def test_expiry_marks_payment_expired_and_blocks_late_payment(
     )
 
     later = lambda: datetime.now(UTC) + timedelta(hours=1)  # noqa: E731
-    assert await ExpirePayments(uow_factory, clock=later).run_once() == 1
-    assert await ExpirePayments(uow_factory, clock=later).run_once() == 0
+    assert await ExpirePayments(uow_factory, psp, clock=later).run_once() == 1
+    assert await ExpirePayments(uow_factory, psp, clock=later).run_once() == 0
 
     assert (await client.get(f"/payments/by-order/{event.key}")).json()["status"] == "EXPIRED"
     assert await outbox_types(session_factory) == ["PaymentCreated", "PaymentExpired"]
+    assert await psp.get_charge_status(charge_id) is ChargeStatus.CANCELLED
     late_psp = SimulatedPsp(session_factory, clock=later)
     assert await late_psp.mark_paid(charge_id) is False
 

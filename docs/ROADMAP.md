@@ -33,7 +33,7 @@ Motivo: é o coração. Aqui moram o domínio (DDD), o ACID com Unit of Work, o 
 - [ ] Mensagem que falha sempre (poison): retry limitado e `orders.events.dlq`
 - [x] Limpeza (TTL) do inbox e do outbox publicado
 - [x] Reembolso de pagamento tardio (`PaymentRefundRequested`, `PaymentRefunded`, estorno no ledger e estoque devolvido)
-- [ ] Cancelar a cobrança no PSP quando expira
+- [x] Cancelar a cobrança no PSP quando expira (se o PSP recusa porque já foi paga, o pagamento segue pendente para o webhook)
 - [ ] Extrair outbox, relay e inbox para `backend/libs` (hoje copiados do ordering)
 
 ## Fase 3: Saga completa (ordering + payments) (FEITA)

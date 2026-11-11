@@ -43,7 +43,7 @@ async def main() -> None:
     consumer = KafkaEventConsumer(
         settings.kafka_bootstrap_servers, ORDERS_TOPIC, CONSUMER_GROUP, handler
     )
-    expirer = ExpirePayments(uow_factory)
+    expirer = ExpirePayments(uow_factory, psp)
 
     policy = RetentionPolicy.from_env()
     cleanup = CleanupJob(engine, [outbox_target(policy), inbox_target(policy)], policy)
